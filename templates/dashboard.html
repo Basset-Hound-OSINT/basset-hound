@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>People Manager - Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .sidebar {
+            background-color: white;
+            height: 100vh;
+            border-right: 1px solid #dee2e6;
+            padding: 20px 0;
+        }
+        .content {
+            padding: 20px;
+        }
+        .person-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            max-height: calc(100vh - 250px);
+            overflow-y: auto;
+        }
+        .person-item {
+            padding: 10px 15px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+        .person-item:hover, .person-item.active {
+            background-color: #f1f8ff;
+            border-left: 3px solid #0d6efd;
+        }
+        .person-details {
+            background-color: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+        .profile-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .add-person-form {
+            background-color: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            margin-bottom: 20px;
+        }
+        .project-info {
+            padding: 15px;
+            background-color: #e9ecef;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <div class="col-md-3 sidebar">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h3>People Manager</h3>
+                    <button class="btn btn-sm btn-outline-primary" id="add-person-btn">Add Person</button>
+                </div>
+                
+                <div class="project-info">
+                    <h5>{{ project.name }}</h5>
+                    <p class="text-muted">Started: {{ project.start_date }}</p>
+                </div>
+                
+                <div class="mb-3">
+                    <input type="text" class="form-control" id="search-input" placeholder="Search people...">
+                </div>
+                
+                <ul class="person-list" id="person-list">
+                    <!-- Will be populated dynamically -->
+                </ul>
+            </div>
+            
+            <!-- Main Content -->
+            <div class="col-md-9 content">
+                <div class="add-person-form" id="add-person-form" style="display: none;">
+                    <h4>Add New Person</h4>
+                    <form action="/add_person" method="post">
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label for="first_name" class="form-label">First Name</label>
+                                <input type="text" class="form-control" id="first_name" name="first_name" required>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label for="middle_name" class="form-label">Middle Name</label>
+                                <input type="text" class="form-control" id="middle_name" name="middle_name">
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label for="last_name" class="form-label">Last Name</label>
+                                <input type="text" class="form-control" id="last_name" name="last_name" required>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="date_of_birth" class="form-label">Date of Birth</label>
+                            <input type="date" class="form-control" id="date_of_birth" name="date_of_birth">
+                        </div>
+                        <div class="d-flex justify-content-end">
+                            <button type="button" class="btn btn-secondary me-2" id="cancel-add">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Save Person</button>
+                        </div>
+                    </form>
+                </div>
+                
+                <div class="person-details" id="person-details">
+                    <div class="text-center py-5" id="no-selection">
+                        <h4 class="text-muted">Select a person from the list to view details</h4>
+                    </div>
+                    
+                    <div id="person-profile" style="display: none;">
+                        <div class="profile-header">
+                            <h3 id="profile-name"></h3>
+                            <div>
+                                <button class="btn btn-outline-primary me-2" id="edit-person-btn">Edit</button>
+                                <button class="btn btn-outline-danger" id="delete-person-btn">Delete</button>
+                            </div>
+                        </div>
+                        
+                        <div id="profile-view">
+                            <div class="row mb-3">
+                                <div class="col-md-3 text-muted">First Name:</div>
+                                <div class="col-md-9" id="view-first-name"></div>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-md-3 text-muted">Middle Name:</div>
+                                <div class="col-md-9" id="view-middle-name"></div>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-md-3 text-muted">Last Name:</div>
+                                <div class="col-md-9" id="view-last-name"></div>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-md-3 text-muted">Date of Birth:</div>
+                                <div class="col-md-9" id="view-dob"></div>
+                            </div>
+                        </div>
+                        
+                        <div id="profile-edit" style="display: none;">
+                            <form id="edit-person-form">
+                                <div class="row">
+                                    <div class="col-md-4 mb-3">
+                                        <label for="edit_first_name" class="form-label">First Name</label>
+                                        <input type="text" class="form-control" id="edit_first_name" name="first_name" required>
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label for="edit_middle_name" class="form-label">Middle Name</label>
+                                        <input type="text" class="form-control" id="edit_middle_name" name="middle_name">
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label for="edit_last_name" class="form-label">Last Name</label>
+                                        <input type="text" class="form-control" id="edit_last_name" name="last_name" required>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="edit_date_of_birth" class="form-label">Date of Birth</label>
+                                    <input type="date" class="form-control" id="edit_date_of_birth" name="date_of_birth">
+                                </div>
+                                <div class="d-flex justify-content-end">
+                                    <button type="button" class="btn btn-secondary me-2" id="cancel-edit">Cancel</button>
+                                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let people = [];
+        let selectedPersonId = null;
+
+        // Function to fetch all people
+        async function fetchPeople() {
+            const response = await fetch('/get_people');
+            people = await response.json();
+            renderPeopleList();
+        }
+
+        // Function to render the people list
+        function renderPeopleList() {
+            const personList = document.getElementById('person-list');
+            personList.innerHTML = '';
+            
+            people.forEach((person, index) => {
+                const li = document.createElement('li');
+                li.className = 'person-item' + (index === selectedPersonId ? ' active' : '');
+                li.textContent = `${person.first_name} ${person.last_name}`;
+                li.addEventListener('click', () => selectPerson(index));
+                personList.appendChild(li);
+            });
+        }
+
+        // Function to select a person
+        async function selectPerson(personId) {
+            selectedPersonId = personId;
+            renderPeopleList();
+            
+            const response = await fetch(`/get_person/${personId}`);
+            const person = await response.json();
+            
+            document.getElementById('no-selection').style.display = 'none';
+            document.getElementById('person-profile').style.display = 'block';
+            
+            // Update profile view
+            document.getElementById('profile-name').textContent = `${person.first_name} ${person.middle_name ? person.middle_name + ' ' : ''}${person.last_name}`;
+            document.getElementById('view-first-name').textContent = person.first_name;
+            document.getElementById('view-middle-name').textContent = person.middle_name || '-';
+            document.getElementById('view-last-name').textContent = person.last_name;
+            document.getElementById('view-dob').textContent = person.date_of_birth || '-';
+            
+            // Populate edit form
+            document.getElementById('edit_first_name').value = person.first_name;
+            document.getElementById('edit_middle_name').value = person.middle_name || '';
+            document.getElementById('edit_last_name').value = person.last_name;
+            document.getElementById('edit_date_of_birth').value = person.date_of_birth || '';
+        }
+
+        // Add person button
+        document.getElementById('add-person-btn').addEventListener('click', function() {
+            document.getElementById('add-person-form').style.display = 'block';
+            document.getElementById('person-details').style.display = 'none';
+        });
+
+        // Cancel add person
+        document.getElementById('cancel-add').addEventListener('click', function() {
+            document.getElementById('add-person-form').style.display = 'none';
+            document.getElementById('person-details').style.display = 'block';
+        });
+
+        // Edit person button
+        document.getElementById('edit-person-btn').addEventListener('click', function() {
+            document.getElementById('profile-view').style.display = 'none';
+            document.getElementById('profile-edit').style.display = 'block';
+        });
+
+        // Cancel edit
+        document.getElementById('cancel-edit').addEventListener('click', function() {
+            document.getElementById('profile-view').style.display = 'block';
+            document.getElementById('profile-edit').style.display = 'none';
+        });
+
+        // Edit form submission
+        document.getElementById('edit-person-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData();
+            formData.append('first_name', document.getElementById('edit_first_name').value);
+            formData.append('middle_name', document.getElementById('edit_middle_name').value);
+            formData.append('last_name', document.getElementById('edit_last_name').value);
+            formData.append('date_of_birth', document.getElementById('edit_date_of_birth').value);
+            
+            fetch(`/update_person/${selectedPersonId}`, {
+                method: 'POST',
+                body: formData
+            }).then(() => {
+                window.location.reload();
+            });
+        });
+
+        // Delete person button
+        document.getElementById('delete-person-btn').addEventListener('click', function() {
+            if (confirm('Are you sure you want to delete this person?')) {
+                fetch(`/delete_person/${selectedPersonId}`, {
+                    method: 'POST'
+                }).then(() => {
+                    window.location.reload();
+                });
+            }
+        });
+
+        // Search functionality
+        document.getElementById('search-input').addEventListener('input', function(e) {
+            const searchTerm = e.target.value.toLowerCase();
+            const personList = document.getElementById('person-list');
+            personList.innerHTML = '';
+            
+            people.forEach((person, index) => {
+                const fullName = `${person.first_name} ${person.middle_name || ''} ${person.last_name}`.toLowerCase();
+                if (fullName.includes(searchTerm)) {
+                    const li = document.createElement('li');
+                    li.className = 'person-item' + (index === selectedPersonId ? ' active' : '');
+                    li.textContent = `${person.first_name} ${person.last_name}`;
+                    li.addEventListener('click', () => selectPerson(index));
+                    personList.appendChild(li);
+                }
+            });
+        });
+
+        // Load people when page loads
+        document.addEventListener('DOMContentLoaded', fetchPeople);
+    </script>
+</body>
+</html>

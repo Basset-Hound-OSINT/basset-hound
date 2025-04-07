@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>People Manager - Welcome</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .welcome-container {
+            max-width: 600px;
+            margin: 100px auto;
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .option-card {
+            padding: 20px;
+            margin: 10px 0;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        .option-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+        .new-project {
+            background-color: #e7f5ff;
+            border: 1px solid #4dabf7;
+        }
+        .existing-project {
+            background-color: #f1f3f5;
+            border: 1px solid #adb5bd;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container welcome-container">
+        <h1 class="text-center mb-4">People Manager</h1>
+        <p class="text-center mb-5">Welcome to People Manager. Choose an option to continue.</p>
+        
+        <div class="row">
+            <div class="col-md-6">
+                <div class="option-card new-project" id="new-project-card">
+                    <h3>New Project</h3>
+                    <p>Create a new project and start adding people.</p>
+                </div>
+                <div class="hidden" id="new-project-form">
+                    <form action="/new_project" method="post">
+                        <div class="mb-3">
+                            <label for="project_name" class="form-label">Project Name</label>
+                            <input type="text" class="form-control" id="project_name" name="project_name" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Create Project</button>
+                        <button type="button" class="btn btn-secondary" id="new-project-back">Back</button>
+                    </form>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="option-card existing-project" id="existing-project-card">
+                    <h3>Existing Project</h3>
+                    <p>Open a previously saved project.</p>
+                </div>
+                <div class="hidden" id="existing-project-form">
+                    <form action="/open_project" method="post" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label for="project_file" class="form-label">Select Project File</label>
+                            <input type="file" class="form-control" id="project_file" name="project_file" accept=".json" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Open Project</button>
+                        <button type="button" class="btn btn-secondary" id="existing-project-back">Back</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('new-project-card').addEventListener('click', function() {
+            document.getElementById('new-project-card').classList.add('hidden');
+            document.getElementById('new-project-form').classList.remove('hidden');
+        });
+        
+        document.getElementById('existing-project-card').addEventListener('click', function() {
+            document.getElementById('existing-project-card').classList.add('hidden');
+            document.getElementById('existing-project-form').classList.remove('hidden');
+        });
+        
+        document.getElementById('new-project-back').addEventListener('click', function() {
+            document.getElementById('new-project-card').classList.remove('hidden');
+            document.getElementById('new-project-form').classList.add('hidden');
+        });
+        
+        document.getElementById('existing-project-back').addEventListener('click', function() {
+            document.getElementById('existing-project-card').classList.remove('hidden');
+            document.getElementById('existing-project-form').classList.add('hidden');
+        });
+    </script>
+</body>
+</html>
