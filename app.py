@@ -74,7 +74,12 @@ def add_person():
         "first_name": request.form.get('first_name', ''),
         "middle_name": request.form.get('middle_name', ''),
         "last_name": request.form.get('last_name', ''),
-        "date_of_birth": request.form.get('date_of_birth', '')
+        "date_of_birth": request.form.get('date_of_birth', ''),
+        "email": request.form.get('email', ''),
+        "linkedin": request.form.get('linkedin', ''),
+        "twitter": request.form.get('twitter', ''),
+        "facebook": request.form.get('facebook', ''),
+        "instagram": request.form.get('instagram', '')
     }
     
     current_project["people"].append(person_data)
@@ -90,7 +95,12 @@ def update_person(person_id):
             "first_name": request.form.get('first_name', ''),
             "middle_name": request.form.get('middle_name', ''),
             "last_name": request.form.get('last_name', ''),
-            "date_of_birth": request.form.get('date_of_birth', '')
+            "date_of_birth": request.form.get('date_of_birth', ''),
+            "email": request.form.get('email', ''),
+            "linkedin": request.form.get('linkedin', ''),
+            "twitter": request.form.get('twitter', ''),
+            "facebook": request.form.get('facebook', ''),
+            "instagram": request.form.get('instagram', '')
         }
         save_project()
         return redirect(url_for('dashboard'))

@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>People Manager - Dashboard</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         body {
             background-color: #f8f9fa;
@@ -61,6 +62,30 @@
             border-radius: 5px;
             margin-bottom: 20px;
         }
+        .social-links {
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px solid #dee2e6;
+        }
+        .social-links a {
+            margin-right: 10px;
+            font-size: 18px;
+        }
+        .contact-info {
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px solid #dee2e6;
+        }
+        .section-title {
+            font-size: 1.2rem;
+            color: #6c757d;
+            margin-bottom: 15px;
+        }
+        .form-section {
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px solid #dee2e6;
+        }
     </style>
 </head>
 <body>
@@ -110,7 +135,40 @@
                             <label for="date_of_birth" class="form-label">Date of Birth</label>
                             <input type="date" class="form-control" id="date_of_birth" name="date_of_birth">
                         </div>
-                        <div class="d-flex justify-content-end">
+                        
+                        <div class="form-section">
+                            <div class="section-title">Contact Information</div>
+                            <div class="mb-3">
+                                <label for="email" class="form-label">Email Address</label>
+                                <input type="email" class="form-control" id="email" name="email">
+                            </div>
+                        </div>
+                        
+                        <div class="form-section">
+                            <div class="section-title">Social Media</div>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="linkedin" class="form-label">LinkedIn</label>
+                                    <input type="text" class="form-control" id="linkedin" name="linkedin" placeholder="LinkedIn profile URL">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="twitter" class="form-label">Twitter</label>
+                                    <input type="text" class="form-control" id="twitter" name="twitter" placeholder="Twitter handle or URL">
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="facebook" class="form-label">Facebook</label>
+                                    <input type="text" class="form-control" id="facebook" name="facebook" placeholder="Facebook profile URL">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="instagram" class="form-label">Instagram</label>
+                                    <input type="text" class="form-control" id="instagram" name="instagram" placeholder="Instagram handle or URL">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="d-flex justify-content-end mt-4">
                             <button type="button" class="btn btn-secondary me-2" id="cancel-add">Cancel</button>
                             <button type="submit" class="btn btn-primary">Save Person</button>
                         </div>
@@ -132,21 +190,41 @@
                         </div>
                         
                         <div id="profile-view">
-                            <div class="row mb-3">
-                                <div class="col-md-3 text-muted">First Name:</div>
-                                <div class="col-md-9" id="view-first-name"></div>
+                            <!-- Basic Information -->
+                            <div id="basic-info-section">
+                                <div class="row mb-3" id="view-first-name-container">
+                                    <div class="col-md-3 text-muted">First Name:</div>
+                                    <div class="col-md-9" id="view-first-name"></div>
+                                </div>
+                                <div class="row mb-3" id="view-middle-name-container">
+                                    <div class="col-md-3 text-muted">Middle Name:</div>
+                                    <div class="col-md-9" id="view-middle-name"></div>
+                                </div>
+                                <div class="row mb-3" id="view-last-name-container">
+                                    <div class="col-md-3 text-muted">Last Name:</div>
+                                    <div class="col-md-9" id="view-last-name"></div>
+                                </div>
+                                <div class="row mb-3" id="view-dob-container">
+                                    <div class="col-md-3 text-muted">Date of Birth:</div>
+                                    <div class="col-md-9" id="view-dob"></div>
+                                </div>
                             </div>
-                            <div class="row mb-3">
-                                <div class="col-md-3 text-muted">Middle Name:</div>
-                                <div class="col-md-9" id="view-middle-name"></div>
+                            
+                            <!-- Contact Information -->
+                            <div class="contact-info" id="contact-info-section">
+                                <div class="section-title">Contact Information</div>
+                                <div class="row mb-3" id="view-email-container">
+                                    <div class="col-md-3 text-muted">Email:</div>
+                                    <div class="col-md-9" id="view-email"></div>
+                                </div>
                             </div>
-                            <div class="row mb-3">
-                                <div class="col-md-3 text-muted">Last Name:</div>
-                                <div class="col-md-9" id="view-last-name"></div>
-                            </div>
-                            <div class="row mb-3">
-                                <div class="col-md-3 text-muted">Date of Birth:</div>
-                                <div class="col-md-9" id="view-dob"></div>
+                            
+                            <!-- Social Media Links -->
+                            <div class="social-links" id="social-links-section">
+                                <div class="section-title">Social Media</div>
+                                <div id="social-buttons">
+                                    <!-- Social media buttons will be added here dynamically -->
+                                </div>
                             </div>
                         </div>
                         
@@ -170,7 +248,40 @@
                                     <label for="edit_date_of_birth" class="form-label">Date of Birth</label>
                                     <input type="date" class="form-control" id="edit_date_of_birth" name="date_of_birth">
                                 </div>
-                                <div class="d-flex justify-content-end">
+                                
+                                <div class="form-section">
+                                    <div class="section-title">Contact Information</div>
+                                    <div class="mb-3">
+                                        <label for="edit_email" class="form-label">Email Address</label>
+                                        <input type="email" class="form-control" id="edit_email" name="email">
+                                    </div>
+                                </div>
+                                
+                                <div class="form-section">
+                                    <div class="section-title">Social Media</div>
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <label for="edit_linkedin" class="form-label">LinkedIn</label>
+                                            <input type="text" class="form-control" id="edit_linkedin" name="linkedin" placeholder="LinkedIn profile URL">
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label for="edit_twitter" class="form-label">Twitter</label>
+                                            <input type="text" class="form-control" id="edit_twitter" name="twitter" placeholder="Twitter handle or URL">
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <label for="edit_facebook" class="form-label">Facebook</label>
+                                            <input type="text" class="form-control" id="edit_facebook" name="facebook" placeholder="Facebook profile URL">
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label for="edit_instagram" class="form-label">Instagram</label>
+                                            <input type="text" class="form-control" id="edit_instagram" name="instagram" placeholder="Instagram handle or URL">
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="d-flex justify-content-end mt-4">
                                     <button type="button" class="btn btn-secondary me-2" id="cancel-edit">Cancel</button>
                                     <button type="submit" class="btn btn-primary">Save Changes</button>
                                 </div>
@@ -208,6 +319,21 @@
             });
         }
 
+        // Function to show or hide a field based on value
+        function toggleField(containerId, valueElementId, value) {
+            const container = document.getElementById(containerId);
+            const valueElement = document.getElementById(valueElementId);
+            
+            if (value && value.trim() !== '') {
+                container.style.display = 'flex';
+                valueElement.textContent = value;
+                return true;
+            } else {
+                container.style.display = 'none';
+                return false;
+            }
+        }
+
         // Function to select a person
         async function selectPerson(personId) {
             selectedPersonId = personId;
@@ -219,18 +345,114 @@
             document.getElementById('no-selection').style.display = 'none';
             document.getElementById('person-profile').style.display = 'block';
             
-            // Update profile view
+            // Update profile name
             document.getElementById('profile-name').textContent = `${person.first_name} ${person.middle_name ? person.middle_name + ' ' : ''}${person.last_name}`;
-            document.getElementById('view-first-name').textContent = person.first_name;
-            document.getElementById('view-middle-name').textContent = person.middle_name || '-';
-            document.getElementById('view-last-name').textContent = person.last_name;
-            document.getElementById('view-dob').textContent = person.date_of_birth || '-';
             
-            // Populate edit form
-            document.getElementById('edit_first_name').value = person.first_name;
+            // Toggle basic info fields
+            toggleField('view-first-name-container', 'view-first-name', person.first_name);
+            toggleField('view-middle-name-container', 'view-middle-name', person.middle_name);
+            toggleField('view-last-name-container', 'view-last-name', person.last_name);
+            toggleField('view-dob-container', 'view-dob', person.date_of_birth);
+            
+            // Toggle contact info fields
+            const hasEmail = toggleField('view-email-container', 'view-email', person.email);
+            
+            // Show/hide contact section based on if any field is populated
+            document.getElementById('contact-info-section').style.display = hasEmail ? 'block' : 'none';
+            
+            // Handle social media links
+            const socialButtons = document.getElementById('social-buttons');
+            socialButtons.innerHTML = '';
+            
+            let hasSocialMedia = false;
+            
+            // LinkedIn
+            if (person.linkedin && person.linkedin.trim() !== '') {
+                hasSocialMedia = true;
+                const linkedinBtn = document.createElement('a');
+                linkedinBtn.href = ensureHttps(person.linkedin);
+                linkedinBtn.target = "_blank";
+                linkedinBtn.innerHTML = '<i class="fab fa-linkedin fa-2x text-primary"></i>';
+                linkedinBtn.className = 'me-3';
+                socialButtons.appendChild(linkedinBtn);
+            }
+            
+            // Twitter
+            if (person.twitter && person.twitter.trim() !== '') {
+                hasSocialMedia = true;
+                const twitterBtn = document.createElement('a');
+                twitterBtn.href = ensureHttps(ensureTwitterUrl(person.twitter));
+                twitterBtn.target = "_blank";
+                twitterBtn.innerHTML = '<i class="fab fa-twitter fa-2x text-info"></i>';
+                twitterBtn.className = 'me-3';
+                socialButtons.appendChild(twitterBtn);
+            }
+            
+            // Facebook
+            if (person.facebook && person.facebook.trim() !== '') {
+                hasSocialMedia = true;
+                const facebookBtn = document.createElement('a');
+                facebookBtn.href = ensureHttps(person.facebook);
+                facebookBtn.target = "_blank";
+                facebookBtn.innerHTML = '<i class="fab fa-facebook fa-2x text-primary"></i>';
+                facebookBtn.className = 'me-3';
+                socialButtons.appendChild(facebookBtn);
+            }
+            
+            // Instagram
+            if (person.instagram && person.instagram.trim() !== '') {
+                hasSocialMedia = true;
+                const instagramBtn = document.createElement('a');
+                instagramBtn.href = ensureHttps(ensureInstagramUrl(person.instagram));
+                instagramBtn.target = "_blank";
+                instagramBtn.innerHTML = '<i class="fab fa-instagram fa-2x text-danger"></i>';
+                socialButtons.appendChild(instagramBtn);
+            }
+            
+            // Show/hide social media section based on if any field is populated
+            document.getElementById('social-links-section').style.display = hasSocialMedia ? 'block' : 'none';
+            
+            // Populate edit form fields
+            document.getElementById('edit_first_name').value = person.first_name || '';
             document.getElementById('edit_middle_name').value = person.middle_name || '';
-            document.getElementById('edit_last_name').value = person.last_name;
+            document.getElementById('edit_last_name').value = person.last_name || '';
             document.getElementById('edit_date_of_birth').value = person.date_of_birth || '';
+            document.getElementById('edit_email').value = person.email || '';
+            document.getElementById('edit_linkedin').value = person.linkedin || '';
+            document.getElementById('edit_twitter').value = person.twitter || '';
+            document.getElementById('edit_facebook').value = person.facebook || '';
+            document.getElementById('edit_instagram').value = person.instagram || '';
+        }
+        
+        // Helper function to ensure URL has https://
+        function ensureHttps(url) {
+            if (!url) return '#';
+            if (url.startsWith('http://') || url.startsWith('https://')) {
+                return url;
+            }
+            return 'https://' + url;
+        }
+        
+        // Helper function to ensure Twitter URL
+        function ensureTwitterUrl(handle) {
+            if (!handle) return '#';
+            if (handle.includes('twitter.com') || handle.includes('x.com')) {
+                return handle;
+            }
+            // Remove @ if present
+            const cleanHandle = handle.startsWith('@') ? handle.substring(1) : handle;
+            return 'https://twitter.com/' + cleanHandle;
+        }
+        
+        // Helper function to ensure Instagram URL
+        function ensureInstagramUrl(handle) {
+            if (!handle) return '#';
+            if (handle.includes('instagram.com')) {
+                return handle;
+            }
+            // Remove @ if present
+            const cleanHandle = handle.startsWith('@') ? handle.substring(1) : handle;
+            return 'https://instagram.com/' + cleanHandle;
         }
 
         // Add person button
@@ -266,6 +488,11 @@
             formData.append('middle_name', document.getElementById('edit_middle_name').value);
             formData.append('last_name', document.getElementById('edit_last_name').value);
             formData.append('date_of_birth', document.getElementById('edit_date_of_birth').value);
+            formData.append('email', document.getElementById('edit_email').value);
+            formData.append('linkedin', document.getElementById('edit_linkedin').value);
+            formData.append('twitter', document.getElementById('edit_twitter').value);
+            formData.append('facebook', document.getElementById('edit_facebook').value);
+            formData.append('instagram', document.getElementById('edit_instagram').value);
             
             fetch(`/update_person/${selectedPersonId}`, {
                 method: 'POST',
