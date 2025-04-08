@@ -13,6 +13,7 @@ source venv/bin/activate
 TODO
 
 ## Phase 1 - Manage People Data
+ - [ ] modularize code
  - [ ] exit button next to but before "add person" to return to index.html to select a project to open
  - [ ] unique id
  	- [ ] check current list of people
