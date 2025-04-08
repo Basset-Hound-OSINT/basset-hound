@@ -19,6 +19,13 @@ TODO
 	- [ ] check project folder for folders of same string name (see adding files to individuals)
  - [ ] keep track of age of person's account with basset-hound system - when they were added to the system
  - [ ] add email, username, and password to social media fields (select email from previous emails)
+ - [ ] add "events" data fields with event name, date range, location and comments to tie people to an event
+ 	- [ ] for simplicity of data storage - treat people, organizations, and events as the same type of entity
+  	- [ ] able to tag people to people, people to organizations, and people to events
+   	- [ ] simply add a person/entity and then fill in same template of information
+   	- [ ] add more specific fields for organizations and events
+   	- [ ] add known locations and times
+   		- [ ] when a new location is know, the newly second most recent location date range updates from "present" to the current date because person has moved
  - [ ] profile pic, default profile pic
  - [ ] postgresql (dockerized)
  - [ ] connected people
