@@ -9,12 +9,16 @@ python3 -m venv venv
 source venv/bin/activate
 ```
 
+
+
+
 TODO
 
 - [ ] unique id
 	- [ ] check current list of people
 	- [ ] check project folder for folders of same string name (see adding files to individuals)
 - [ ] profile pic, default profile pic
+- [ ] postgresql (dockerized)
 - [ ] connected people
 	- [ ] list / table / tags of people in profile
 	- [ ] list / table / tags of other related people by hopping in profile

@@ -1,0 +1,29 @@
+# docker-compose.yml
+
+version: "3.8"
+
+services:
+  bassetdb:
+    image: postgres:15
+    container_name: my_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: myuser
+      POSTGRES_PASSWORD: mypass
+      POSTGRES_DB: mydatabase
+    ports:
+      - "5432:5432"  # This makes it accessible at localhost:5432
+    volumes:
+      - ./project-name-files/pgdata:/var/lib/postgresql/data
+
+  web:
+    build: ./app
+    container_name: flask_app
+    depends_on:
+      - bassetdb
+    environment:
+      - DATABASE_URL=postgresql://myuser:mypass@bassetdb:5432/mydatabase
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./project-name-files/uploads:/app/uploads
