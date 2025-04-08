@@ -1,8 +1,8 @@
 from flask import Flask, render_template, request, redirect, url_for, jsonify
 import json
 import os
-import uuid
 from datetime import datetime
+import hashlib
 
 app = Flask(__name__)
 
@@ -80,8 +80,11 @@ def get_person(person_id):
 
 def generate_unique_id():
     """Generate a unique ID that doesn't exist in the current project"""
+    length=12
     while True:
-        new_id = str(uuid.uuid4())[:8]  # Using first 8 characters of UUID for brevity
+        random_bytes = os.urandom(32)  # cryptographically strong randomness
+        digest = hashlib.sha256(random_bytes).hexdigest()
+        new_id = digest[:length]
         # Check if ID already exists
         if not any(person.get("id") == new_id for person in current_project["people"]):
             return new_id
