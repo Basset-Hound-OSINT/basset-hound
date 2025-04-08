@@ -14,6 +14,7 @@ source venv/bin/activate
 
 TODO
 
+- [ ] exit button next to but before "add person" to return to index.html to select a project to open
 - [ ] unique id
 	- [ ] check current list of people
 	- [ ] check project folder for folders of same string name (see adding files to individuals)
@@ -37,6 +38,7 @@ TODO
 - [ ] graphical connections
 	- [ ] show first hop connections on a person's profile
 	- [ ] "Graph Connections" button to show recursive hop connetions on a new page
+- [ ] recently opened projects on index.html
 
 
 I have the following code for a flask project. I want all people in the manager to have unique ids attatched to their profile, like a docker container, and make sure that no id that is generated is already in use, display the id below the person's name in the side bar and then under their name in their profile. simply show me what code needs to be added and where in what files so you don't have to rewrite the entire files
