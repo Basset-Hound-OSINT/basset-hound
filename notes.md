@@ -14,7 +14,7 @@ TODO
 
 ## Phase 1 - Manage People Data
 
- - [ ] keep track of age of person's account with basset-hound system - when they were added to the system
+
  - [ ] add email, username, and password to social media fields (select email from previous emails)
  - [ ] add "events" data fields with event name, date range, location and comments to tie people to an event
  	- [ ] for simplicity of data storage - treat people, organizations, and events as the same type of entity
