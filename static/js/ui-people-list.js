@@ -13,7 +13,21 @@ function renderPeopleList(people, selectedPersonId) {
         
         const li = document.createElement('li');
         li.className = 'person-item' + (index === selectedPersonId ? ' active' : '');
-        li.textContent = displayName;
+        
+        // Create name element
+        const nameElement = document.createElement('div');
+        nameElement.className = 'person-name';
+        nameElement.textContent = displayName;
+        
+        // Create ID element
+        const idElement = document.createElement('div');
+        idElement.className = 'person-id text-muted small';
+        idElement.textContent = `ID: ${person.id || 'Unknown'}`;
+        
+        // Add elements to list item
+        li.appendChild(nameElement);
+        li.appendChild(idElement);
+        
         li.addEventListener('click', () => selectPerson(index));
         personList.appendChild(li);
     });
@@ -30,8 +44,13 @@ function setupSearch(people) {
             // Check if any of the person's data contains the search term
             let matches = false;
             
+            // Check ID
+            if (person.id && person.id.toLowerCase().includes(searchTerm)) {
+                matches = true;
+            }
+            
             // Check names
-            if (person.names) {
+            if (!matches && person.names) {
                 for (const name of person.names) {
                     const fullName = `${name.first_name || ''} ${name.middle_name || ''} ${name.last_name || ''}`.toLowerCase();
                     if (fullName.includes(searchTerm)) {
@@ -80,7 +99,21 @@ function setupSearch(people) {
                 
                 const li = document.createElement('li');
                 li.className = 'person-item' + (index === window.selectedPersonId ? ' active' : '');
-                li.textContent = displayName;
+                
+                // Create name element
+                const nameElement = document.createElement('div');
+                nameElement.className = 'person-name';
+                nameElement.textContent = displayName;
+                
+                // Create ID element
+                const idElement = document.createElement('div');
+                idElement.className = 'person-id text-muted small';
+                idElement.textContent = `ID: ${person.id || 'Unknown'}`;
+                
+                // Add elements to list item
+                li.appendChild(nameElement);
+                li.appendChild(idElement);
+                
                 li.addEventListener('click', () => selectPerson(index));
                 personList.appendChild(li);
             }

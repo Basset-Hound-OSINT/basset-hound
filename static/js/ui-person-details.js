@@ -19,6 +19,10 @@ async function selectPerson(personId) {
     const primaryName = person.names && person.names.length > 0 ? person.names[0] : { first_name: '', middle_name: '', last_name: '' };
     document.getElementById('profile-name').textContent = `${primaryName.first_name} ${primaryName.middle_name ? primaryName.middle_name + ' ' : ''}${primaryName.last_name}`;
     
+    // Update profile ID
+    document.getElementById('profile-id').textContent = `ID: ${person.id || 'Unknown'}`;
+    document.getElementById('profile-id').style.display = 'block';
+    
     // Display all names
     renderNames(person);
     
@@ -163,6 +167,19 @@ function renderSocialMedia(person) {
 
 // Function to populate edit form
 function populateEditForm(person) {
+    // Add hidden input for the ID
+    const idInput = document.getElementById('edit-person-id') || document.createElement('input');
+    idInput.type = 'hidden';
+    idInput.id = 'edit-person-id';
+    idInput.name = 'person_id';
+    idInput.value = person.id || '';
+    
+    // Add it to the form if it doesn't already exist
+    const form = document.getElementById('edit-person-form');
+    if (!document.getElementById('edit-person-id')) {
+        form.appendChild(idInput);
+    }
+    
     // Populate name fields
     const editNamesContainer = document.getElementById('edit-names-container');
     editNamesContainer.innerHTML = '';

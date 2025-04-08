@@ -16,6 +16,7 @@
             <div class="col-md-3 sidebar">
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <h3>People Manager</h3>
+                    <a href="/" class="btn btn-outline-secondary" style="margin-left: 10px;">Exit</a>
                     <button class="btn btn-sm btn-outline-primary" id="add-person-btn">Add Person</button>
                 </div>
                 
@@ -147,7 +148,10 @@
                     
                     <div id="person-profile" style="display: none;">
                         <div class="profile-header">
-                            <h3 id="profile-name"></h3>
+                            <div class="profile-name-container">
+                                <h3 id="profile-name"></h3>
+                                <div id="profile-id" class="person-id" style="display: none;"></div>
+                            </div>
                             <div>
                                 <button class="btn btn-outline-primary me-2" id="edit-person-btn">Edit</button>
                                 <button class="btn btn-outline-danger" id="delete-person-btn">Delete</button>
@@ -246,10 +250,10 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script type="module" src="/static/js/dashboard.js"></script>
-    <script type="module" src="{{ url_for('static', filename='js/api.js') }}"></script>
-    <script type="module" src="{{ url_for('static', filename='js/ui-form-handlers.js') }}"></script>
-    <script type="module" src="{{ url_for('static', filename='js/ui-people-list.js') }}"></script>
-    <script type="module" src="{{ url_for('static', filename='js/ui-person-details.js') }}"></script>
-
+    <script type="module" src="/static/js/api.js"></script>
+    <script type="module" src="/static/js/ui-form-handlers.js"></script>
+    <script type="module" src="/static/js/ui-people-list.js"></script>
+    <script type="module" src="/static/js/ui-person-details.js"></script>
+    <script type="module" src="/static/js/utils.js"></script>
 </body>
 </html>

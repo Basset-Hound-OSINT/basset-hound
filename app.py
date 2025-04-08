@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for, jsonify
 import json
 import os
+import uuid
 from datetime import datetime
 
 app = Flask(__name__)
@@ -48,6 +49,12 @@ def open_project():
     if file:
         global current_project
         current_project = json.load(file)
+        
+        # Ensure all people have IDs (for backward compatibility)
+        for person in current_project["people"]:
+            if "id" not in person:
+                person["id"] = generate_unique_id()
+                
         return redirect(url_for('dashboard'))
 
 @app.route('/dashboard')
@@ -60,17 +67,34 @@ def get_people():
     """API endpoint to get all people in the project"""
     return jsonify(current_project["people"])
 
-@app.route('/get_person/<int:person_id>')
-def get_person(person_id):
+@app.route('/get_person/<int:person_index>')
+def get_person(person_index):
     """API endpoint to get a specific person's details"""
-    if 0 <= person_id < len(current_project["people"]):
-        return jsonify(current_project["people"][person_id])
+    if 0 <= person_index < len(current_project["people"]):
+        return jsonify(current_project["people"][person_index])
     return jsonify({"error": "Person not found"}), 404
+
+@app.route('/get_person_by_id/<string:person_id>')
+def get_person_by_id(person_id):
+    """API endpoint to get a specific person's details by ID"""
+    for person in current_project["people"]:
+        if person.get("id") == person_id:
+            return jsonify(person)
+    return jsonify({"error": "Person not found"}), 404
+
+def generate_unique_id():
+    """Generate a unique ID that doesn't exist in the current project"""
+    while True:
+        new_id = str(uuid.uuid4())[:8]  # Using first 8 characters of UUID for brevity
+        # Check if ID already exists
+        if not any(person.get("id") == new_id for person in current_project["people"]):
+            return new_id
 
 @app.route('/add_person', methods=['POST'])
 def add_person():
     """Add a new person to the project"""
     person_data = {
+        "id": generate_unique_id(),
         "names": [{
             "first_name": request.form.get('first_name', ''),
             "middle_name": request.form.get('middle_name', ''),
@@ -118,6 +142,7 @@ def update_person(person_id):
                 })
         
         person_data = {
+            "id": current_project["people"][person_id].get("id", generate_unique_id()),
             "names": names,
             "dates_of_birth": request.form.getlist('date_of_birth'),
             "emails": request.form.getlist('email'),

@@ -145,3 +145,25 @@ body {
         margin-top: 10px;
     }
 }
+
+.profile-name-container {
+    display: flex;
+    flex-direction: column;
+}
+
+
+.person-id {
+    font-size: 0.8rem;
+    color: #6c757d;
+}
+
+.person-item {
+    padding: 10px;
+}
+
+#profile-id {
+    font-size: 0.9rem;
+    color: #6c757d;
+    margin-top: -5px;
+    margin-bottom: 15px;
+}
