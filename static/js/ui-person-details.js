@@ -5,12 +5,78 @@ import { ensureHttps, ensureTwitterUrl, ensureInstagramUrl } from './utils.js';
 import { addNameField, addField, collectFormData } from './ui-form-handlers.js';
 import { renderPeopleList } from './ui-people-list.js';
 
-// Function to select and display a person
+// Add to ui-person-details.js
+
+// Function to calculate and format the basset age
+function calculateBassetAge(createdAt) {
+    if (!createdAt) return { shortDisplay: 'N/A', fullDisplay: 'No timestamp available' };
+    
+    const created = new Date(createdAt);
+    // Check if date is valid
+    if (isNaN(created.getTime())) return { shortDisplay: 'N/A', fullDisplay: 'Invalid timestamp' };
+    
+    const now = new Date();
+    const diffMs = now - created;
+    
+    // Convert to different time units
+    const minutes = Math.floor(diffMs / (1000 * 60));
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+    const weeks = Math.floor(days / 7);
+    const months = Math.floor(days / 30);
+    const years = Math.floor(days / 365);
+    
+    // Determine largest unit for short display
+    let shortDisplay;
+    if (years > 0) {
+        shortDisplay = `${years}y`;
+    } else if (months > 0) {
+        shortDisplay = `${months}m`;
+    } else if (weeks > 0) {
+        shortDisplay = `${weeks}w`;
+    } else if (days > 0) {
+        shortDisplay = `${days}d`;
+    } else if (hours > 0) {
+        shortDisplay = `${hours}h`;
+    } else {
+        shortDisplay = `${minutes}m`;
+    }
+    
+    // Create full display format
+    const remainingMonths = months - (years * 12);
+    const remainingWeeks = Math.floor((days - (months * 30)) / 7);
+    const remainingDays = days - (months * 30) - (remainingWeeks * 7);
+    const remainingHours = hours - (days * 24);
+    const remainingMinutes = minutes - (hours * 60);
+    
+    let fullDisplay = [];
+    if (years > 0) fullDisplay.push(`${years} year${years > 1 ? 's' : ''}`);
+    if (remainingMonths > 0) fullDisplay.push(`${remainingMonths} month${remainingMonths > 1 ? 's' : ''}`);
+    if (remainingWeeks > 0) fullDisplay.push(`${remainingWeeks} week${remainingWeeks > 1 ? 's' : ''}`);
+    if (remainingDays > 0) fullDisplay.push(`${remainingDays} day${remainingDays > 1 ? 's' : ''}`);
+    if (remainingHours > 0) fullDisplay.push(`${remainingHours} hour${remainingHours > 1 ? 's' : ''}`);
+    if (remainingMinutes > 0) fullDisplay.push(`${remainingMinutes} minute${remainingMinutes > 1 ? 's' : ''}`);
+    
+    if (fullDisplay.length === 0) {
+        fullDisplay = ['Just added (less than a minute)'];
+    }
+    
+    return {
+        shortDisplay,
+        fullDisplay: fullDisplay.join(', ')
+    };
+}
+
+// Update the selectPerson function to add the basset age
 async function selectPerson(personId) {
     window.selectedPersonId = personId;
     renderPeopleList(window.people, personId);
     
-    const person = await fetchPerson(personId);
+    // Get the person object and its ID
+    const personObj = window.people[personId];
+    
+    // Fetch the complete person data
+    const person = await fetchPerson(personObj.id);
     
     document.getElementById('no-selection').style.display = 'none';
     document.getElementById('person-profile').style.display = 'block';
@@ -19,29 +85,65 @@ async function selectPerson(personId) {
     const primaryName = person.names && person.names.length > 0 ? person.names[0] : { first_name: '', middle_name: '', last_name: '' };
     document.getElementById('profile-name').textContent = `${primaryName.first_name} ${primaryName.middle_name ? primaryName.middle_name + ' ' : ''}${primaryName.last_name}`;
     
+    // Create a container for ID and Basset Age if it doesn't exist
+    if (!document.getElementById('profile-id-container')) {
+        const container = document.createElement('div');
+        container.id = 'profile-id-container';
+        container.className = 'd-flex align-items-center';
+        
+        const idElement = document.getElementById('profile-id');
+        // Clone the ID element if it exists, otherwise create new
+        const newIdElement = idElement ? idElement.cloneNode(true) : document.createElement('div');
+        newIdElement.id = 'profile-id';
+        newIdElement.className = 'person-id';
+        
+        container.appendChild(newIdElement);
+        
+        // Replace the existing ID element with our container
+        if (idElement && idElement.parentNode) {
+            idElement.parentNode.replaceChild(container, idElement);
+        } else {
+            document.querySelector('.profile-name-container').appendChild(container);
+        }
+    }
+    
     // Update profile ID
     document.getElementById('profile-id').textContent = `ID: ${person.id || 'Unknown'}`;
     document.getElementById('profile-id').style.display = 'block';
     
-    // Display all names
+    // Add basset age
+    const bassetAgeData = calculateBassetAge(person.created_at);
+    const container = document.getElementById('profile-id-container');
+    
+    // Remove existing basset age element if it exists
+    const existingBassetAge = document.getElementById('basset-age');
+    if (existingBassetAge) {
+        container.removeChild(existingBassetAge);
+    }
+    
+    // Create new basset age element
+    const bassetAgeElement = document.createElement('div');
+    bassetAgeElement.id = 'basset-age';
+    bassetAgeElement.className = 'basset-age';
+    bassetAgeElement.innerHTML = `Basset Age: <span class="basset-age-value">${bassetAgeData.shortDisplay}</span>`;
+    bassetAgeElement.title = bassetAgeData.fullDisplay;
+    bassetAgeElement.style.cursor = 'pointer';
+    
+    // Add click handler to show full basset age
+    bassetAgeElement.addEventListener('click', function() {
+        alert(`Detailed Basset Age: ${bassetAgeData.fullDisplay}`);
+    });
+    
+    // Add to profile-id-container
+    container.appendChild(bassetAgeElement);
+    
+    // Rest of your existing code...
     renderNames(person);
-    
-    // Display dates of birth
     renderDatesOfBirth(person);
-    
-    // Display emails
     const hasEmail = renderEmails(person);
-    
-    // Show/hide contact section based on if any field is populated
     document.getElementById('contact-info-section').style.display = hasEmail ? 'block' : 'none';
-    
-    // Handle social media links
     const hasSocialMedia = renderSocialMedia(person);
-    
-    // Show/hide social media section based on if any field is populated
     document.getElementById('social-links-section').style.display = hasSocialMedia ? 'block' : 'none';
-    
-    // Populate edit form fields
     populateEditForm(person);
 }
 

@@ -161,9 +161,25 @@ body {
     padding: 10px;
 }
 
-#profile-id {
+#profile-id-container {
+    display: flex;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.basset-age {
     font-size: 0.9rem;
     color: #6c757d;
-    margin-top: -5px;
-    margin-bottom: 15px;
+    margin-left: 15px;
+    display: inline-block;
+}
+
+.basset-age-value {
+    font-weight: bold;
+    color: #495057;
+}
+
+.basset-age:hover {
+    text-decoration: underline;
+    color: #0d6efd;
 }

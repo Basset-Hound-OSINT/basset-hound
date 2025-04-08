@@ -8,8 +8,16 @@ async function fetchPeople() {
 
 // Function to fetch a single person's details
 async function fetchPerson(personId) {
-    const response = await fetch(`/get_person/${personId}`);
-    return await response.json();
+    // If personId is a number (index), get the ID from people array
+    if (typeof personId === 'number') {
+        const id = window.people[personId].id;
+        const response = await fetch(`/get_person/${id}`);
+        return await response.json();
+    } else {
+        // Otherwise use the ID directly
+        const response = await fetch(`/get_person/${personId}`);
+        return await response.json();
+    }
 }
 
 // Function to update a person

@@ -50,10 +50,12 @@ def open_project():
         global current_project
         current_project = json.load(file)
         
-        # Ensure all people have IDs (for backward compatibility)
+        # Ensure all people have IDs and created_at timestamps (for backward compatibility)
         for person in current_project["people"]:
             if "id" not in person:
                 person["id"] = generate_unique_id()
+            if "created_at" not in person:
+                person["created_at"] = datetime.now().isoformat()  # Current time as default
                 
         return redirect(url_for('dashboard'))
 
@@ -67,17 +69,11 @@ def get_people():
     """API endpoint to get all people in the project"""
     return jsonify(current_project["people"])
 
-@app.route('/get_person/<int:person_index>')
-def get_person(person_index):
-    """API endpoint to get a specific person's details"""
-    if 0 <= person_index < len(current_project["people"]):
-        return jsonify(current_project["people"][person_index])
-    return jsonify({"error": "Person not found"}), 404
 
-@app.route('/get_person_by_id/<string:person_id>')
-def get_person_by_id(person_id):
+@app.route('/get_person/<string:person_id>')
+def get_person(person_id):
     """API endpoint to get a specific person's details by ID"""
-    for person in current_project["people"]:
+    for index, person in enumerate(current_project["people"]):
         if person.get("id") == person_id:
             return jsonify(person)
     return jsonify({"error": "Person not found"}), 404
@@ -95,6 +91,7 @@ def add_person():
     """Add a new person to the project"""
     person_data = {
         "id": generate_unique_id(),
+        "created_at": datetime.now().isoformat(),  # Add timestamp
         "names": [{
             "first_name": request.form.get('first_name', ''),
             "middle_name": request.form.get('middle_name', ''),

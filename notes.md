@@ -13,11 +13,7 @@ source venv/bin/activate
 TODO
 
 ## Phase 1 - Manage People Data
- - [ ] modularize code
- - [ ] exit button next to but before "add person" to return to index.html to select a project to open
- - [ ] unique id
- 	- [ ] check current list of people
-	- [ ] check project folder for folders of same string name (see adding files to individuals)
+
  - [ ] keep track of age of person's account with basset-hound system - when they were added to the system
  - [ ] add email, username, and password to social media fields (select email from previous emails)
  - [ ] add "events" data fields with event name, date range, location and comments to tie people to an event
@@ -28,7 +24,6 @@ TODO
    	- [ ] add known locations and times
    		- [ ] when a new location is know, the newly second most recent location date range updates from "present" to the current date because person has moved
  - [ ] profile pic, default profile pic
- - [ ] postgresql (dockerized)
  - [ ] connected people
 	- [ ] list / table / tags of people in profile
 	- [ ] list / table / tags of other related people by hopping in profile
@@ -47,7 +42,8 @@ TODO
   		- [ ] modular/selectable 
   		- [ ] default - simple raw	
  - [ ] fast api for automating people adding/editing/deleting data import and export
- - [ ] graphical connections
+ - [ ] postgresql (dockerized)
+ - [ ] graphical/visual connections
 	- [ ] show first hop connections on a person's profile
 	- [ ] "Graph Connections" button to show recursive hop connetions on a new page
 
@@ -73,9 +69,6 @@ TODO
  - [ ] recently opened projects on index.html
 
 
-I have the following code for a flask project. I want all people in the manager to have unique ids attatched to their profile, like a docker container, and make sure that no id that is generated is already in use, display the id below the person's name in the side bar and then under their name in their profile. simply show me what code needs to be added and where in what files so you don't have to rewrite the entire files
-
-
 
 I want to add a feature where you can add connections between people, but structure it similar to a social media tag. At the bottom of someone's profile, have block of buttons (instead of a vertical list which would make the page incredibly long) where the user of the app can tag another person in the people manager. then I want the following logic in the tag feature:
 
@@ -83,3 +76,4 @@ logic: if person1 is related to person2 and person2 is related to person3, then 
 
 feature: when person1 is tagged in person2's profile, update all other connections between people in the app recursively.
 
+(transitive relationship logic)
