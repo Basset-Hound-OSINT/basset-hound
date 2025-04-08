@@ -3,106 +3,141 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>People Manager - Welcome</title>
+    <title>People Manager</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         body {
             background-color: #f8f9fa;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-        .welcome-container {
-            max-width: 600px;
-            margin: 100px auto;
-            background-color: white;
-            padding: 30px;
-            border-radius: 10px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        }
-        .option-card {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
             padding: 20px;
-            margin: 10px 0;
+        }
+        
+        .app-container {
+            max-width: 500px;
+            width: 100%;
+            background-color: white;
             border-radius: 8px;
-            transition: all 0.3s ease;
-            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 30px;
         }
-        .option-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        
+        .app-title {
+            text-align: center;
+            margin-bottom: 30px;
         }
-        .new-project {
-            background-color: #e7f5ff;
-            border: 1px solid #4dabf7;
+        
+        .form-section {
+            margin-bottom: 25px;
         }
-        .existing-project {
-            background-color: #f1f3f5;
-            border: 1px solid #adb5bd;
+        
+        .divider {
+            text-align: center;
+            margin: 20px 0;
+            color: #6c757d;
         }
-        .hidden {
-            display: none;
+        
+        .divider span {
+            position: relative;
+            z-index: 1;
+            background-color: white;
+            padding: 0 10px;
+        }
+        
+        .divider::before {
+            content: "";
+            position: absolute;
+            left: 0;
+            right: 0;
+            top: 50%;
+            height: 1px;
+            background-color: #dee2e6;
+            z-index: 0;
         }
     </style>
 </head>
 <body>
-    <div class="container welcome-container">
-        <h1 class="text-center mb-4">People Manager</h1>
-        <p class="text-center mb-5">Welcome to People Manager. Choose an option to continue.</p>
+    <div class="app-container">
+        <div class="app-title">
+            <h2>People Manager</h2>
+            <p class="text-muted">Manage and organize information about people</p>
+        </div>
         
-        <div class="row">
-            <div class="col-md-6">
-                <div class="option-card new-project" id="new-project-card">
-                    <h3>New Project</h3>
-                    <p>Create a new project and start adding people.</p>
+        <div class="form-section">
+            <h5>Create New Project</h5>
+            <form action="/new_project" method="post">
+                <div class="mb-3">
+                    <label for="project_name" class="form-label">Project Name</label>
+                    <input type="text" class="form-control" id="project_name" name="project_name" required>
                 </div>
-                <div class="hidden" id="new-project-form">
-                    <form action="/new_project" method="post">
-                        <div class="mb-3">
-                            <label for="project_name" class="form-label">Project Name</label>
-                            <input type="text" class="form-control" id="project_name" name="project_name" required>
-                        </div>
-                        <button type="submit" class="btn btn-primary">Create Project</button>
-                        <button type="button" class="btn btn-secondary" id="new-project-back">Back</button>
-                    </form>
-                </div>
-            </div>
-            
-            <div class="col-md-6">
-                <div class="option-card existing-project" id="existing-project-card">
-                    <h3>Existing Project</h3>
-                    <p>Open a previously saved project.</p>
-                </div>
-                <div class="hidden" id="existing-project-form">
-                    <form action="/open_project" method="post" enctype="multipart/form-data">
-                        <div class="mb-3">
-                            <label for="project_file" class="form-label">Select Project File</label>
-                            <input type="file" class="form-control" id="project_file" name="project_file" accept=".json" required>
-                        </div>
-                        <button type="submit" class="btn btn-primary">Open Project</button>
-                        <button type="button" class="btn btn-secondary" id="existing-project-back">Back</button>
-                    </form>
-                </div>
+                <button type="submit" class="btn btn-primary w-100">Create Project</button>
+            </form>
+        </div>
+        
+        <div class="position-relative">
+            <div class="divider">
+                <span>OR</span>
             </div>
         </div>
+        
+        <div class="form-section">
+            <h5>Open Existing Project</h5>
+            <form action="/open_project" method="post" enctype="multipart/form-data">
+                <div class="mb-3">
+                    <label for="project_file" class="form-label">Project File (.json)</label>
+                    <input type="file" class="form-control" id="project_file" name="project_file" accept=".json" required>
+                </div>
+                <button type="submit" class="btn btn-outline-primary w-100">Open Project</button>
+            </form>
+        </div>
+        
+        <!-- Loading Spinner
+        <div id="loading" class="text-center">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div> -->
     </div>
 
     <script>
+        // Show the New Project form
         document.getElementById('new-project-card').addEventListener('click', function() {
             document.getElementById('new-project-card').classList.add('hidden');
             document.getElementById('new-project-form').classList.remove('hidden');
         });
         
+        // Show the Existing Project form
         document.getElementById('existing-project-card').addEventListener('click', function() {
             document.getElementById('existing-project-card').classList.add('hidden');
             document.getElementById('existing-project-form').classList.remove('hidden');
         });
         
+        // Back button for New Project form
         document.getElementById('new-project-back').addEventListener('click', function() {
             document.getElementById('new-project-card').classList.remove('hidden');
             document.getElementById('new-project-form').classList.add('hidden');
         });
         
+        // Back button for Existing Project form
         document.getElementById('existing-project-back').addEventListener('click', function() {
             document.getElementById('existing-project-card').classList.remove('hidden');
             document.getElementById('existing-project-form').classList.add('hidden');
+        });
+
+        // Enable the submit button when the project name is provided
+        document.getElementById('project_name').addEventListener('input', function() {
+            let projectName = document.getElementById('project_name').value;
+            let submitBtn = document.getElementById('submit-btn');
+            submitBtn.disabled = !projectName.trim();
+        });
+
+        // Show the loading spinner when submitting the form
+        document.getElementById('new-project-form-submit').addEventListener('submit', function() {
+            document.getElementById('loading').style.display = 'block';
         });
     </script>
 </body>
