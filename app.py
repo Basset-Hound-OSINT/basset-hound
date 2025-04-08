@@ -118,28 +118,33 @@ def add_person():
 def update_person(person_id):
     """Update an existing person's information"""
     if 0 <= person_id < len(current_project["people"]):
-        # Process names - more complex as they are objects
+        original_person = current_project["people"][person_id]
+
+        # Preserve the created_at timestamp
+        created_at = original_person.get("created_at", datetime.now().isoformat())
+
+        # Process names
         names = []
         first_names = request.form.getlist('first_name')
         middle_names = request.form.getlist('middle_name')
         last_names = request.form.getlist('last_name')
-        
-        # Make sure all lists have the same length by padding with empty strings
+
         max_length = max(len(first_names), len(middle_names), len(last_names))
         first_names = pad_list(first_names, max_length)
         middle_names = pad_list(middle_names, max_length)
         last_names = pad_list(last_names, max_length)
-        
+
         for i in range(max_length):
-            if first_names[i].strip() or last_names[i].strip():  # At least first or last name should be present
+            if first_names[i].strip() or last_names[i].strip():
                 names.append({
                     "first_name": first_names[i],
                     "middle_name": middle_names[i],
                     "last_name": last_names[i]
                 })
-        
+
         person_data = {
-            "id": current_project["people"][person_id].get("id", generate_unique_id()),
+            "id": original_person.get("id", generate_unique_id()),
+            "created_at": created_at,  # 👈 Keep the original timestamp
             "names": names,
             "dates_of_birth": request.form.getlist('date_of_birth'),
             "emails": request.form.getlist('email'),
@@ -148,11 +153,11 @@ def update_person(person_id):
             "facebook": request.form.getlist('facebook'),
             "instagram": request.form.getlist('instagram')
         }
-        
+
         # Filter out empty values
         for key in ['dates_of_birth', 'emails', 'linkedin', 'twitter', 'facebook', 'instagram']:
             person_data[key] = [item for item in person_data[key] if item.strip()]
-        
+
         current_project["people"][person_id] = person_data
         save_project()
         return redirect(url_for('dashboard'))
