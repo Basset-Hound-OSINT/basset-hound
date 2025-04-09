@@ -129,7 +129,9 @@ def generate_unique_id():
     existing_ids = set()
 
     # Project folder path
-    project_dir = os.path.join("projects", current_project["safe_name"])
+    safe_name = current_project.get("safe_name") or slugify(current_project.get("name", "default_project"))
+    project_dir = os.path.join("projects", safe_name)
+
 
     # 1. Check all folder names (person IDs)
     if os.path.isdir(project_dir):
@@ -269,8 +271,6 @@ def process_component_field(field, field_key):
 
     instances = [entry for entry in field_instances.values() if entry]
     return instances if field.get("multiple") else (instances[0] if instances else None)
-
-
 
 @app.route('/update_person/<person_id>', methods=['POST'])
 def update_person(person_id):

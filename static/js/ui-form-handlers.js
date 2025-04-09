@@ -150,7 +150,7 @@ export function createPersonForm(container, config, person = null) {
     form.id = person ? 'edit-person-form' : 'add-person-form';
     form.className = 'needs-validation';
     form.noValidate = true;
-    form.enctype = 'multipart/form-data'; // enable file uploads
+    form.enctype = 'multipart/form-data';
 
     config.sections.forEach(section => {
         const sectionDiv = document.createElement('div');
@@ -197,18 +197,72 @@ export function createPersonForm(container, config, person = null) {
                         const label = document.createElement('label');
                         label.className = 'form-label';
                         label.textContent = component.name || component.id;
+                        compWrapper.appendChild(label);
 
-                        const baseName = `${section.id}.${field.id}.${component.id}_${index}`;
-                        const compValues = component.multiple && entry?.[component.id]
-                            ? entry[component.id]
-                            : [entry?.[component.id] || ''];
+                        if (component.multiple) {
+                            const container = document.createElement('div');
+                            container.className = 'component-container';
+                            container.id = `${section.id}-${field.id}-${component.id}-container-${index}`;
 
-                        compValues.forEach((compValue, compIndex) => {
-                            const inputName = component.multiple ? `${baseName}.${compIndex}` : baseName;
-                            const inputGroup = createInputElement(field, inputName, compValue, component, section.id);
-                            compWrapper.appendChild(label.cloneNode(true));
-                            compWrapper.appendChild(inputGroup);
-                        });
+                            const compValues = entry?.[component.id]
+                                ? (Array.isArray(entry[component.id]) ? entry[component.id] : [entry[component.id]])
+                                : [''];
+
+                            compValues.forEach((compValue, compIndex) => {
+                                const inputGroup = document.createElement('div');
+                                inputGroup.className = 'input-group mb-2';
+
+                                // ✅ Fixed: use underscore between index values
+                                const inputName = `${section.id}.${field.id}.${component.id}_${index}_${compIndex}`;
+                                const input = createInputElement(component, inputName, compValue, null, section.id);
+                                input.classList.add('form-control');
+                                inputGroup.appendChild(input);
+
+                                if (compIndex === 0) {
+                                    const addBtn = document.createElement('button');
+                                    addBtn.type = 'button';
+                                    addBtn.className = 'btn btn-outline-secondary';
+                                    addBtn.innerHTML = '<i class="fas fa-plus"></i>';
+                                    addBtn.addEventListener('click', function () {
+                                        const newIndex = container.querySelectorAll('.input-group').length;
+                                        const newInputGroup = document.createElement('div');
+                                        newInputGroup.className = 'input-group mb-2';
+
+                                        const newName = `${section.id}.${field.id}.${component.id}_${index}_${newIndex}`;
+                                        const newInput = createInputElement(component, newName, '', null, section.id);
+                                        newInput.classList.add('form-control');
+                                        newInputGroup.appendChild(newInput);
+
+                                        const removeBtn = document.createElement('button');
+                                        removeBtn.type = 'button';
+                                        removeBtn.className = 'btn btn-outline-danger';
+                                        removeBtn.innerHTML = '<i class="fas fa-times"></i>';
+                                        removeBtn.addEventListener('click', () => newInputGroup.remove());
+                                        newInputGroup.appendChild(removeBtn);
+
+                                        container.appendChild(newInputGroup);
+                                    });
+
+                                    inputGroup.appendChild(addBtn);
+                                } else {
+                                    const removeBtn = document.createElement('button');
+                                    removeBtn.type = 'button';
+                                    removeBtn.className = 'btn btn-outline-danger';
+                                    removeBtn.innerHTML = '<i class="fas fa-times"></i>';
+                                    removeBtn.addEventListener('click', () => inputGroup.remove());
+                                    inputGroup.appendChild(removeBtn);
+                                }
+
+                                container.appendChild(inputGroup);
+                            });
+
+                            compWrapper.appendChild(container);
+                        } else {
+                            const baseName = `${section.id}.${field.id}.${component.id}_${index}`;
+                            const compValue = entry?.[component.id] || '';
+                            const input = createInputElement(component, baseName, compValue, null, section.id);
+                            compWrapper.appendChild(input);
+                        }
 
                         groupDiv.appendChild(compWrapper);
                     });
@@ -260,7 +314,6 @@ export function createPersonForm(container, config, person = null) {
     form.appendChild(actionButtons);
     container.appendChild(form);
 
-    // 🔁 Add event handlers
     if (person) {
         form.addEventListener('submit', async function (e) {
             e.preventDefault();
@@ -274,9 +327,10 @@ export function createPersonForm(container, config, person = null) {
         });
     }
 
-    // ✅ Setup dynamic add buttons (already defined in your code)
     setupAddButtons();
 }
+
+
 
 
 // Function to create a field with existing value
