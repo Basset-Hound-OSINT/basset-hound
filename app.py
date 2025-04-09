@@ -186,50 +186,29 @@ def process_component_field(field, field_key):
 
 @app.route('/update_person/<person_id>', methods=['POST'])
 def update_person(person_id):
-    """Update an existing person"""
     person = next((p for p in current_project["people"] if p["id"] == person_id), None)
     if not person:
-        return jsonify({"error": "Person not found"}), 404
+        return "Person not found", 404
 
     if request.is_json:
-        # Handle JSON data from API calls
-        updated_data = request.json
-        if "profile" in updated_data:
-            # For backward compatibility, ensure profile structure exists
-            if "profile" not in person:
-                person["profile"] = {}
-                
-            for section_id, section_data in updated_data["profile"].items():
-                if section_id not in person["profile"]:
-                    person["profile"][section_id] = {}
-                    
-                for field_id, field_data in section_data.items():
-                    person["profile"][section_id][field_id] = field_data
+        person["profile"] = request.json.get("profile", {})
     else:
-        # Handle form submission
         for section in CONFIG["sections"]:
             section_id = section["id"]
-            if "profile" not in person:
-                person["profile"] = {}
             if section_id not in person["profile"]:
                 person["profile"][section_id] = {}
-                
+
             for field in section["fields"]:
                 field_id = field["id"]
                 field_data = process_field_data(section_id, field)
-                
-                if field_data is not None:  # Allow empty arrays but not None
+                if field_data:
                     person["profile"][section_id][field_id] = field_data
                 elif field_id in person["profile"][section_id]:
-                    # Remove empty fields
                     del person["profile"][section_id][field_id]
 
     save_project()
-    
-    if request.is_json:
-        return jsonify({"success": True})
-    else:
-        return redirect(url_for('dashboard'))
+    return redirect(url_for('dashboard'))
+
 
 @app.route('/delete_person/<string:person_id>', methods=['POST'])
 def delete_person(person_id):

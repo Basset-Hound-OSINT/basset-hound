@@ -20,12 +20,20 @@ async function fetchPerson(personId) {
 }
 
 // Function to update a person
-async function updatePerson(personId, formData) {
-    return fetch(`/update_person/${personId}`, {
+export async function updatePerson(personId, formData) {
+    const response = await fetch(`/update_person/${personId}`, {
         method: 'POST',
-        body: formData
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ profile: formData })
     });
+
+    if (!response.ok) {
+        console.error("Failed to update person");
+    }
 }
+
 
 // Function to delete a person
 async function deletePerson(personId) {
@@ -34,4 +42,4 @@ async function deletePerson(personId) {
     });
 }
 
-export { fetchPeople, fetchConfig, fetchPerson, updatePerson, deletePerson };
+export { fetchPeople, fetchConfig, fetchPerson, deletePerson };

@@ -83,16 +83,22 @@ function renderPersonDetails(container, person) {
                         entryDiv.classList.add('mb-2');
 
                         field.components.forEach(component => {
-                            const compVal = entry[component.id];
+                            const compVal = entry[component.id] || entry[component.id.replace('_name', '')] || entry[component.id.replace('name', '')];
                             if (compVal) {
-                                const compSpan = document.createElement('div');
-                                compSpan.classList.add('mb-2');
-                                compSpan.innerHTML = `
-                                    <span class="text-muted">${component.name || component.id}: </span>
-                                    <span>${renderFieldValue(compVal, component.type)}</span>
-                                `;
-                                entryDiv.appendChild(compSpan);
+                                const compRow = document.createElement('div');
+                                compRow.classList.add('mb-2');
+
+                                const label = document.createElement('span');
+                                label.classList.add('text-muted');
+                                label.textContent = `${component.name || component.id}: `;
+
+                                const valueEl = renderFieldValue(compVal, component.type);
+                                compRow.appendChild(label);
+                                compRow.appendChild(valueEl);
+
+                                entryDiv.appendChild(compRow);
                             }
+
                         });
 
                         if (idx > 0) fieldDiv.appendChild(document.createElement('hr'));
@@ -102,7 +108,8 @@ function renderPersonDetails(container, person) {
                     values.forEach((value, idx) => {
                         const wrapper = document.createElement('div');
                         wrapper.classList.add('mb-2');
-                        wrapper.innerHTML = renderFieldValue(value, field.type);
+                        const valueElement = renderFieldValue(value, field.type);
+                        wrapper.appendChild(valueElement);
                         if (idx > 0) fieldDiv.appendChild(document.createElement('hr'));
                         fieldDiv.appendChild(wrapper);
                     });

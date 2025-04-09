@@ -1,10 +1,54 @@
-// Function to render a field value according to its type
 export function renderFieldValue(value, type) {
-    if (Array.isArray(value)) {
-        return value.map(v => renderSingleValue(v, type)).join('<br>');
+    if (!value) return document.createTextNode('');
+
+    // ✅ Structured object with components (like name or linkedin)
+    if (typeof value === 'object' && !Array.isArray(value)) {
+        const container = document.createElement('div');
+
+        for (const [key, val] of Object.entries(value)) {
+            const row = document.createElement('div');
+            row.classList.add('mb-2');
+
+            const label = document.createElement('span');
+            label.classList.add('text-muted');
+            label.textContent = `${key}: `;
+
+            const content = renderFieldValue(val, type);  // ← recurse for component type rendering
+            row.appendChild(label);
+            row.appendChild(content);
+
+            container.appendChild(row);
+        }
+
+        return container;
     }
-    return renderSingleValue(value, type);
+
+    // ✅ Simple values
+    if (type === 'email') {
+        const link = document.createElement('a');
+        link.href = `mailto:${value}`;
+        link.textContent = value;
+        return link;
+    }
+
+    if (type === 'url') {
+        const link = document.createElement('a');
+        link.href = value.startsWith('http') ? value : `http://${value}`;
+        link.target = '_blank';
+        link.textContent = value;
+        return link;
+    }
+
+    if (type === 'date') {
+        const [year, month, day] = value.split('-');
+        const date = new Date(Date.UTC(year, month - 1, day));
+        return document.createTextNode(date.toLocaleDateString());
+    }
+
+    return document.createTextNode(value.toString());
 }
+
+
 
 function renderSingleValue(val, type) {
     if (!val) return '';
@@ -23,30 +67,25 @@ function renderSingleValue(val, type) {
 
 // Function to get primary name of a person
 export function getPrimaryName(person) {
-    if (person.profile?.core?.name) {
-        const names = person.profile.core.name;
-        return Array.isArray(names) && names.length > 0 ? names[0] : names;
+    const names = person?.profile?.core?.name;
+
+    if (Array.isArray(names) && names.length > 0) {
+        const name = names[0];
+        return {
+            first_name: name.first_name || name.first || '',
+            middle_name: name.middle_name || name.middle || '',
+            last_name: name.last_name || name.last || ''
+        };
     }
 
-    // Fallback
-    if (person.names && person.names.length > 0) {
-        return person.names[0];
-    }
-
-    return '';
+    return { first_name: '', middle_name: '', last_name: '' };
 }
 
 export function getDisplayName(person) {
     const name = getPrimaryName(person);
-
-    // If name is an object (structured), combine parts
-    if (typeof name === 'object') {
-        return `${name.first_name || ''} ${name.middle_name || ''} ${name.last_name || ''}`.trim() || 'Unnamed Person';
-    }
-
-    // If name is already a string
-    return name || 'Unnamed Person';
+    return `${name.first_name} ${name.middle_name ? name.middle_name + ' ' : ''}${name.last_name}`.trim() || 'Unnamed Person';
 }
+
 
 // Function to calculate and format the basset age
 export function calculateBassetAge(createdAt) {

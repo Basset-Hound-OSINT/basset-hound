@@ -418,9 +418,20 @@ export function editPerson(personId) {
 
                         field.components.forEach(component => {
                             const name = `${section.id}.${field.id}.${component.id}_${index}`;
-                            const inputGroup = createInputElement(field, name, '', component);
+
+                            // Try to read value from `val` using known fallback keys
+                            const fallbackKeys = [
+                                component.id,
+                                component.id.replace('_name', ''),
+                                component.id.replace('name', ''),
+                                component.id.replace('_', ''),
+                            ];
+                            const value = fallbackKeys.reduce((acc, key) => acc || val[key], '');
+
+                            const inputGroup = createInputElement(field, name, value, component);
                             groupDiv.appendChild(inputGroup);
                         });
+
                     } else {
                         const groupTitle = document.createElement('h6');
                         groupTitle.textContent = `${field.name || field.id} #${index + 1}`;
@@ -472,11 +483,17 @@ export function editPerson(personId) {
                     groupDiv.appendChild(groupTitle);
 
                     if (field.components) {
-                        field.components.forEach(component => {
-                            const name = `${section.id}.${field.id}.${component.id}_${index}`;
-                            const inputGroup = createInputElement(field, name, '', component);
-                            groupDiv.appendChild(inputGroup);
-                        });
+                        if (field.components) {
+                            field.components.forEach(component => {
+                                const fallbackKeys = [component.id, component.id.replace('_name', ''), component.id.replace('name', '')];
+                                const value = fallbackKeys.reduce((acc, key) => acc || val[key], '') || '';
+
+                                const name = `${section.id}.${field.id}.${component.id}_${index}`;
+                                const inputGroup = createInputElement(field, name, value, component);
+                                groupDiv.appendChild(inputGroup);
+                            });
+
+                        }
                     } else {
                         const name = `${section.id}.${field.id}_${index}`;
                         const inputGroup = createInputElement(field, name, '');
