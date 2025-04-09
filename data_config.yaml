@@ -18,9 +18,12 @@ sections:
       - id: email
         type: email
         multiple: true
-      - id: personal_files
-        type: file
+      - id: commentated_files
+        type: comment
         multiple: true
+        components:
+          - id: attatched_file
+            type: file
 
 
   - id: social
