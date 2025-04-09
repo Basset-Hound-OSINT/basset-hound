@@ -45,6 +45,28 @@ export function renderFieldValue(value, type) {
         return document.createTextNode(date.toLocaleDateString());
     }
 
+    if (field.type === 'file') {
+        if (!value) return;
+        
+        const fileList = document.createElement('div');
+        fileList.className = 'd-flex flex-wrap gap-2 mb-2';
+        
+        // Handle both single and multiple files
+        const files = Array.isArray(value) ? value : [value];
+        
+        files.forEach(file => {
+            const fileLink = document.createElement('a');
+            fileLink.href = `/files/${person.id}/${file.path}`;
+            fileLink.className = 'btn btn-sm btn-outline-primary';
+            fileLink.target = '_blank';
+            fileLink.innerHTML = `<i class="fas fa-file-download me-1"></i>${file.name}`;
+            fileList.appendChild(fileLink);
+        });
+        
+        container.appendChild(fileList);
+        return;
+    }
+    
     return document.createTextNode(value.toString());
 }
 
@@ -143,7 +165,7 @@ export function calculateBassetAge(createdAt) {
 }
 
 
-export function createInputElement(field, name, value = '', component = null) {
+export function createInputElement(field, name, value = '', component = null, sectionId = null) {
     const typeMap = {
         string: 'text',
         email: 'email',
@@ -182,7 +204,8 @@ export function createInputElement(field, name, value = '', component = null) {
         fileInput.name = name;
         fileInput.classList.add('form-control');
 
-        if (field.multiple || component?.multiple) {
+        // Optional: allow selecting multiple files for a field
+        if (field.multiple) {
             fileInput.multiple = true;
         }
 
@@ -240,6 +263,7 @@ export function createInputElement(field, name, value = '', component = null) {
 
     return wrapper;
 }
+
 
 export function getSectionById(config, sectionId) {
     return config.sections.find(section => section.id === sectionId) || null;

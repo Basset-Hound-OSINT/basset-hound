@@ -253,10 +253,23 @@ def update_person(person_id):
 
             # Handle file uploads
             if field.get("type") == "file":
-                matched_files = [f for key, f in request.files.items() if key.startswith(field_key)]
+                files = [f for k, f in request.files.items() if k.startswith(field_key) and f.filename]
+                
+                # Keep existing files if no new ones uploaded
+                if not files and field_id in person["profile"][section_id]:
+                    continue
+                    
                 stored_files = []
-
-                for uploaded_file in matched_files:
+                
+                # Retrieve existing files if we have them
+                if field_id in person["profile"][section_id]:
+                    existing = person["profile"][section_id][field_id]
+                    if not isinstance(existing, list):
+                        existing = [existing]
+                    stored_files.extend(existing)
+                
+                # Add new files
+                for uploaded_file in files:
                     if uploaded_file and uploaded_file.filename:
                         file_id = generate_unique_id()
                         filename = f"{file_id}_{uploaded_file.filename}"
@@ -264,15 +277,15 @@ def update_person(person_id):
                         os.makedirs(person_dir, exist_ok=True)
                         file_path = os.path.join(person_dir, filename)
                         uploaded_file.save(file_path)
-
+                        
                         stored_files.append({
                             "id": file_id,
                             "name": uploaded_file.filename,
                             "path": filename
                         })
-
+                
                 if stored_files:
-                    person["profile"][section_id][field_id] = stored_files if is_multiple else stored_files[0]
+                    person["profile"][section_id][field_id] = stored_files if field.get("multiple") else stored_files[0]
 
             # Handle all other fields (including nested ones)
             else:

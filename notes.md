@@ -70,3 +70,6 @@ logic: if person1 is related to person2 and person2 is related to person3, then 
 feature: when person1 is tagged in person2's profile, update all other connections between people in the app recursively.
 
 (transitive relationship logic)
+
+
+Don't completely rewrite files, jsut tell me what code I need to fix, what i need to change i to, and where

@@ -168,10 +168,10 @@ export function createPersonForm(container, config, person = null) {
     container.appendChild(form);
 
     if (person) {
-        form.addEventListener('submit', async function (e) {
+        form.addEventListener('submit', async function(e) {
             e.preventDefault();
-            const formData = new FormData(form); // ✅ FormData handles file inputs too
-            await updatePersonData(person.id, formData);
+            const formData = new FormData(form); // collects all file and text fields
+            await updatePersonData(person.id, form);
         });
 
         cancelButton.addEventListener('click', function () {
@@ -196,6 +196,41 @@ function createFieldWithValue(container, sectionId, field, value, index) {
     const fieldTitle = document.createElement('h6');
     fieldTitle.textContent = field.name || fieldId;
     fieldHeader.appendChild(fieldTitle);
+
+    if (field.type === 'file') {
+        // For file fields, show existing files and allow adding more
+        if (value) {
+            const fileList = document.createElement('div');
+            fileList.className = 'mb-2 file-list';
+            
+            // Handle both single file and multiple files
+            const files = Array.isArray(value) ? value : [value];
+            
+            files.forEach(file => {
+                const fileLink = document.createElement('a');
+                fileLink.href = `/files/${window.selectedPersonId}/${file.path}`;
+                fileLink.textContent = file.name;
+                fileLink.target = '_blank';
+                fileLink.className = 'me-3';
+                fileList.appendChild(fileLink);
+            });
+            
+            fieldInstance.appendChild(fileList);
+        }
+        
+        // Add file input
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.name = `${sectionId}.${fieldId}_${index}`;
+        fileInput.className = 'form-control';
+        if (field.multiple) {
+            fileInput.multiple = true;
+        }
+        fieldInstance.appendChild(fileInput);
+        
+        container.appendChild(fieldInstance);
+        return;
+    }
     
     // Add remove button for multiple instances
     if (field.multiple && index > 0) {
@@ -330,28 +365,48 @@ export function collectFormData(form) {
 }
 
 // Function to update person data via API using FormData
-async function updatePersonData(personId, formElement) {
+// Function to update person data via API using FormData
+async function updatePersonData(personId, form) {
     try {
-        const formData = new FormData(formElement);
-
+        // Ensure we're passing an actual HTMLFormElement
+        if (!(form instanceof HTMLFormElement)) {
+            throw new Error('Invalid form element provided to updatePersonData');
+        }
+        
+        const formData = new FormData(form);
         const response = await fetch(`/update_person/${personId}`, {
             method: 'POST',
-            body: formData // no Content-Type, browser sets multipart/form-data
+            body: formData
+            // Don't set Content-Type, browser will set it with boundary for multipart/form-data
         });
 
-        if (response.ok) {
-            const result = await response.json();
-            window.location.reload(); // Refresh the page to show updated data
-            return result;
-        } else {
-            throw new Error('Failed to update person');
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(errorText);
         }
+
+        const result = await response.json();
+        
+        // Update the UI without full page reload
+        const updatedPerson = await fetch(`/get_person/${personId}`).then(r => r.json());
+        renderPersonDetails(document.getElementById('person-details'), updatedPerson);
+
+        const people = await fetch('/get_people').then(r => r.json());
+        window.people = people;
+
+        // Re-render the sidebar list
+        renderPeopleList(people, personId);
+
+        // Toggle visibility
+        document.getElementById('profile-edit').style.display = 'none';
+        document.getElementById('person-details').style.display = 'block';
+        
+        return result;
     } catch (error) {
-        console.error('Error updating person:', error);
+        console.error('[ERROR] Failed to update person', error);
         alert('Failed to update person. Please try again.');
     }
 }
-
 
 export function editPerson(personId) {
     const personDetails = document.getElementById('person-details');
@@ -360,6 +415,7 @@ export function editPerson(personId) {
 
     if (!personDetails || !profileEdit || !form) return;
 
+    form.enctype = 'multipart/form-data';
     form.classList.remove('was-validated');
     personDetails.style.display = 'none';
     profileEdit.classList.remove('d-none');
@@ -461,7 +517,7 @@ export function editPerson(personId) {
                             label.className = 'form-label';
                             label.textContent = component.name || component.id;
 
-                            const inputGroup = createInputElement(field, name, '', component);
+                            const inputGroup = createInputElement(field, name, '', component, section.id);
 
                             wrapper.appendChild(label);
                             wrapper.appendChild(inputGroup);
@@ -490,10 +546,11 @@ export function editPerson(personId) {
             document.getElementById('person-details').style.display = 'block';
         });
     }
-    form.addEventListener('submit', async (e) => {
+    form.addEventListener('submit', async function (e) {
         e.preventDefault();
-        await updatePersonData(personId, form);
+        await updatePersonData(person.id, form);
     });
+
 }
 
 
@@ -502,44 +559,3 @@ export function deletePerson(personId) {
     .then(() => window.location.reload())
     .catch(err => console.error("Failed to delete person", err));
 }
-
-
-document.addEventListener('DOMContentLoaded', () => {
-  const form = document.getElementById('edit-person-form');
-  if (!form) return;
-
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-
-    const formData = new FormData(form);  // ✅ Fixed here
-    const params = new URLSearchParams(formData);
-
-    try {
-        const response = await fetch(`/update_person/${window.selectedPersonId}`, {
-        method: 'POST',
-            headers: {
-              'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: params
-        });
-
-        if (!response.ok) throw new Error('Failed to update person');
-
-        // ✅ Refresh view
-        const updatedPerson = await fetch(`/get_person/${window.selectedPersonId}`).then(r => r.json());
-        renderPersonDetails(document.getElementById('person-details'), updatedPerson);
-
-        const people = await fetch('/get_people').then(r => r.json());
-        window.people = people;
-
-        // Re-render the sidebar list
-        renderPeopleList(people, window.selectedPersonId);
-
-        document.getElementById('profile-edit').style.display = 'none';
-        document.getElementById('person-details').style.display = 'block';
-
-    } catch (err) {
-      console.error("[ERROR] Failed to update person", err);
-    }
-  });
-});
