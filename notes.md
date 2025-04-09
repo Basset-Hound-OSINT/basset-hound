@@ -22,13 +22,11 @@ TODO
 	- [ ] list / table / tags of other related people by hopping in profile
 	- [ ] if person1 is related to person2 and person2 is related to person3, then person3 is related to person1
 	- [ ] keep track of how many hops between a person
- 	- [ ] add files to an individual and relevant comments for each file
-	- [ ] make a folder for the project, then make a folder for each person based on unique id, then store files in each person's folder
+ - [ ] add files to an individual and relevant comments for each file
 	- [ ] when delete person, choice to keep files
 		- [ ] choice which files to keep (can choose all)
 		- [ ] if files not chosen to keep, delete files
-		- [ ] if chose to keep files, prompt with path to folder containing files
-	- [ ] only show a list of file names (hyperlinks) with comments on profile
+		- [ ] if chose to keep files, prompt with path to folder containgin files
  - [ ] button generate report (simply show information) in markdown, button for pdf
  	- [ ] Have report templates
   		- [ ] modular/selectable 
