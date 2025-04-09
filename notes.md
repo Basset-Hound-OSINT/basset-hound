@@ -68,3 +68,38 @@ logic: if person1 is related to person2 and person2 is related to person3, then 
 
 feature: when person1 is tagged in person2's profile, update all other connections between people in the app recursively.
 
+
+
+
+I have the following code for a flask app that manages people's information. I am currenly working on implementing handling for multiple of the same component of a field regarding my data_config.yaml.
+
+sections:
+  - id: social
+    name: Social Media
+    fields:
+      - id: linkedin
+        type: url
+        multiple: true
+        components:
+          - id: url
+            type: url
+          - id: username
+            type: string
+          - id: email
+            type: email
+            multiple: true
+          - id: password
+            type: password
+      - id: twitter
+        type: url
+        multiple: true
+        components:
+          - id: handle
+            type: string
+          - id: url
+            type: url
+      - id: social files
+        type: file
+        multiple: true
+
+Just like fields in the config file, i want to be able to have multiple of a component, for example multiple emails that relate to a linkedin account. Attached is my current code, don't respond just yet as i will attach an older version of my code that performs exactly as needed and expected, it just doesn't implement the feature of being able to have a multiple component

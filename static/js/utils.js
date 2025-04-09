@@ -116,7 +116,6 @@ export function getDisplayName(person) {
     return `${name.first_name} ${name.middle_name ? name.middle_name + ' ' : ''}${name.last_name}`.trim() || 'Unnamed Person';
 }
 
-
 // Function to calculate and format the basset age
 export function calculateBassetAge(createdAt) {
     if (!createdAt) return { shortDisplay: 'N/A', fullDisplay: 'No timestamp available' };
@@ -172,7 +171,6 @@ export function calculateBassetAge(createdAt) {
         fullDisplay: fullDisplay.join(', ')
     };
 }
-
 
 export function createInputElement(field, name, value = '', component = null, sectionId = null) {
     const typeMap = {
@@ -273,7 +271,6 @@ export function createInputElement(field, name, value = '', component = null, se
     return wrapper;
 }
 
-
 export function getSectionById(config, sectionId) {
     return config.sections.find(section => section.id === sectionId) || null;
 }
@@ -296,4 +293,18 @@ export async function getUniqueId() {
         console.error('[ERROR] Could not fetch unique ID', err);
         throw err;
     }
+}
+
+export function mergeProfiles(original, updates) {
+    const merged = JSON.parse(JSON.stringify(original)); // clone
+
+    for (const sectionId in updates) {
+        if (!merged[sectionId]) merged[sectionId] = {};
+
+        for (const fieldId in updates[sectionId]) {
+            merged[sectionId][fieldId] = updates[sectionId][fieldId];
+        }
+    }
+
+    return merged;
 }

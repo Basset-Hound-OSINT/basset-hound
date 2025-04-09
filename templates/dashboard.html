@@ -85,31 +85,59 @@
                                 <div class="mb-3">
                                     <label class="form-label">{{ field.name or field.id | title }}</label>
 
-                                    {% if field.type == 'file' %}
+                                   {% if field.type == 'file' %}
                                         <input type="file" class="form-control" name="{{ section.id }}.{{ field.id }}_0" multiple>
 
                                     {% elif field.components %}
                                         <!-- Container for field instances -->
                                         <div id="{{ section.id }}-{{ field.id }}-container" class="field-instances">
-                                            <div class="field-instance mb-3" data-index="0">
+                                            <div class="field-instance mb-3" data-index="0" data-field="{{ field.id }}">
                                                 {% for component in field.components %}
-                                                <div class="mb-2">
-                                                    <label class="form-label">{{ component.name or component.id | title }}</label>
                                                     {% set input_type = component.type if component.type in ['text', 'email', 'url', 'date', 'number', 'password'] else 'text' %}
-                                                    {% if component.type == 'comment' %}
-                                                    <textarea class="form-control" name="{{ section.id }}.{{ field.id }}.{{ component.id }}_0" rows="5"
-                                                        {% if component.required %}required{% endif %}></textarea>
+
+                                                    {% if component.multiple %}
+                                                    <div class="component-multiple-container" data-component="{{ component.id }}">
+                                                        <div class="component-instance mb-2" data-subindex="0">
+                                                            <label class="form-label">{{ component.name or component.id | title }}</label>
+                                                            {% if component.type == 'comment' %}
+                                                                <textarea class="form-control"
+                                                                          name="{{ section.id }}.{{ field.id }}.{{ component.id }}_0_0"
+                                                                          rows="5"
+                                                                          {% if component.required %}required{% endif %}></textarea>
+                                                            {% else %}
+                                                                <input type="{{ input_type }}" class="form-control"
+                                                                       name="{{ section.id }}.{{ field.id }}.{{ component.id }}_0_0"
+                                                                       {% if component.required %}required{% endif %}>
+                                                            {% endif %}
+                                                        </div>
+                                                        <button type="button"
+                                                                class="btn btn-sm btn-outline-secondary add-component mt-1"
+                                                                data-component="{{ component.id }}">
+                                                            <i class="fas fa-plus"></i> Add {{ component.name or component.id | title }}
+                                                        </button>
+                                                    </div>
+
                                                     {% else %}
-                                                    <input type="{{ input_type }}" class="form-control"
-                                                           name="{{ section.id }}.{{ field.id }}.{{ component.id }}_0"
-                                                           {% if component.required %}required{% endif %}>
+                                                    <div class="mb-2">
+                                                        <label class="form-label">{{ component.name or component.id | title }}</label>
+                                                        {% if component.type == 'comment' %}
+                                                            <textarea class="form-control"
+                                                                      name="{{ section.id }}.{{ field.id }}.{{ component.id }}_0"
+                                                                      rows="5"
+                                                                      {% if component.required %}required{% endif %}></textarea>
+                                                        {% else %}
+                                                            <input type="{{ input_type }}" class="form-control"
+                                                                   name="{{ section.id }}.{{ field.id }}.{{ component.id }}_0"
+                                                                   {% if component.required %}required{% endif %}>
+                                                        {% endif %}
+                                                    </div>
                                                     {% endif %}
-                                                </div>
                                                 {% endfor %}
                                             </div>
                                         </div>
 
                                     {% else %}
+
                                         {% set input_type = field.type if field.type in ['text', 'email', 'url', 'date', 'number', 'password'] else 'text' %}
                                         {% if field.type == 'comment' %}
                                         <textarea class="form-control" name="{{ section.id }}.{{ field.id }}_0" rows="5"

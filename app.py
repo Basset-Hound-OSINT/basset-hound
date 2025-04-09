@@ -230,34 +230,47 @@ def process_field_data(section_id, field):
 
 def process_component_field(field, field_key):
     components = field.get("components", [])
-    instances = defaultdict(dict)
+    field_instances = defaultdict(dict)
 
-    for key in request.form:
-        if key.startswith(field_key):
-            parts = key.split('.')
-            if len(parts) < 3:
-                continue
+    for key, value in request.form.items():
+        if not key.startswith(field_key):
+            continue
 
-            component_part = parts[2]
-            if '_' in component_part:
-                component_id, instance_idx = component_part.split('_', 1)
-            else:
-                component_id = component_part
-                instance_idx = '0'
+        parts = key.split('.')
+        if len(parts) < 3:
+            continue
 
-            value = request.form[key].strip()
-            if not value:
-                continue
+        component_part = parts[2]
 
-            # Find component config
-            component_cfg = next((c for c in components if c["id"] == component_id), None)
-            if component_cfg and component_cfg.get("multiple"):
-                instances[instance_idx].setdefault(component_id, []).append(value)
-            else:
-                instances[instance_idx][component_id] = value
+        # Match things like: email_0_1 or email_0
+        match = re.match(r"(\w+)_([0-9]+)(?:_([0-9]+))?", component_part)
+        if not match:
+            continue
 
-    result = [v for v in instances.values() if v]
-    return result if field.get("multiple") else (result[0] if result else None)
+        component_id = match.group(1)
+        field_index = match.group(2)
+        sub_index = match.group(3)
+
+        value = value.strip()
+        if not value:
+            continue
+
+        component_cfg = next((c for c in components if c["id"] == component_id), None)
+        if not component_cfg:
+            continue
+
+        is_multiple = component_cfg.get("multiple", False)
+
+        # Store appropriately: single or multiple values
+        if is_multiple:
+            field_instances[field_index].setdefault(component_id, []).append(value)
+        else:
+            field_instances[field_index][component_id] = value
+
+    instances = [entry for entry in field_instances.values() if entry]
+    return instances if field.get("multiple") else (instances[0] if instances else None)
+
+
 
 @app.route('/update_person/<person_id>', methods=['POST'])
 def update_person(person_id):

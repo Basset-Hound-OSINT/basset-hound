@@ -24,7 +24,7 @@ export function setupAddButtons() {
 }
 
 // Function to add a new instance of a field
-function addFieldInstance(container, sectionId, field, index) {
+export function addFieldInstance(container, sectionId, field, index) {
     const fieldId = field.id;
     const fieldInstance = document.createElement('div');
     fieldInstance.className = 'field-instance mb-3';
@@ -280,7 +280,7 @@ export function createPersonForm(container, config, person = null) {
 
 
 // Function to create a field with existing value
-function createFieldWithValue(container, sectionId, field, value, index) {
+export function createFieldWithValue(container, sectionId, field, value, index) {
     const fieldId = field.id;
     const fieldInstance = document.createElement('div');
     fieldInstance.className = 'field-instance mb-3';
@@ -827,9 +827,34 @@ export function editPerson(personId) {
 
 }
 
-
 export function deletePerson(personId) {
   fetch(`/delete_person/${personId}`, { method: 'POST' })
     .then(() => window.location.reload())
     .catch(err => console.error("Failed to delete person", err));
 }
+
+
+document.addEventListener('click', (e) => {
+    if (e.target.matches('.add-component')) {
+        const container = e.target.closest('.component-multiple-container');
+        const componentId = e.target.getAttribute('data-component');
+        const fieldInstance = e.target.closest('.field-instance');
+        const sectionId = fieldInstance.closest('.card-body').id.split('-')[0];
+        const fieldId = fieldInstance.dataset.field;
+
+        const instances = container.querySelectorAll('.component-instance');
+        const newIndex = instances.length;
+
+        const input = instances[0].querySelector('input').cloneNode(true);
+        input.value = '';
+
+        const nameBase = `${sectionId}.${fieldId}.${componentId}_${fieldInstance.dataset.index}_${newIndex}`;
+        input.name = nameBase;
+
+        const wrapper = document.createElement('div');
+        wrapper.classList.add('component-instance', 'mb-2');
+        wrapper.dataset.subindex = newIndex;
+        wrapper.appendChild(input);
+        container.insertBefore(wrapper, e.target);
+    }
+});

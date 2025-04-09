@@ -2,6 +2,12 @@ import { getDisplayName, calculateBassetAge, renderFieldValue } from './utils.js
 import { editPerson, deletePerson } from './ui-form-handlers.js';
 
 export function renderPersonDetails(container, person) {
+    if (!person) {
+        console.error("renderPersonDetails was called with undefined person!");
+        container.innerHTML = '<div class="alert alert-danger">Error: Could not load person data.</div>';
+        return;
+    }
+
     container.innerHTML = '';
 
     // Header
@@ -92,75 +98,75 @@ export function renderPersonDetails(container, person) {
                         entryDiv.classList.add('mb-2');
 
                         field.components.forEach(component => {
-                            const compVal =
-                                entry[component.id] ||
-                                entry[component.id.replace('_name', '')] ||
-                                entry[component.id.replace('name', '')];
+                            let compVals = entry[component.id];
 
-                            if (!compVal) return;
+                            if (!compVals || (Array.isArray(compVals) && compVals.length === 0)) return;
+                            if (!Array.isArray(compVals)) compVals = [compVals];
 
-                            const compRow = document.createElement('div');
-                            compRow.classList.add('mb-2', 'd-flex', 'align-items-center', 'gap-2');
+                            compVals.forEach((compVal, compIdx) => {
+                                const compRow = document.createElement('div');
+                                compRow.classList.add('mb-2', 'd-flex', 'align-items-center', 'gap-2');
 
-                            const copyIcon = document.createElement('i');
-                            copyIcon.className = 'fas fa-copy text-secondary';
-                            copyIcon.style.cursor = 'pointer';
-                            copyIcon.title = `Copy ${component.name || component.id}`;
+                                const copyIcon = document.createElement('i');
+                                copyIcon.className = 'fas fa-copy text-secondary';
+                                copyIcon.style.cursor = 'pointer';
+                                copyIcon.title = `Copy ${component.name || component.id}`;
 
-                            const label = document.createElement('span');
-                            label.classList.add('text-muted', 'me-1');
-                            label.textContent = `${component.name || component.id}: `;
+                                const label = document.createElement('span');
+                                label.classList.add('text-muted', 'me-1');
+                                label.textContent = `${component.name || component.id}${compVals.length > 1 ? ` [${compIdx + 1}]` : ''}: `;
 
-                            let valueDisplay;
-                            let copyText = compVal;
+                                let valueDisplay;
+                                let copyText = compVal;
 
-                            if (component.type === 'password') {
-                                const masked = document.createElement('span');
-                                masked.textContent = '••••••••';
+                                if (component.type === 'password') {
+                                    const masked = document.createElement('span');
+                                    masked.textContent = '••••••••';
 
-                                const real = document.createElement('span');
-                                real.textContent = compVal;
-                                real.style.display = 'none';
+                                    const real = document.createElement('span');
+                                    real.textContent = compVal;
+                                    real.style.display = 'none';
 
-                                const toggleBtn = document.createElement('i');
-                                toggleBtn.className = 'fas fa-eye text-secondary';
-                                toggleBtn.style.cursor = 'pointer';
-                                toggleBtn.title = 'Show password';
-                                toggleBtn.addEventListener('click', () => {
-                                    const showing = masked.style.display === 'none';
-                                    masked.style.display = showing ? 'inline' : 'none';
-                                    real.style.display = showing ? 'none' : 'inline';
-                                    toggleBtn.className = showing ? 'fas fa-eye' : 'fas fa-eye-slash';
-                                });
+                                    const toggleBtn = document.createElement('i');
+                                    toggleBtn.className = 'fas fa-eye text-secondary';
+                                    toggleBtn.style.cursor = 'pointer';
+                                    toggleBtn.title = 'Show password';
+                                    toggleBtn.addEventListener('click', () => {
+                                        const showing = masked.style.display === 'none';
+                                        masked.style.display = showing ? 'inline' : 'none';
+                                        real.style.display = showing ? 'none' : 'inline';
+                                        toggleBtn.className = showing ? 'fas fa-eye' : 'fas fa-eye-slash';
+                                    });
 
-                                valueDisplay = document.createElement('span');
-                                valueDisplay.appendChild(masked);
-                                valueDisplay.appendChild(real);
-                                valueDisplay.appendChild(toggleBtn);
-                            } else {
-                                valueDisplay = renderFieldValue(compVal, component.type);
-                                if (typeof valueDisplay === 'string') {
-                                    const span = document.createElement('span');
-                                    span.textContent = valueDisplay;
-                                    valueDisplay = span;
+                                    valueDisplay = document.createElement('span');
+                                    valueDisplay.appendChild(masked);
+                                    valueDisplay.appendChild(real);
+                                    valueDisplay.appendChild(toggleBtn);
+                                } else {
+                                    valueDisplay = renderFieldValue(compVal, component.type);
+                                    if (typeof valueDisplay === 'string') {
+                                        const span = document.createElement('span');
+                                        span.textContent = valueDisplay;
+                                        valueDisplay = span;
+                                    }
                                 }
-                            }
 
-                            copyIcon.addEventListener('click', () => {
-                                navigator.clipboard.writeText(copyText).then(() => {
-                                    copyIcon.classList.replace('fa-copy', 'fa-check');
-                                    copyIcon.classList.add('text-success');
-                                    setTimeout(() => {
-                                        copyIcon.classList.replace('fa-check', 'fa-copy');
-                                        copyIcon.classList.remove('text-success');
-                                    }, 1000);
+                                copyIcon.addEventListener('click', () => {
+                                    navigator.clipboard.writeText(copyText).then(() => {
+                                        copyIcon.classList.replace('fa-copy', 'fa-check');
+                                        copyIcon.classList.add('text-success');
+                                        setTimeout(() => {
+                                            copyIcon.classList.replace('fa-check', 'fa-copy');
+                                            copyIcon.classList.remove('text-success');
+                                        }, 1000);
+                                    });
                                 });
-                            });
 
-                            compRow.appendChild(copyIcon);
-                            compRow.appendChild(label);
-                            compRow.appendChild(valueDisplay);
-                            entryDiv.appendChild(compRow);
+                                compRow.appendChild(copyIcon);
+                                compRow.appendChild(label);
+                                compRow.appendChild(valueDisplay);
+                                entryDiv.appendChild(compRow);
+                            });
                         });
 
                         if (idx > 0) fieldDiv.appendChild(document.createElement('hr'));
@@ -179,32 +185,25 @@ export function renderPersonDetails(container, person) {
                         let valueEl;
                         let copyText = value;
 
-                        // In ui-person-details.js - inside the renderPersonDetails function
-                        // Specifically in the non-component field rendering section where files are handled
-
                         if (field.type === 'file' && value?.path && value?.name) {
-                            // Create a container for the file display
                             const fileDisplay = document.createElement('div');
                             fileDisplay.className = 'd-flex align-items-center';
-                            
-                            // Extract the file ID from either the id property or the path
+
                             const fileId = value.id || value.path.split('_')[0];
-                            
-                            // Create and add the ID label
+
                             const idLabel = document.createElement('span');
                             idLabel.className = 'text-muted me-2';
                             idLabel.textContent = `[${fileId}] `;
                             fileDisplay.appendChild(idLabel);
-                            
-                            // Create the file link
+
                             const link = document.createElement('a');
                             link.href = `/files/${person.id}/${value.path}`;
                             link.target = '_blank';
                             link.textContent = value.name || value.path.split('_').slice(1).join('_');
                             fileDisplay.appendChild(link);
-                            
+
                             valueEl = fileDisplay;
-                            copyText = value.name; // Use name for copying
+                            copyText = value.name;
                         } else {
                             valueEl = renderFieldValue(value, field.type);
                             if (typeof valueEl === 'string') {
