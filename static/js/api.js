@@ -6,12 +6,6 @@ async function fetchPeople() {
     return await response.json();
 }
 
-// Function to fetch configuration
-async function fetchConfig() {
-    const response = await fetch('/get_config');
-    return await response.json();
-}
-
 // Function to fetch a single person's details
 async function fetchPerson(personId) {
     // If personId is a string (actual ID), use it directly
@@ -36,4 +30,4 @@ async function deletePerson(personId) {
     });
 }
 
-export { fetchPeople, fetchConfig, fetchPerson, deletePerson };
+export { fetchPeople, fetchPerson, deletePerson };

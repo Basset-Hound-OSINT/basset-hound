@@ -82,8 +82,11 @@ def get_people():
 
 @app.route('/get_config')
 def get_config():
-    """API endpoint to get the profile configuration"""
-    return jsonify(CONFIG)
+    try:
+        config = load_config()
+        return jsonify(config)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/get_person/<string:person_id>')
 def get_person(person_id):

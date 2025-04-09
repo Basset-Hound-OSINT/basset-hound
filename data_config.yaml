@@ -42,3 +42,19 @@ sections:
             type: string
           - id: url
             type: url
+
+  - id: events
+    name: Relevant Events
+    fields:
+      - id: random_event
+        type: string
+        multiple: true
+        components:
+          - id: start_date
+            type: date
+          - id: end_date
+            type: date
+          - id: location
+            type: string
+          - id: starter
+            type: string

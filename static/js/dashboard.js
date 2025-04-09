@@ -1,6 +1,6 @@
 // dashboard.js - Entry point for the application
 
-import { fetchPeople, fetchConfig } from './api.js';
+import { fetchPeople } from './api.js';
 import { setupAddButtons, createPersonForm } from './ui-form-handlers.js';
 import { renderPeopleList, setupSearch } from './ui-people-list.js';
 
@@ -11,22 +11,20 @@ window.selectedPersonId = null;
 // Initialize the application
 async function initApp() {
     try {
-        // Fetch configuration if not already loaded
-        if (!window.appConfig) {
-            window.appConfig = await fetchConfig();
-        }
-        
+        // Always fetch fresh config in case it was updated
+        window.appConfig = await fetch('/get_config').then(res => res.json());
+
         // Fetch people data
         window.people = await fetchPeople();
-        
+
         // Render people list
         renderPeopleList(window.people, window.selectedPersonId);
-        
+
         // Setup event listeners
         setupAddButtons();
         setupSearch(window.people);
         setupFormHandlers();
-        
+
         // Setup download button
         const downloadBtn = document.getElementById('download-project-btn');
         if (downloadBtn) {
@@ -38,6 +36,7 @@ async function initApp() {
         console.error('Error initializing app:', error);
     }
 }
+
 
 // Setup form handlers for adding new people
 function setupFormHandlers() {
