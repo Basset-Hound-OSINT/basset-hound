@@ -180,7 +180,10 @@ export function createPersonForm(container, config, person = null) {
             const values = person?.profile?.[section.id]?.[field.id];
             const entries = Array.isArray(values) ? values : values ? [values] : [null];
 
-            entries.forEach((entry, index) => {
+            const entryCount = field.multiple ? Math.max(entries.length, 1) : 1;
+
+            for (let index = 0; index < entryCount; index++) {
+                const entry = entries[index] || {};
                 const groupDiv = document.createElement('div');
                 groupDiv.className = 'mb-3';
                 groupDiv.setAttribute('data-field', field.id);
@@ -212,8 +215,7 @@ export function createPersonForm(container, config, person = null) {
                                 const inputGroup = document.createElement('div');
                                 inputGroup.className = 'input-group mb-2';
 
-                                // ✅ Fixed: use underscore between index values
-                                const inputName = `${section.id}.${field.id}.${component.id}_${index}_${compIndex}`;
+                                const inputName = `${section.id}.${field.id}.${component.id}_${index}.${compIndex}`;
                                 const input = createInputElement(component, inputName, compValue, null, section.id);
                                 input.classList.add('form-control');
                                 inputGroup.appendChild(input);
@@ -228,7 +230,7 @@ export function createPersonForm(container, config, person = null) {
                                         const newInputGroup = document.createElement('div');
                                         newInputGroup.className = 'input-group mb-2';
 
-                                        const newName = `${section.id}.${field.id}.${component.id}_${index}_${newIndex}`;
+                                        const newName = `${section.id}.${field.id}.${component.id}_${index}.${newIndex}`;
                                         const newInput = createInputElement(component, newName, '', null, section.id);
                                         newInput.classList.add('form-control');
                                         newInputGroup.appendChild(newInput);
@@ -274,7 +276,7 @@ export function createPersonForm(container, config, person = null) {
                 }
 
                 containerDiv.appendChild(groupDiv);
-            });
+            }
 
             fieldDiv.appendChild(containerDiv);
 
@@ -315,6 +317,7 @@ export function createPersonForm(container, config, person = null) {
     container.appendChild(form);
 
     if (person) {
+        // Edit mode
         form.addEventListener('submit', async function (e) {
             e.preventDefault();
             const formData = new FormData(form);
@@ -322,15 +325,48 @@ export function createPersonForm(container, config, person = null) {
         });
 
         cancelButton.addEventListener('click', function () {
+            document.getElementById('profile-edit').style.display = 'none';
+            document.getElementById('person-details').style.display = 'block';
+        });
+    } else {
+        // Add mode — use JavaScript to submit with FormData
+        form.addEventListener('submit', async function (e) {
+            e.preventDefault();
+
+            if (!form.checkValidity()) {
+                form.classList.add('was-validated');
+                return;
+            }
+
+            const formData = new FormData(form);
+
+            try {
+                const response = await fetch('/add_person', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(errorText);
+                }
+
+                // Reload to show new person
+                window.location.reload();
+
+            } catch (error) {
+                console.error('[ERROR] Failed to add person', error);
+                alert('Failed to add person. Please try again.');
+            }
+        });
+
+        cancelButton.addEventListener('click', function () {
             document.getElementById('person-form-container').style.display = 'none';
             document.getElementById('person-details').style.display = 'block';
         });
     }
-
     setupAddButtons();
 }
-
-
 
 
 // Function to create a field with existing value
@@ -888,27 +924,10 @@ export function deletePerson(personId) {
 }
 
 
-document.addEventListener('click', (e) => {
-    if (e.target.matches('.add-component')) {
-        const container = e.target.closest('.component-multiple-container');
-        const componentId = e.target.getAttribute('data-component');
-        const fieldInstance = e.target.closest('.field-instance');
-        const sectionId = fieldInstance.closest('.card-body').id.split('-')[0];
-        const fieldId = fieldInstance.dataset.field;
 
-        const instances = container.querySelectorAll('.component-instance');
-        const newIndex = instances.length;
-
-        const input = instances[0].querySelector('input').cloneNode(true);
-        input.value = '';
-
-        const nameBase = `${sectionId}.${fieldId}.${componentId}_${fieldInstance.dataset.index}_${newIndex}`;
-        input.name = nameBase;
-
-        const wrapper = document.createElement('div');
-        wrapper.classList.add('component-instance', 'mb-2');
-        wrapper.dataset.subindex = newIndex;
-        wrapper.appendChild(input);
-        container.insertBefore(wrapper, e.target);
-    }
+document.getElementById('add-person-btn').addEventListener('click', () => {
+    const container = document.getElementById('person-form-container');
+    createPersonForm(container, window.appConfig);
+    container.style.display = 'block';
+    document.getElementById('person-details').style.display = 'none';
 });

@@ -41,24 +41,28 @@ async function initApp() {
 // Setup form handlers for adding new people
 function setupFormHandlers() {
     // Add person button
-    document.getElementById('add-person-btn').addEventListener('click', function() {
-        document.getElementById('add-person-form').style.display = 'block';
-        document.getElementById('person-details').style.display = 'none';
-        
-        // Close any open person form
-        const formContainer = document.getElementById('person-form-container');
-        if (formContainer) {
-            formContainer.style.display = 'none';
-        }
-    });
-    
+    const addPersonBtn = document.getElementById('add-person-btn');
+    if (addPersonBtn) {
+        addPersonBtn.addEventListener('click', function () {
+            const container = document.getElementById('person-form-container');
+            if (container) {
+                container.style.display = 'block';
+                document.getElementById('person-details').style.display = 'none';
+                createPersonForm(container, window.appConfig, null); // null = Add Mode
+            }
+        });
+    }
+
     // Cancel add person
-    document.getElementById('cancel-add').addEventListener('click', function() {
-        document.getElementById('add-person-form').style.display = 'none';
-        document.getElementById('person-details').style.display = 'block';
-    });
-    
-    // Setup form validation
+    const cancelAdd = document.getElementById('cancel-add');
+    if (cancelAdd) {
+        cancelAdd.addEventListener('click', function () {
+            document.getElementById('person-form-container').style.display = 'none';
+            document.getElementById('person-details').style.display = 'block';
+        });
+    }
+
+    // Setup validation for any existing forms (usually edit form only)
     const forms = document.querySelectorAll('.needs-validation');
     forms.forEach(form => {
         form.addEventListener('submit', function(event) {
@@ -66,11 +70,11 @@ function setupFormHandlers() {
                 event.preventDefault();
                 event.stopPropagation();
             }
-            
             form.classList.add('was-validated');
         });
     });
 }
+
 
 // Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', initApp);

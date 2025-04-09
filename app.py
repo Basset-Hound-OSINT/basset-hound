@@ -245,7 +245,7 @@ def process_component_field(field, field_key):
         component_part = parts[2]
 
         # Match things like: email_0_1 or email_0
-        match = re.match(r"(\w+)_([0-9]+)(?:_([0-9]+))?", component_part)
+        match = re.match(r"(\w+)_([0-9]+)(?:\.([0-9]+))?", component_part)
         if not match:
             continue
 
