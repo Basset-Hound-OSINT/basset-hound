@@ -160,6 +160,23 @@ export function createInputElement(field, name, value = '', component = null) {
     const wrapper = document.createElement('div');
     wrapper.classList.add('input-group');
 
+    // Handle custom comment type
+    if (inputType === 'comment') {
+        const textarea = document.createElement('textarea');
+        textarea.classList.add('form-control');
+        textarea.name = name;
+        textarea.rows = 5;
+        textarea.value = value;
+
+        if (field.required || component?.required) {
+            textarea.required = true;
+        }
+
+        wrapper.appendChild(textarea);
+        return wrapper;
+    }
+
+    // Standard input
     const input = document.createElement('input');
     input.classList.add('form-control');
     input.name = name;
@@ -172,8 +189,8 @@ export function createInputElement(field, name, value = '', component = null) {
 
     wrapper.appendChild(input);
 
+    // Special handling for password inputs
     if (resolvedType === 'password') {
-        // Toggle visibility icon
         const toggleBtn = document.createElement('button');
         toggleBtn.type = 'button';
         toggleBtn.className = 'btn btn-outline-secondary';
@@ -183,7 +200,6 @@ export function createInputElement(field, name, value = '', component = null) {
             toggleBtn.innerHTML = `<i class="fas fa-${input.type === 'password' ? 'eye' : 'eye-slash'}"></i>`;
         });
 
-        // Copy button
         const copyBtn = document.createElement('button');
         copyBtn.type = 'button';
         copyBtn.className = 'btn btn-outline-secondary';
@@ -206,7 +222,6 @@ export function createInputElement(field, name, value = '', component = null) {
 
     return wrapper;
 }
-
 
 
 export function getSectionById(config, sectionId) {
