@@ -246,11 +246,18 @@ def process_component_field(field, field_key):
                 instance_idx = '0'
 
             value = request.form[key].strip()
-            if value:
+            if not value:
+                continue
+
+            # Find component config
+            component_cfg = next((c for c in components if c["id"] == component_id), None)
+            if component_cfg and component_cfg.get("multiple"):
+                instances[instance_idx].setdefault(component_id, []).append(value)
+            else:
                 instances[instance_idx][component_id] = value
 
     result = [v for v in instances.values() if v]
-    return result if field.get("multiple", False) else (result[0] if result else None)
+    return result if field.get("multiple") else (result[0] if result else None)
 
 @app.route('/update_person/<person_id>', methods=['POST'])
 def update_person(person_id):

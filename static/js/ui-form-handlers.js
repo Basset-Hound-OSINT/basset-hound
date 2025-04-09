@@ -62,12 +62,71 @@ function addFieldInstance(container, sectionId, field, index) {
             componentLabel.textContent = component.name || component.id;
             componentGroup.appendChild(componentLabel);
             
-            const componentInput = createInputElement(
-                component, 
-                `${sectionId}.${fieldId}.${component.id}_${index}`, 
-                ''
-            );
-            componentGroup.appendChild(componentInput);
+            // Create the component input
+            if (component.multiple) {
+                // Create a container for multiple values of this component
+                const componentContainer = document.createElement('div');
+                componentContainer.className = 'component-container';
+                componentContainer.id = `${sectionId}-${fieldId}-${component.id}-container-${index}`;
+                
+                // Add the first component input
+                const componentInputGroup = document.createElement('div');
+                componentInputGroup.className = 'input-group mb-2';
+                
+                const componentInput = createInputElement(
+                    component, 
+                    `${sectionId}.${fieldId}.${component.id}_${index}.0`, 
+                    ''
+                );
+                componentInput.classList.add('form-control');
+                componentInputGroup.appendChild(componentInput);
+                
+                // Add button to add more of this component
+                const addComponentBtn = document.createElement('button');
+                addComponentBtn.type = 'button';
+                addComponentBtn.className = 'btn btn-outline-secondary';
+                addComponentBtn.innerHTML = '<i class="fas fa-plus"></i>';
+                addComponentBtn.title = `Add another ${component.name || component.id}`;
+                addComponentBtn.addEventListener('click', function() {
+                    const compInputs = componentContainer.querySelectorAll('.input-group');
+                    const compIndex = compInputs.length;
+                    
+                    const newComponentGroup = document.createElement('div');
+                    newComponentGroup.className = 'input-group mb-2';
+                    
+                    const newInput = createInputElement(
+                        component, 
+                        `${sectionId}.${fieldId}.${component.id}_${index}.${compIndex}`, 
+                        ''
+                    );
+                    newInput.classList.add('form-control');
+                    newComponentGroup.appendChild(newInput);
+                    
+                    // Add remove button for this component value
+                    const removeCompBtn = document.createElement('button');
+                    removeCompBtn.type = 'button';
+                    removeCompBtn.className = 'btn btn-outline-danger';
+                    removeCompBtn.innerHTML = '<i class="fas fa-times"></i>';
+                    removeCompBtn.addEventListener('click', function() {
+                        newComponentGroup.remove();
+                    });
+                    newComponentGroup.appendChild(removeCompBtn);
+                    
+                    componentContainer.appendChild(newComponentGroup);
+                });
+                
+                componentInputGroup.appendChild(addComponentBtn);
+                componentContainer.appendChild(componentInputGroup);
+                componentGroup.appendChild(componentContainer);
+            } else {
+                // Single component value
+                const componentInput = createInputElement(
+                    component, 
+                    `${sectionId}.${fieldId}.${component.id}_${index}`, 
+                    ''
+                );
+                componentGroup.appendChild(componentInput);
+            }
             
             fieldInstance.appendChild(componentGroup);
         });
@@ -84,7 +143,6 @@ function addFieldInstance(container, sectionId, field, index) {
     container.appendChild(fieldInstance);
 }
 
-// Function to create form for adding/editing people
 export function createPersonForm(container, config, person = null) {
     container.innerHTML = '';
 
@@ -92,7 +150,7 @@ export function createPersonForm(container, config, person = null) {
     form.id = person ? 'edit-person-form' : 'add-person-form';
     form.className = 'needs-validation';
     form.noValidate = true;
-    form.enctype = 'multipart/form-data'; // ✅ enable file support
+    form.enctype = 'multipart/form-data'; // enable file uploads
 
     config.sections.forEach(section => {
         const sectionDiv = document.createElement('div');
@@ -115,21 +173,56 @@ export function createPersonForm(container, config, person = null) {
             fieldLabel.textContent = field.name || field.id;
             fieldDiv.appendChild(fieldLabel);
 
-            const instancesContainer = document.createElement('div');
-            instancesContainer.id = `${section.id}-${field.id}-container`;
-            instancesContainer.className = 'field-instances';
+            const containerDiv = document.createElement('div');
+            containerDiv.id = `${section.id}-${field.id}-container`;
+            containerDiv.className = 'field-instances';
 
-            if (person && person.profile?.[section.id]?.[field.id]) {
-                const fieldData = person.profile[section.id][field.id];
-                const values = Array.isArray(fieldData) ? fieldData : [fieldData];
-                values.forEach((value, index) => {
-                    createFieldWithValue(instancesContainer, section.id, field, value, index);
-                });
-            } else {
-                addFieldInstance(instancesContainer, section.id, field, 0);
-            }
+            const values = person?.profile?.[section.id]?.[field.id];
+            const entries = Array.isArray(values) ? values : values ? [values] : [null];
 
-            fieldDiv.appendChild(instancesContainer);
+            entries.forEach((entry, index) => {
+                const groupDiv = document.createElement('div');
+                groupDiv.className = 'mb-3';
+                groupDiv.setAttribute('data-field', field.id);
+
+                if (field.components) {
+                    const groupTitle = document.createElement('h6');
+                    groupTitle.textContent = `${field.name || field.id} #${index + 1}`;
+                    groupDiv.appendChild(groupTitle);
+
+                    field.components.forEach(component => {
+                        const compWrapper = document.createElement('div');
+                        compWrapper.className = 'mb-2';
+
+                        const label = document.createElement('label');
+                        label.className = 'form-label';
+                        label.textContent = component.name || component.id;
+
+                        const baseName = `${section.id}.${field.id}.${component.id}_${index}`;
+                        const compValues = component.multiple && entry?.[component.id]
+                            ? entry[component.id]
+                            : [entry?.[component.id] || ''];
+
+                        compValues.forEach((compValue, compIndex) => {
+                            const inputName = component.multiple ? `${baseName}.${compIndex}` : baseName;
+                            const inputGroup = createInputElement(field, inputName, compValue, component, section.id);
+                            compWrapper.appendChild(label.cloneNode(true));
+                            compWrapper.appendChild(inputGroup);
+                        });
+
+                        groupDiv.appendChild(compWrapper);
+                    });
+                } else {
+                    const name = `${section.id}.${field.id}_${index}`;
+                    const value = entry || '';
+                    const inputGroup = createInputElement(field, name, value, null, section.id);
+                    groupDiv.appendChild(inputGroup);
+                }
+
+                containerDiv.appendChild(groupDiv);
+            });
+
+            fieldDiv.appendChild(containerDiv);
 
             if (field.multiple) {
                 const addButton = document.createElement('button');
@@ -167,11 +260,12 @@ export function createPersonForm(container, config, person = null) {
     form.appendChild(actionButtons);
     container.appendChild(form);
 
+    // 🔁 Add event handlers
     if (person) {
-        form.addEventListener('submit', async function(e) {
+        form.addEventListener('submit', async function (e) {
             e.preventDefault();
-            const formData = new FormData(form); // collects all file and text fields
-            await updatePersonData(person.id, form);
+            const formData = new FormData(form);
+            await updatePersonData(person.id, formData);
         });
 
         cancelButton.addEventListener('click', function () {
@@ -180,8 +274,10 @@ export function createPersonForm(container, config, person = null) {
         });
     }
 
+    // ✅ Setup dynamic add buttons (already defined in your code)
     setupAddButtons();
 }
+
 
 // Function to create a field with existing value
 function createFieldWithValue(container, sectionId, field, value, index) {
@@ -257,13 +353,93 @@ function createFieldWithValue(container, sectionId, field, value, index) {
             componentLabel.textContent = component.name || component.id;
             componentGroup.appendChild(componentLabel);
             
-            const componentValue = value && value[component.id] ? value[component.id] : '';
-            const componentInput = createInputElement(
-                component, 
-                `${sectionId}.${fieldId}.${component.id}_${index}`, 
-                componentValue
-            );
-            componentGroup.appendChild(componentInput);
+            if (component.multiple) {
+                // Create a container for multiple values of this component
+                const componentContainer = document.createElement('div');
+                componentContainer.className = 'component-container';
+                componentContainer.id = `${sectionId}-${fieldId}-${component.id}-container-${index}`;
+                
+                // Get component values (ensure it's an array)
+                const componentValues = value && value[component.id] 
+                    ? (Array.isArray(value[component.id]) ? value[component.id] : [value[component.id]])
+                    : [''];
+                
+                // Create an input group for each value
+                componentValues.forEach((compValue, compIndex) => {
+                    const componentInputGroup = document.createElement('div');
+                    componentInputGroup.className = 'input-group mb-2';
+                    
+                    const componentInput = createInputElement(
+                        component, 
+                        `${sectionId}.${fieldId}.${component.id}_${index}.${compIndex}`, 
+                        compValue
+                    );
+                    componentInput.classList.add('form-control');
+                    componentInputGroup.appendChild(componentInput);
+                    
+                    // Only add buttons to the first one, or add remove button to others
+                    if (compIndex === 0) {
+                        // Add button to add more of this component
+                        const addComponentBtn = document.createElement('button');
+                        addComponentBtn.type = 'button';
+                        addComponentBtn.className = 'btn btn-outline-secondary';
+                        addComponentBtn.innerHTML = '<i class="fas fa-plus"></i>';
+                        addComponentBtn.title = `Add another ${component.name || component.id}`;
+                        addComponentBtn.addEventListener('click', function() {
+                            const compInputs = componentContainer.querySelectorAll('.input-group');
+                            const newCompIndex = compInputs.length;
+                            
+                            const newComponentGroup = document.createElement('div');
+                            newComponentGroup.className = 'input-group mb-2';
+                            
+                            const newInput = createInputElement(
+                                component, 
+                                `${sectionId}.${fieldId}.${component.id}_${index}.${newCompIndex}`, 
+                                ''
+                            );
+                            newInput.classList.add('form-control');
+                            newComponentGroup.appendChild(newInput);
+                            
+                            // Add remove button for this component value
+                            const removeCompBtn = document.createElement('button');
+                            removeCompBtn.type = 'button';
+                            removeCompBtn.className = 'btn btn-outline-danger';
+                            removeCompBtn.innerHTML = '<i class="fas fa-times"></i>';
+                            removeCompBtn.addEventListener('click', function() {
+                                newComponentGroup.remove();
+                            });
+                            newComponentGroup.appendChild(removeCompBtn);
+                            
+                            componentContainer.appendChild(newComponentGroup);
+                        });
+                        
+                        componentInputGroup.appendChild(addComponentBtn);
+                    } else {
+                        // Add remove button for non-first items
+                        const removeCompBtn = document.createElement('button');
+                        removeCompBtn.type = 'button';
+                        removeCompBtn.className = 'btn btn-outline-danger';
+                        removeCompBtn.innerHTML = '<i class="fas fa-times"></i>';
+                        removeCompBtn.addEventListener('click', function() {
+                            componentInputGroup.remove();
+                        });
+                        componentInputGroup.appendChild(removeCompBtn);
+                    }
+                    
+                    componentContainer.appendChild(componentInputGroup);
+                });
+                
+                componentGroup.appendChild(componentContainer);
+            } else {
+                // Single component value
+                const componentValue = value && value[component.id] ? value[component.id] : '';
+                const componentInput = createInputElement(
+                    component, 
+                    `${sectionId}.${fieldId}.${component.id}_${index}`, 
+                    componentValue
+                );
+                componentGroup.appendChild(componentInput);
+            }
             
             fieldInstance.appendChild(componentGroup);
         });
@@ -307,11 +483,11 @@ export function collectFormData(form) {
         let fieldId = parts[1];
         
         // Handle field index for multiple values
-        let index = 0;
+        let fieldIndex = 0;
         if (fieldId.includes('_')) {
             const fieldParts = fieldId.split('_');
             fieldId = fieldParts[0];
-            index = parseInt(fieldParts[1]);
+            fieldIndex = parseInt(fieldParts[1]);
         }
         
         // Initialize field if not exists
@@ -327,22 +503,62 @@ export function collectFormData(form) {
         }
         
         // Handle components
-        if (parts.length === 3) {
-            const componentParts = parts[2].split('_');
+        if (parts.length >= 3) {
+            let componentParts = parts[2].split('_');
             const componentId = componentParts[0];
             
             // Get the section and field definitions
             const section = getSectionById(config, sectionId);
             const field = section.fields.find(f => f.id === fieldId);
+            const component = field.components.find(c => c.id === componentId);
             
             if (field.multiple) {
                 // Ensure index exists
-                while (result.profile[sectionId][fieldId].length <= index) {
+                while (result.profile[sectionId][fieldId].length <= fieldIndex) {
                     result.profile[sectionId][fieldId].push({});
                 }
-                result.profile[sectionId][fieldId][index][componentId] = value;
+                
+                // Handle multiple component values (part[3] might have component index)
+                if (component.multiple && parts.length >= 4) {
+                    const componentIndex = parseInt(parts[3]);
+                    
+                    // Initialize component array if needed
+                    if (!result.profile[sectionId][fieldId][fieldIndex][componentId] ||
+                        !Array.isArray(result.profile[sectionId][fieldId][fieldIndex][componentId])) {
+                        result.profile[sectionId][fieldId][fieldIndex][componentId] = [];
+                    }
+                    
+                    // Ensure index exists
+                    while (result.profile[sectionId][fieldId][fieldIndex][componentId].length <= componentIndex) {
+                        result.profile[sectionId][fieldId][fieldIndex][componentId].push('');
+                    }
+                    
+                    result.profile[sectionId][fieldId][fieldIndex][componentId][componentIndex] = value;
+                } else {
+                    // Single component value
+                    result.profile[sectionId][fieldId][fieldIndex][componentId] = value;
+                }
             } else {
-                result.profile[sectionId][fieldId][componentId] = value;
+                // Handle multiple component values in a non-multiple field
+                if (component.multiple && parts.length >= 4) {
+                    const componentIndex = parseInt(parts[3]);
+                    
+                    // Initialize component array if needed
+                    if (!result.profile[sectionId][fieldId][componentId] ||
+                        !Array.isArray(result.profile[sectionId][fieldId][componentId])) {
+                        result.profile[sectionId][fieldId][componentId] = [];
+                    }
+                    
+                    // Ensure index exists
+                    while (result.profile[sectionId][fieldId][componentId].length <= componentIndex) {
+                        result.profile[sectionId][fieldId][componentId].push('');
+                    }
+                    
+                    result.profile[sectionId][fieldId][componentId][componentIndex] = value;
+                } else {
+                    // Single component value
+                    result.profile[sectionId][fieldId][componentId] = value;
+                }
             }
         } else {
             // Simple field
@@ -351,10 +567,10 @@ export function collectFormData(form) {
             
             if (field.multiple) {
                 // Ensure index exists
-                while (result.profile[sectionId][fieldId].length <= index) {
+                while (result.profile[sectionId][fieldId].length <= fieldIndex) {
                     result.profile[sectionId][fieldId].push('');
                 }
-                result.profile[sectionId][fieldId][index] = value;
+                result.profile[sectionId][fieldId][fieldIndex] = value;
             } else {
                 result.profile[sectionId][fieldId] = value;
             }
@@ -454,36 +670,94 @@ export function editPerson(personId) {
 
                 if (field.components) {
                     field.components.forEach(component => {
-                        const name = `${section.id}.${field.id}.${component.id}_${index}`;
-                        const fallbackKeys = [
-                            component.id,
-                            component.id.replace('_name', ''),
-                            component.id.replace('name', ''),
-                            component.id.replace('_', ''),
-                        ];
-                        const value = fallbackKeys.reduce((acc, key) => acc || val[key], '');
+                        const compWrapper = document.createElement('div');
+                        compWrapper.className = 'mb-2';
 
                         const label = document.createElement('label');
                         label.className = 'form-label';
                         label.textContent = component.name || component.id;
-                        label.setAttribute('for', name);
+                        compWrapper.appendChild(label);
 
-                        const inputGroup = createInputElement(field, name, value, component);
-                        groupDiv.appendChild(label);
-                        groupDiv.appendChild(inputGroup);
+                        // Check if this component allows multiple values
+                        if (component.multiple) {
+                            // Create a container for multiple entries
+                            const componentContainer = document.createElement('div');
+                            componentContainer.className = 'component-container';
+                            componentContainer.id = `${section.id}-${field.id}-${component.id}-container-${index}`;
+                            
+                            // Get component values (ensure it's an array)
+                            const componentValues = val && val[component.id] 
+                                ? (Array.isArray(val[component.id]) ? val[component.id] : [val[component.id]])
+                                : [''];
+                            
+                            // Add an input group for each existing value
+                            componentValues.forEach((compValue, compIndex) => {
+                                const inputGroup = document.createElement('div');
+                                inputGroup.className = 'input-group mb-2';
+                                
+                                const inputName = `${section.id}.${field.id}.${component.id}_${index}.${compIndex}`;
+                                const input = createInputElement(component, inputName, compValue, null, section.id);
+                                input.classList.add('form-control');
+                                inputGroup.appendChild(input);
+                                
+                                // Only add plus button to the first item, remove buttons to the rest
+                                if (compIndex === 0) {
+                                    // Add button for adding more values
+                                    const addBtn = document.createElement('button');
+                                    addBtn.type = 'button';
+                                    addBtn.className = 'btn btn-outline-secondary';
+                                    addBtn.innerHTML = '<i class="fas fa-plus"></i>';
+                                    addBtn.title = `Add another ${component.name || component.id}`;
+                                    addBtn.addEventListener('click', function() {
+                                        const newIndex = componentContainer.querySelectorAll('.input-group').length;
+                                        const newInputGroup = document.createElement('div');
+                                        newInputGroup.className = 'input-group mb-2';
+                                        
+                                        const newInputName = `${section.id}.${field.id}.${component.id}_${index}.${newIndex}`;
+                                        const newInput = createInputElement(component, newInputName, '', null, section.id);
+                                        newInput.classList.add('form-control');
+                                        newInputGroup.appendChild(newInput);
+                                        
+                                        // Add remove button
+                                        const removeBtn = document.createElement('button');
+                                        removeBtn.type = 'button';
+                                        removeBtn.className = 'btn btn-outline-danger';
+                                        removeBtn.innerHTML = '<i class="fas fa-times"></i>';
+                                        removeBtn.addEventListener('click', function() {
+                                            newInputGroup.remove();
+                                        });
+                                        newInputGroup.appendChild(removeBtn);
+                                        
+                                        componentContainer.appendChild(newInputGroup);
+                                    });
+                                    
+                                    inputGroup.appendChild(addBtn);
+                                } else {
+                                    // Add remove button
+                                    const removeBtn = document.createElement('button');
+                                    removeBtn.type = 'button';
+                                    removeBtn.className = 'btn btn-outline-danger';
+                                    removeBtn.innerHTML = '<i class="fas fa-times"></i>';
+                                    removeBtn.addEventListener('click', function() {
+                                        inputGroup.remove();
+                                    });
+                                    inputGroup.appendChild(removeBtn);
+                                }
+                                
+                                componentContainer.appendChild(inputGroup);
+                            });
+                            
+                            compWrapper.appendChild(componentContainer);
+                        } else {
+                            // Single component (existing code)
+                            const inputName = `${section.id}.${field.id}.${component.id}_${index}`;
+                            const componentValue = val && val[component.id] ? val[component.id] : '';
+                            const input = createInputElement(component, inputName, componentValue, null, section.id);
+                            compWrapper.appendChild(input);
+                        }
+                        
+                        groupDiv.appendChild(compWrapper);
                     });
-                } else {
-                    const name = `${section.id}.${field.id}_${index}`;
-                    const value = values[index] || '';
-
-                    const label = document.createElement('label');
-                    label.className = 'form-label';
-                    label.textContent = field.name || field.id;
-                    label.setAttribute('for', name);
-
-                    const inputGroup = createInputElement(field, name, value);
-                    groupDiv.appendChild(label);
-                    groupDiv.appendChild(inputGroup);
                 }
 
                 sectionDiv.appendChild(groupDiv);

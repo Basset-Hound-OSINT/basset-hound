@@ -21,7 +21,7 @@ sections:
       - id: personal_files
         type: file
         multiple: true
-        
+
 
   - id: social
     name: Social Media
@@ -36,6 +36,7 @@ sections:
             type: string
           - id: email
             type: email
+            multiple: true
           - id: password
             type: password
       - id: twitter
