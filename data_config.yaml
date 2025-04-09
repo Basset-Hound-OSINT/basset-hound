@@ -45,6 +45,9 @@ sections:
             type: string
           - id: url
             type: url
+      - id: social files
+        type: file
+        multiple: true
   
   - id: addresses
     name: Addresses

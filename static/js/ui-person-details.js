@@ -179,13 +179,32 @@ export function renderPersonDetails(container, person) {
                         let valueEl;
                         let copyText = value;
 
+                        // In ui-person-details.js - inside the renderPersonDetails function
+                        // Specifically in the non-component field rendering section where files are handled
+
                         if (field.type === 'file' && value?.path && value?.name) {
+                            // Create a container for the file display
+                            const fileDisplay = document.createElement('div');
+                            fileDisplay.className = 'd-flex align-items-center';
+                            
+                            // Extract the file ID from either the id property or the path
+                            const fileId = value.id || value.path.split('_')[0];
+                            
+                            // Create and add the ID label
+                            const idLabel = document.createElement('span');
+                            idLabel.className = 'text-muted me-2';
+                            idLabel.textContent = `[${fileId}] `;
+                            fileDisplay.appendChild(idLabel);
+                            
+                            // Create the file link
                             const link = document.createElement('a');
                             link.href = `/files/${person.id}/${value.path}`;
                             link.target = '_blank';
-                            link.textContent = value.name;
-                            valueEl = link;
-                            copyText = value.name;
+                            link.textContent = value.name || value.path.split('_').slice(1).join('_');
+                            fileDisplay.appendChild(link);
+                            
+                            valueEl = fileDisplay;
+                            copyText = value.name; // Use name for copying
                         } else {
                             valueEl = renderFieldValue(value, field.type);
                             if (typeof valueEl === 'string') {

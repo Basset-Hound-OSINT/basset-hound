@@ -45,26 +45,36 @@ export function renderFieldValue(value, type) {
         return document.createTextNode(date.toLocaleDateString());
     }
 
-    if (field.type === 'file') {
-        if (!value) return;
+    // In utils.js - fix the file rendering in renderFieldValue function
+    if (type === 'file') {
+        if (!value) return document.createTextNode('');
         
-        const fileList = document.createElement('div');
-        fileList.className = 'd-flex flex-wrap gap-2 mb-2';
-        
-        // Handle both single and multiple files
+        // Handle both single file and multiple files
         const files = Array.isArray(value) ? value : [value];
         
+        if (files.length === 0) return document.createTextNode('');
+        
+        const container = document.createElement('div');
+        container.className = 'd-flex flex-wrap gap-2';
+        
         files.forEach(file => {
+            // Ensure proper file object structure
+            if (!file || !file.path) return;
+            
             const fileLink = document.createElement('a');
-            fileLink.href = `/files/${person.id}/${file.path}`;
-            fileLink.className = 'btn btn-sm btn-outline-primary';
+            fileLink.href = `/files/${window.selectedPersonId}/${file.path}`;
             fileLink.target = '_blank';
-            fileLink.innerHTML = `<i class="fas fa-file-download me-1"></i>${file.name}`;
-            fileList.appendChild(fileLink);
+            
+            // Display the original filename (without the added file ID)
+            // If using the format fileId_filename.ext
+            const displayName = file.name || file.path.split('_').slice(1).join('_');
+            
+            fileLink.textContent = displayName;
+            fileLink.className = 'me-2';
+            container.appendChild(fileLink);
         });
         
-        container.appendChild(fileList);
-        return;
+        return container;
     }
     
     return document.createTextNode(value.toString());
