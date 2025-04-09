@@ -78,11 +78,39 @@ function renderPeopleList(people, selectedPersonId = null) {
 // Function to filter people list based on search term
 function filterPeople(people, searchTerm) {
     if (!searchTerm) return people;
-    
+
     searchTerm = searchTerm.toLowerCase();
+
     return people.filter(person => {
-        const name = getDisplayName(person).toLowerCase();
-        return name.includes(searchTerm);
+        // Check display name
+        if (getDisplayName(person).toLowerCase().includes(searchTerm)) {
+            return true;
+        }
+
+        // Check entire profile for any match
+        const profile = person.profile || {};
+        for (const sectionId in profile) {
+            const section = profile[sectionId];
+            for (const fieldId in section) {
+                const field = section[fieldId];
+                const values = Array.isArray(field) ? field : [field];
+                for (const value of values) {
+                    if (typeof value === 'string' && value.toLowerCase().includes(searchTerm)) {
+                        return true;
+                    }
+                    if (typeof value === 'object') {
+                        for (const key in value) {
+                            const subValue = value[key];
+                            if (typeof subValue === 'string' && subValue.toLowerCase().includes(searchTerm)) {
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return false;
     });
 }
 
