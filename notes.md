@@ -14,17 +14,15 @@ TODO
 
 ## Phase 1 - Manage People Data
 
- - [ ] add "events" data fields with event name, date range, location and comments to tie people to an event
- 	- [ ] for simplicity of data storage - treat people, organizations, and events as the same type of entity
-  	- [ ] able to tag people to people, people to organizations, and people to events
+
+ - [ ] able to tag people to people, people to organizations, and people to events
  - [ ] profile pic, default profile pic
  - [ ] connected people
 	- [ ] list / table / tags of people in profile
 	- [ ] list / table / tags of other related people by hopping in profile
 	- [ ] if person1 is related to person2 and person2 is related to person3, then person3 is related to person1
 	- [ ] keep track of how many hops between a person
- - [ ] add comments to individual - big text area to past stuff
- - [ ] add files to an individual and relevant comments for each file
+ 	- [ ] add files to an individual and relevant comments for each file
 	- [ ] make a folder for the project, then make a folder for each person based on unique id, then store files in each person's folder
 	- [ ] when delete person, choice to keep files
 		- [ ] choice which files to keep (can choose all)

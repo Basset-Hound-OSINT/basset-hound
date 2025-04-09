@@ -120,11 +120,42 @@ def get_person(person_id):
             return jsonify(person)
     return jsonify({"error": "Person not found"}), 404
 
+@app.route('/generate_id')
+def generate_id():
+    return jsonify({"id": generate_unique_id()})
+
 def generate_unique_id():
     length = 12
+    existing_ids = set()
+
+    # Project folder path
+    project_dir = os.path.join("projects", current_project["safe_name"])
+
+    # 1. Check all folder names (person IDs)
+    if os.path.isdir(project_dir):
+        for entry in os.listdir(project_dir):
+            full_path = os.path.join(project_dir, entry)
+            if os.path.isdir(full_path):
+                existing_ids.add(entry)
+
+            # 2. Check all file names in each folder (extract prefix before '_')
+            elif os.path.isfile(full_path) and "_" in entry:
+                prefix = entry.split("_", 1)[0]
+                existing_ids.add(prefix)
+
+        # 3. Check files inside each person's folder too
+        for person_folder in os.listdir(project_dir):
+            folder_path = os.path.join(project_dir, person_folder)
+            if os.path.isdir(folder_path):
+                for file in os.listdir(folder_path):
+                    if "_" in file:
+                        prefix = file.split("_", 1)[0]
+                        existing_ids.add(prefix)
+
+    # 4. Generate a truly unique ID
     while True:
         new_id = hashlib.sha256(os.urandom(32)).hexdigest()[:length]
-        if not any(p.get("id") == new_id for p in current_project["people"]):
+        if new_id not in existing_ids:
             return new_id
 
 @app.route('/add_person', methods=['POST'])

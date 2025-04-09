@@ -76,10 +76,9 @@ export function renderFieldValue(value, type) {
         
         return container;
     }
-    
+
     return document.createTextNode(value.toString());
 }
-
 
 function renderSingleValue(val, type) {
     if (!val) return '';
@@ -279,11 +278,22 @@ export function getSectionById(config, sectionId) {
     return config.sections.find(section => section.id === sectionId) || null;
 }
 
-
 export function ensureHttps(url) {
     if (!url) return '';
     if (!/^https?:\/\//i.test(url)) {
         return `https://${url}`;
     }
     return url;
+}
+
+export async function getUniqueId() {
+    try {
+        const response = await fetch('/generate_id');
+        if (!response.ok) throw new Error('Failed to get ID');
+        const data = await response.json();
+        return data.id;
+    } catch (err) {
+        console.error('[ERROR] Could not fetch unique ID', err);
+        throw err;
+    }
 }
