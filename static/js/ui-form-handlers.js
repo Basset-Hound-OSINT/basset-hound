@@ -493,11 +493,8 @@ export function editPerson(personId) {
                     if (field.components) {
                         if (field.components) {
                             field.components.forEach(component => {
-                                const fallbackKeys = [component.id, component.id.replace('_name', ''), component.id.replace('name', '')];
-                                const value = fallbackKeys.reduce((acc, key) => acc || val[key], '') || '';
-
                                 const name = `${section.id}.${field.id}.${component.id}_${index}`;
-                                const inputGroup = createInputElement(field, name, value, component);
+                                const inputGroup = createInputElement(field, name, '', component);
                                 groupDiv.appendChild(inputGroup);
                             });
 
@@ -520,6 +517,14 @@ export function editPerson(personId) {
         form.appendChild(sectionDiv);
     }
 
+    const cancelBtn = document.getElementById('cancel-edit');
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', () => {
+            // Hide edit form and show profile
+            document.getElementById('profile-edit').style.display = 'none';
+            document.getElementById('person-details').style.display = 'block';
+        });
+    }
 
 }
 
