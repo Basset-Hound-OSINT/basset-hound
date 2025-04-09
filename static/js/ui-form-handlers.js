@@ -380,6 +380,8 @@ export function editPerson(personId) {
     const profileEdit = document.getElementById('profile-edit');
     const form = document.getElementById('edit-person-form');
 
+    form.classList.remove('was-validated');
+
     if (!personDetails || !profileEdit || !form) return;
 
     personDetails.style.display = 'none';

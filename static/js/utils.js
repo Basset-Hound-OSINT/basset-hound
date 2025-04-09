@@ -145,20 +145,6 @@ export function calculateBassetAge(createdAt) {
 
 
 export function createInputElement(field, name, value = '', component = null) {
-    const wrapper = document.createElement('div');
-    wrapper.classList.add('mb-2');
-
-    const label = document.createElement('label');
-    label.classList.add('form-label');
-
-    // Use component name if available, otherwise field name/id
-    label.textContent = component?.name || component?.id || field.name || field.id;
-    label.setAttribute('for', name);
-
-    const input = document.createElement('input');
-    input.classList.add('form-control');
-    input.name = name;
-
     const typeMap = {
         string: 'text',
         email: 'email',
@@ -168,18 +154,59 @@ export function createInputElement(field, name, value = '', component = null) {
         password: 'password'
     };
 
-    input.type = typeMap[component?.type || field.type] || 'text';
-    input.value = value || '';
+    const inputType = component?.type || field.type;
+    const resolvedType = typeMap[inputType] || 'text';
 
-    if (field.required) {
+    const wrapper = document.createElement('div');
+    wrapper.classList.add('input-group');
+
+    const input = document.createElement('input');
+    input.classList.add('form-control');
+    input.name = name;
+    input.type = resolvedType;
+    input.value = value;
+
+    if (field.required || component?.required) {
         input.required = true;
     }
 
-    wrapper.appendChild(label);
     wrapper.appendChild(input);
+
+    if (resolvedType === 'password') {
+        // Toggle visibility icon
+        const toggleBtn = document.createElement('button');
+        toggleBtn.type = 'button';
+        toggleBtn.className = 'btn btn-outline-secondary';
+        toggleBtn.innerHTML = `<i class="fas fa-eye"></i>`;
+        toggleBtn.addEventListener('click', () => {
+            input.type = input.type === 'password' ? 'text' : 'password';
+            toggleBtn.innerHTML = `<i class="fas fa-${input.type === 'password' ? 'eye' : 'eye-slash'}"></i>`;
+        });
+
+        // Copy button
+        const copyBtn = document.createElement('button');
+        copyBtn.type = 'button';
+        copyBtn.className = 'btn btn-outline-secondary';
+        copyBtn.innerHTML = `<i class="fas fa-copy"></i>`;
+        copyBtn.addEventListener('click', () => {
+            navigator.clipboard.writeText(input.value).then(() => {
+                copyBtn.innerHTML = `<i class="fas fa-check text-success"></i>`;
+                setTimeout(() => {
+                    copyBtn.innerHTML = `<i class="fas fa-copy"></i>`;
+                }, 1000);
+            });
+        });
+
+        const buttonGroup = document.createElement('div');
+        buttonGroup.classList.add('input-group-append');
+        buttonGroup.appendChild(toggleBtn);
+        buttonGroup.appendChild(copyBtn);
+        wrapper.appendChild(buttonGroup);
+    }
 
     return wrapper;
 }
+
 
 
 export function getSectionById(config, sectionId) {

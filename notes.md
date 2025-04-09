@@ -14,7 +14,6 @@ TODO
 
 ## Phase 1 - Manage People Data
 
- - [ ] setup data ingest template - data.yaml to give a reference for data categories and what to expect when populating the dashboard
  - [ ] add email, username, and password to social media fields (select email from previous emails)
  - [ ] add "events" data fields with event name, date range, location and comments to tie people to an event
  	- [ ] for simplicity of data storage - treat people, organizations, and events as the same type of entity

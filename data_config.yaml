@@ -30,6 +30,10 @@ sections:
             type: url
           - id: username
             type: string
+          - id: email
+            type: email
+          - id: password
+            type: password
       - id: twitter
         type: url
         multiple: true

@@ -1,7 +1,7 @@
 import { getDisplayName, calculateBassetAge, renderFieldValue } from './utils.js';
 import { editPerson, deletePerson } from './ui-form-handlers.js';
 
-function renderPersonDetails(container, person) {
+export function renderPersonDetails(container, person) {
     container.innerHTML = '';
 
     // Header
@@ -83,22 +83,75 @@ function renderPersonDetails(container, person) {
                         entryDiv.classList.add('mb-2');
 
                         field.components.forEach(component => {
-                            const compVal = entry[component.id] || entry[component.id.replace('_name', '')] || entry[component.id.replace('name', '')];
-                            if (compVal) {
-                                const compRow = document.createElement('div');
-                                compRow.classList.add('mb-2');
+                            const compVal =
+                                entry[component.id] ||
+                                entry[component.id.replace('_name', '')] ||
+                                entry[component.id.replace('name', '')];
 
-                                const label = document.createElement('span');
-                                label.classList.add('text-muted');
-                                label.textContent = `${component.name || component.id}: `;
+                            if (!compVal) return;
 
-                                const valueEl = renderFieldValue(compVal, component.type);
-                                compRow.appendChild(label);
-                                compRow.appendChild(valueEl);
+                            const compRow = document.createElement('div');
+                            compRow.classList.add('mb-2', 'd-flex', 'align-items-center', 'gap-2');
 
-                                entryDiv.appendChild(compRow);
+                            const copyIcon = document.createElement('i');
+                            copyIcon.className = 'fas fa-copy text-secondary';
+                            copyIcon.style.cursor = 'pointer';
+                            copyIcon.title = `Copy ${component.name || component.id}`;
+
+                            const label = document.createElement('span');
+                            label.classList.add('text-muted', 'me-1');
+                            label.textContent = `${component.name || component.id}: `;
+
+                            let valueDisplay;
+                            let copyText = compVal;
+
+                            if (component.type === 'password') {
+                                const masked = document.createElement('span');
+                                masked.textContent = '••••••••';
+
+                                const real = document.createElement('span');
+                                real.textContent = compVal;
+                                real.style.display = 'none';
+
+                                const toggleBtn = document.createElement('i');
+                                toggleBtn.className = 'fas fa-eye text-secondary';
+                                toggleBtn.style.cursor = 'pointer';
+                                toggleBtn.title = 'Show password';
+                                toggleBtn.addEventListener('click', () => {
+                                    const showing = masked.style.display === 'none';
+                                    masked.style.display = showing ? 'inline' : 'none';
+                                    real.style.display = showing ? 'none' : 'inline';
+                                    toggleBtn.className = showing ? 'fas fa-eye' : 'fas fa-eye-slash';
+                                });
+
+                                valueDisplay = document.createElement('span');
+                                valueDisplay.appendChild(masked);
+                                valueDisplay.appendChild(real);
+                                valueDisplay.appendChild(toggleBtn);
+                            } else {
+                                valueDisplay = renderFieldValue(compVal, component.type);
+                                if (typeof valueDisplay === 'string') {
+                                    const span = document.createElement('span');
+                                    span.textContent = valueDisplay;
+                                    valueDisplay = span;
+                                }
                             }
 
+                            copyIcon.addEventListener('click', () => {
+                                navigator.clipboard.writeText(copyText).then(() => {
+                                    copyIcon.classList.replace('fa-copy', 'fa-check');
+                                    copyIcon.classList.add('text-success');
+                                    setTimeout(() => {
+                                        copyIcon.classList.replace('fa-check', 'fa-copy');
+                                        copyIcon.classList.remove('text-success');
+                                    }, 1000);
+                                });
+                            });
+
+                            compRow.appendChild(copyIcon);
+                            compRow.appendChild(label);
+                            compRow.appendChild(valueDisplay);
+                            entryDiv.appendChild(compRow);
                         });
 
                         if (idx > 0) fieldDiv.appendChild(document.createElement('hr'));
@@ -107,9 +160,36 @@ function renderPersonDetails(container, person) {
                 } else {
                     values.forEach((value, idx) => {
                         const wrapper = document.createElement('div');
-                        wrapper.classList.add('mb-2');
-                        const valueElement = renderFieldValue(value, field.type);
-                        wrapper.appendChild(valueElement);
+                        wrapper.classList.add('mb-2', 'd-flex', 'align-items-center', 'gap-2');
+
+                        const copyIcon = document.createElement('i');
+                        copyIcon.className = 'fas fa-copy text-secondary';
+                        copyIcon.style.cursor = 'pointer';
+                        copyIcon.title = `Copy ${field.name || field.id}`;
+
+                        let valueEl = renderFieldValue(value, field.type);
+                        let copyText = value;
+
+                        if (typeof valueEl === 'string') {
+                            const span = document.createElement('span');
+                            span.textContent = valueEl;
+                            valueEl = span;
+                        }
+
+                        copyIcon.addEventListener('click', () => {
+                            navigator.clipboard.writeText(copyText).then(() => {
+                                copyIcon.classList.replace('fa-copy', 'fa-check');
+                                copyIcon.classList.add('text-success');
+                                setTimeout(() => {
+                                    copyIcon.classList.replace('fa-check', 'fa-copy');
+                                    copyIcon.classList.remove('text-success');
+                                }, 1000);
+                            });
+                        });
+
+                        wrapper.appendChild(copyIcon);
+                        wrapper.appendChild(valueEl);
+
                         if (idx > 0) fieldDiv.appendChild(document.createElement('hr'));
                         fieldDiv.appendChild(wrapper);
                     });
@@ -123,5 +203,3 @@ function renderPersonDetails(container, person) {
         }
     }
 }
-
-export { renderPersonDetails };

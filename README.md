@@ -1,2 +1,2 @@
 # basset-hound
-Bloodhound for people.
+Simplified Bloodhound but for OSINT 
