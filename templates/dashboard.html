@@ -12,236 +12,123 @@
 <body>
     <div class="container-fluid">
         <div class="row">
+            
             <!-- Sidebar -->
             <div class="col-md-3 sidebar">
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <h3>People Manager</h3>
-                    <a href="/" class="btn btn-outline-secondary" style="margin-left: 10px;">Exit</a>
-                    <button class="btn btn-sm btn-outline-primary" id="add-person-btn">Add Person</button>
+                    <div>
+                        <a href="/" class="btn btn-sm btn-outline-secondary me-2">Exit</a>
+                        <button class="btn btn-sm btn-outline-primary" id="add-person-btn">Add Person</button>
+                    </div>
                 </div>
                 
-                <div class="project-info">
+                <div class="project-info mb-3">
                     <h5>{{ project.name }}</h5>
                     <p class="text-muted">Started: {{ project.start_date }}</p>
+                    <button class="btn btn-sm btn-outline-secondary" id="download-project-btn">
+                        <i class="fas fa-download"></i> Download Project
+                    </button>
                 </div>
                 
                 <div class="mb-3">
                     <input type="text" class="form-control" id="search-input" placeholder="Search people...">
                 </div>
                 
-                <ul class="person-list" id="person-list">
+                <ul class="person-list list-group" id="person-list">
                     <!-- Will be populated dynamically -->
                 </ul>
             </div>
             
             <!-- Main Content -->
-            <div class="col-md-9 content">
-                <div class="add-person-form" id="add-person-form" style="display: none;">
-                    <h4>Add New Person</h4>
-                    <form action="/add_person" method="post">
-                        <div class="form-section">
-                            <div class="section-title">Personal Information</div>
-                            <div id="names-container">
-                                <div class="name-group mb-3">
-                                    <div class="row">
-                                        <div class="col-md-4">
-                                            <label for="first_name" class="form-label">First Name</label>
-                                            <input type="text" class="form-control" name="first_name" required>
-                                        </div>
-                                        <div class="col-md-4">
-                                            <label for="middle_name" class="form-label">Middle Name</label>
-                                            <input type="text" class="form-control" name="middle_name">
-                                        </div>
-                                        <div class="col-md-4">
-                                            <label for="last_name" class="form-label">Last Name</label>
-                                            <input type="text" class="form-control" name="last_name" required>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <button type="button" class="btn btn-sm btn-outline-secondary mb-3" id="add-name-btn">Add Another Name</button>
-                            
-                            <div id="birth-dates-container">
-                                <div class="birth-date-group mb-3">
-                                    <label for="date_of_birth" class="form-label">Date of Birth</label>
-                                    <div class="input-group">
-                                        <input type="date" class="form-control" name="date_of_birth">
-                                        <button type="button" class="btn btn-outline-danger remove-btn" style="display: none;">Remove</button>
-                                    </div>
-                                </div>
-                            </div>
-                            <button type="button" class="btn btn-sm btn-outline-secondary mb-3" id="add-birth-date-btn">Add Another Birth Date</button>
-                        </div>
-                        
-                        <div class="form-section">
-                            <div class="section-title">Contact Information</div>
-                            <div id="emails-container">
-                                <div class="email-group mb-3">
-                                    <label for="email" class="form-label">Email Address</label>
-                                    <div class="input-group">
-                                        <input type="email" class="form-control" name="email">
-                                        <button type="button" class="btn btn-outline-danger remove-btn" style="display: none;">Remove</button>
-                                    </div>
-                                </div>
-                            </div>
-                            <button type="button" class="btn btn-sm btn-outline-secondary mb-3" id="add-email-btn">Add Another Email</button>
-                        </div>
-                        
-                        <div class="form-section">
-                            <div class="section-title">Social Media</div>
-                            <div id="linkedin-container">
-                                <div class="linkedin-group mb-3">
-                                    <label for="linkedin" class="form-label">LinkedIn</label>
-                                    <div class="input-group">
-                                        <input type="text" class="form-control" name="linkedin" placeholder="LinkedIn profile URL">
-                                        <button type="button" class="btn btn-outline-danger remove-btn" style="display: none;">Remove</button>
-                                    </div>
-                                </div>
-                            </div>
-                            <button type="button" class="btn btn-sm btn-outline-secondary mb-3" id="add-linkedin-btn">Add Another LinkedIn</button>
-                            
-                            <div id="twitter-container">
-                                <div class="twitter-group mb-3">
-                                    <label for="twitter" class="form-label">Twitter</label>
-                                    <div class="input-group">
-                                        <input type="text" class="form-control" name="twitter" placeholder="Twitter handle or URL">
-                                        <button type="button" class="btn btn-outline-danger remove-btn" style="display: none;">Remove</button>
-                                    </div>
-                                </div>
-                            </div>
-                            <button type="button" class="btn btn-sm btn-outline-secondary mb-3" id="add-twitter-btn">Add Another Twitter</button>
-                            
-                            <div id="facebook-container">
-                                <div class="facebook-group mb-3">
-                                    <label for="facebook" class="form-label">Facebook</label>
-                                    <div class="input-group">
-                                        <input type="text" class="form-control" name="facebook" placeholder="Facebook profile URL">
-                                        <button type="button" class="btn btn-outline-danger remove-btn" style="display: none;">Remove</button>
-                                    </div>
-                                </div>
-                            </div>
-                            <button type="button" class="btn btn-sm btn-outline-secondary mb-3" id="add-facebook-btn">Add Another Facebook</button>
-                            
-                            <div id="instagram-container">
-                                <div class="instagram-group mb-3">
-                                    <label for="instagram" class="form-label">Instagram</label>
-                                    <div class="input-group">
-                                        <input type="text" class="form-control" name="instagram" placeholder="Instagram handle or URL">
-                                        <button type="button" class="btn btn-outline-danger remove-btn" style="display: none;">Remove</button>
-                                    </div>
-                                </div>
-                            </div>
-                            <button type="button" class="btn btn-sm btn-outline-secondary mb-3" id="add-instagram-btn">Add Another Instagram</button>
-                        </div>
-                        
-                        <div class="d-flex justify-content-end mt-4">
-                            <button type="button" class="btn btn-secondary me-2" id="cancel-add">Cancel</button>
-                            <button type="submit" class="btn btn-primary">Save Person</button>
-                        </div>
-                    </form>
+            <div class="col-md-9 main-content">
+                <!-- Mobile back button -->
+                <button id="back-to-list" class="btn btn-outline-primary d-md-none mb-3">
+                    <i class="fas fa-arrow-left"></i> Back to List
+                </button>
+                
+                <!-- Person Form Container -->
+                <div id="person-form-container" style="display: none;">
+                    <!-- Will be populated dynamically -->
                 </div>
                 
-                <div class="person-details" id="person-details">
-                    <div class="text-center py-5" id="no-selection">
-                        <h4 class="text-muted">Select a person from the list to view details</h4>
+                <!-- Person Details -->
+                <div id="person-details">
+                    <div class="text-center mt-5">
+                        <i class="fas fa-user-circle fa-5x text-muted mb-3"></i>
+                        <h3 class="text-muted">Select a person from the list or add a new one</h3>
                     </div>
-                    
-                    <div id="person-profile" style="display: none;">
-                        <div class="profile-header">
-                            <div class="profile-name-container">
-                                <h3 id="profile-name"></h3>
-                                <div id="profile-id" class="person-id" style="display: none;"></div>
-                                <!-- The profile-id-container will be created dynamically -->
+                </div>
+
+                <div id="profile-edit" style="display: none;">
+                    <h2>Edit Person</h2>
+                    <form id="edit-person-form" class="needs-validation" novalidate>
+                        <!-- Form content will be populated dynamically via JS -->
+                    </form>
+                    <div class="d-flex justify-content-between mt-3">
+                        <button type="button" id="cancel-edit" class="btn btn-secondary">Cancel</button>
+                        <button type="submit" form="edit-person-form" class="btn btn-primary">Save Changes</button>
+                    </div>
+                </div>
+                
+                <!-- Add Person Form -->
+                <div id="add-person-form" style="display: none;">
+                    <h2>Add New Person</h2>
+                    <form action="/add_person" method="POST" class="needs-validation" novalidate>
+                        {% for section in config.sections %}
+                        <div class="card mb-4">
+                            <div class="card-header">
+                                <h5>{{ section.name }}</h5>
                             </div>
-                            <div>
-                                <button class="btn btn-outline-primary me-2" id="edit-person-btn">Edit</button>
-                                <button class="btn btn-outline-danger" id="delete-person-btn">Delete</button>
+                            <div class="card-body">
+                                {% for field in section.fields %}
+                                <div class="mb-3">
+                                    <label class="form-label">{{ field.name or field.id | title }}</label>
+                                    
+                                    <!-- Container for field instances -->
+                                    <div id="{{ section.id }}-{{ field.id }}-container" class="field-instances">
+                                        <div class="field-instance mb-3" data-index="0">
+                                            {% if field.components %}
+                                                <!-- Field with components -->
+                                                {% for component in field.components %}
+                                                <div class="mb-2">
+                                                    <label class="form-label">{{ component.name or component.id | title }}</label>
+                                                    <input type="{{ component.type|default('text') if component.type in ['text', 'email', 'url', 'date', 'number'] else 'text' }}" 
+                                                           class="form-control" 
+                                                           name="{{ section.id }}.{{ field.id }}.{{ component.id }}_0" 
+                                                           {% if component.required %}required{% endif %}>
+                                                </div>
+                                                {% endfor %}
+                                            {% else %}
+                                                <!-- Simple field -->
+                                                <input type="{{ field.type|default('text') if field.type in ['text', 'email', 'url', 'date', 'number'] else 'text' }}" 
+                                                       class="form-control" 
+                                                       name="{{ section.id }}.{{ field.id }}_0" 
+                                                       {% if field.required %}required{% endif %}>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Add button for multiple fields -->
+                                    {% if field.multiple %}
+                                    <button type="button" 
+                                            class="btn btn-sm btn-outline-primary add-section-field mt-2" 
+                                            data-section="{{ section.id }}" 
+                                            data-field="{{ field.id }}">
+                                        <i class="fas fa-plus"></i> Add Another
+                                    </button>
+                                    {% endif %}
+                                </div>
+                                {% endfor %}
                             </div>
                         </div>
-                        <div id="profile-view">
-                            <!-- Basic Information -->
-                            <div id="basic-info-section">
-                                <div class="row mb-3">
-                                    <div class="col-md-3 text-muted">Names:</div>
-                                    <div class="col-md-9" id="view-names"></div>
-                                </div>
-                                <div class="row mb-3" id="view-dob-container">
-                                    <div class="col-md-3 text-muted">Date(s) of Birth:</div>
-                                    <div class="col-md-9" id="view-dob"></div>
-                                </div>
-                            </div>
-                            
-                            <!-- Contact Information -->
-                            <div class="contact-info" id="contact-info-section">
-                                <div class="section-title">Contact Information</div>
-                                <div class="row mb-3" id="view-email-container">
-                                    <div class="col-md-3 text-muted">Email(s):</div>
-                                    <div class="col-md-9" id="view-email"></div>
-                                </div>
-                            </div>
-                            
-                            <!-- Social Media Links -->
-                            <div class="social-links" id="social-links-section">
-                                <div class="section-title">Social Media</div>
-                                <div id="social-buttons">
-                                    <!-- Social media buttons will be added here dynamically -->
-                                </div>
-                            </div>
-                        </div>
+                        {% endfor %}
                         
-                        <div id="profile-edit" style="display: none;">
-                            <form id="edit-person-form">
-                                <div class="form-section">
-                                    <div class="section-title">Personal Information</div>
-                                    <div id="edit-names-container">
-                                        <!-- Will be populated dynamically -->
-                                    </div>
-                                    <button type="button" class="btn btn-sm btn-outline-secondary mb-3" id="edit-add-name-btn">Add Another Name</button>
-                                    
-                                    <div id="edit-birth-dates-container">
-                                        <!-- Will be populated dynamically -->
-                                    </div>
-                                    <button type="button" class="btn btn-sm btn-outline-secondary mb-3" id="edit-add-birth-date-btn">Add Another Birth Date</button>
-                                </div>
-                                
-                                <div class="form-section">
-                                    <div class="section-title">Contact Information</div>
-                                    <div id="edit-emails-container">
-                                        <!-- Will be populated dynamically -->
-                                    </div>
-                                    <button type="button" class="btn btn-sm btn-outline-secondary mb-3" id="edit-add-email-btn">Add Another Email</button>
-                                </div>
-                                
-                                <div class="form-section">
-                                    <div class="section-title">Social Media</div>
-                                    <div id="edit-linkedin-container">
-                                        <!-- Will be populated dynamically -->
-                                    </div>
-                                    <button type="button" class="btn btn-sm btn-outline-secondary mb-3" id="edit-add-linkedin-btn">Add Another LinkedIn</button>
-                                    
-                                    <div id="edit-twitter-container">
-                                        <!-- Will be populated dynamically -->
-                                    </div>
-                                    <button type="button" class="btn btn-sm btn-outline-secondary mb-3" id="edit-add-twitter-btn">Add Another Twitter</button>
-                                    
-                                    <div id="edit-facebook-container">
-                                        <!-- Will be populated dynamically -->
-                                    </div>
-                                    <button type="button" class="btn btn-sm btn-outline-secondary mb-3" id="edit-add-facebook-btn">Add Another Facebook</button>
-                                    
-                                    <div id="edit-instagram-container">
-                                        <!-- Will be populated dynamically -->
-                                    </div>
-                                    <button type="button" class="btn btn-sm btn-outline-secondary mb-3" id="edit-add-instagram-btn">Add Another Instagram</button>
-                                </div>
-                                
-                                <div class="d-flex justify-content-end mt-4">
-                                    <button type="button" class="btn btn-secondary me-2" id="cancel-edit">Cancel</button>
-                                    <button type="submit" class="btn btn-primary">Save Changes</button>
-                                </div>
-                            </form>
+                        <div class="d-flex justify-content-between mb-4">
+                            <button type="button" id="cancel-add" class="btn btn-secondary">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Add Person</button>
                         </div>
-                    </div>
+                    </form>
                 </div>
             </div>
         </div>
@@ -249,6 +136,14 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    
+    <!-- Load app config first -->
+    <script>
+        // Make config available to all modules
+        window.appConfig = {{ config|tojson|safe }};
+    </script>
+    
+    <!-- Module scripts -->
     <script type="module" src="/static/js/dashboard.js"></script>
     <script type="module" src="/static/js/api.js"></script>
     <script type="module" src="/static/js/ui-form-handlers.js"></script>

@@ -3,8 +3,19 @@ import json
 import os
 from datetime import datetime
 import hashlib
+from collections import defaultdict
+import yaml
+from config_loader import load_config, initialize_person_data
+import pprint
 
 app = Flask(__name__)
+
+# Load the profile configuration
+try:
+    CONFIG = load_config()
+except Exception as e:
+    print(f"Error loading configuration: {e}")
+    CONFIG = {"sections": []}
 
 # Global variable to store current project data
 current_project = {
@@ -62,18 +73,22 @@ def open_project():
 @app.route('/dashboard')
 def dashboard():
     """Main dashboard for managing people"""
-    return render_template('dashboard.html', project=current_project)
+    return render_template('dashboard.html', project=current_project, config=CONFIG, person=None)
 
 @app.route('/get_people')
 def get_people():
     """API endpoint to get all people in the project"""
     return jsonify(current_project["people"])
 
+@app.route('/get_config')
+def get_config():
+    """API endpoint to get the profile configuration"""
+    return jsonify(CONFIG)
 
 @app.route('/get_person/<string:person_id>')
 def get_person(person_id):
     """API endpoint to get a specific person's details by ID"""
-    for index, person in enumerate(current_project["people"]):
+    for person in current_project["people"]:
         if person.get("id") == person_id:
             return jsonify(person)
     return jsonify({"error": "Person not found"}), 404
@@ -91,93 +106,148 @@ def generate_unique_id():
 
 @app.route('/add_person', methods=['POST'])
 def add_person():
-    """Add a new person to the project"""
+    """Add a new person to the project based on form data"""
     person_data = {
         "id": generate_unique_id(),
-        "created_at": datetime.now().isoformat(),  # Add timestamp
-        "names": [{
-            "first_name": request.form.get('first_name', ''),
-            "middle_name": request.form.get('middle_name', ''),
-            "last_name": request.form.get('last_name', '')
-        }],
-        "dates_of_birth": request.form.getlist('date_of_birth'),
-        "emails": request.form.getlist('email'),
-        "linkedin": request.form.getlist('linkedin'),
-        "twitter": request.form.getlist('twitter'),
-        "facebook": request.form.getlist('facebook'),
-        "instagram": request.form.getlist('instagram')
+        "created_at": datetime.now().isoformat(),
+        "profile": {}
     }
-    
-    # Filter out empty values
-    for key in ['dates_of_birth', 'emails', 'linkedin', 'twitter', 'facebook', 'instagram']:
-        person_data[key] = [item for item in person_data[key] if item.strip()]
-    
+
+    print("Received form keys:")
+    print(list(request.form.keys()))
+
+    # Initialize the profile structure
+    for section in CONFIG["sections"]:
+        section_id = section["id"]
+        person_data["profile"][section_id] = {}
+        
+        for field in section["fields"]:
+            field_id = field["id"]
+            field_data = process_field_data(section_id, field)
+            
+            if field_data:
+                person_data["profile"][section_id][field_id] = field_data
+
     current_project["people"].append(person_data)
-    save_project()
+
+    print("[DEBUG] Saved person:")
+    pprint.pprint(person_data)
     
+    save_project()
     return redirect(url_for('dashboard'))
 
-@app.route('/update_person/<int:person_id>', methods=['POST'])
+def process_field_data(section_id, field):
+    """Process form data for a specific field"""
+    form_data = request.form
+    field_id = field["id"]
+    field_key = f"{section_id}.{field_id}"
+    is_multiple = field.get("multiple", False)
+
+    if "components" in field:
+        return process_component_field(field, field_key)
+    
+    values = [v for k, v in form_data.items() 
+              if k.startswith(field_key) and v.strip()]
+    
+    if not values:
+        return None
+    return values if is_multiple else values[0]
+
+def process_component_field(field, field_key):
+    """Process a field with components"""
+    components = field.get("components", [])
+    instances = defaultdict(dict)
+    
+    for key in request.form:
+        if key.startswith(field_key):
+            parts = key.split('.')
+            if len(parts) < 3:
+                continue
+                
+            # Extract the component ID and instance index
+            # Format is section_id.field_id.component_id_index
+            component_part = parts[2]
+            if '_' in component_part:
+                component_id, instance_idx = component_part.split('_', 1)
+            else:
+                component_id = component_part
+                instance_idx = '0'
+            
+            value = request.form[key].strip()
+            if value:  # Only add non-empty values
+                instances[instance_idx][component_id] = value
+    
+    # Convert to list for multiple values or return single instance
+    result = [v for v in instances.values() if v]
+    if not result:
+        return None
+    
+    return result if field.get("multiple", False) else result[0]
+
+@app.route('/update_person/<person_id>', methods=['POST'])
 def update_person(person_id):
-    """Update an existing person's information"""
-    if 0 <= person_id < len(current_project["people"]):
-        original_person = current_project["people"][person_id]
+    """Update an existing person"""
+    person = next((p for p in current_project["people"] if p["id"] == person_id), None)
+    if not person:
+        return jsonify({"error": "Person not found"}), 404
 
-        # Preserve the created_at timestamp
-        created_at = original_person.get("created_at", datetime.now().isoformat())
+    if request.is_json:
+        # Handle JSON data from API calls
+        updated_data = request.json
+        if "profile" in updated_data:
+            # For backward compatibility, ensure profile structure exists
+            if "profile" not in person:
+                person["profile"] = {}
+                
+            for section_id, section_data in updated_data["profile"].items():
+                if section_id not in person["profile"]:
+                    person["profile"][section_id] = {}
+                    
+                for field_id, field_data in section_data.items():
+                    person["profile"][section_id][field_id] = field_data
+    else:
+        # Handle form submission
+        for section in CONFIG["sections"]:
+            section_id = section["id"]
+            if "profile" not in person:
+                person["profile"] = {}
+            if section_id not in person["profile"]:
+                person["profile"][section_id] = {}
+                
+            for field in section["fields"]:
+                field_id = field["id"]
+                field_data = process_field_data(section_id, field)
+                
+                if field_data is not None:  # Allow empty arrays but not None
+                    person["profile"][section_id][field_id] = field_data
+                elif field_id in person["profile"][section_id]:
+                    # Remove empty fields
+                    del person["profile"][section_id][field_id]
 
-        # Process names
-        names = []
-        first_names = request.form.getlist('first_name')
-        middle_names = request.form.getlist('middle_name')
-        last_names = request.form.getlist('last_name')
-
-        max_length = max(len(first_names), len(middle_names), len(last_names))
-        first_names = pad_list(first_names, max_length)
-        middle_names = pad_list(middle_names, max_length)
-        last_names = pad_list(last_names, max_length)
-
-        for i in range(max_length):
-            if first_names[i].strip() or last_names[i].strip():
-                names.append({
-                    "first_name": first_names[i],
-                    "middle_name": middle_names[i],
-                    "last_name": last_names[i]
-                })
-
-        person_data = {
-            "id": original_person.get("id", generate_unique_id()),
-            "created_at": created_at,  # 👈 Keep the original timestamp
-            "names": names,
-            "dates_of_birth": request.form.getlist('date_of_birth'),
-            "emails": request.form.getlist('email'),
-            "linkedin": request.form.getlist('linkedin'),
-            "twitter": request.form.getlist('twitter'),
-            "facebook": request.form.getlist('facebook'),
-            "instagram": request.form.getlist('instagram')
-        }
-
-        # Filter out empty values
-        for key in ['dates_of_birth', 'emails', 'linkedin', 'twitter', 'facebook', 'instagram']:
-            person_data[key] = [item for item in person_data[key] if item.strip()]
-
-        current_project["people"][person_id] = person_data
-        save_project()
+    save_project()
+    
+    if request.is_json:
+        return jsonify({"success": True})
+    else:
         return redirect(url_for('dashboard'))
-    return jsonify({"error": "Person not found"}), 404
 
-def pad_list(lst, length):
-    """Helper function to pad a list to a specified length with empty strings"""
-    return lst + [''] * (length - len(lst))
-
-@app.route('/delete_person/<int:person_id>', methods=['POST'])
+@app.route('/delete_person/<string:person_id>', methods=['POST'])
 def delete_person(person_id):
     """Delete a person from the project"""
-    if 0 <= person_id < len(current_project["people"]):
-        del current_project["people"][person_id]
-        save_project()
+    for idx, person in enumerate(current_project["people"]):
+        if person.get("id") == person_id:
+            del current_project["people"][idx]
+            save_project()
+            
+            if request.content_type == 'application/json':
+                return jsonify({"success": True})
+            else:
+                return redirect(url_for('dashboard'))
+    
+    if request.content_type == 'application/json':
+        return jsonify({"error": "Person not found"}), 404
+    else:
         return redirect(url_for('dashboard'))
-    return jsonify({"error": "Person not found"}), 404
 
 @app.route('/save_project', methods=['POST'])
 def save_project_endpoint():
@@ -193,6 +263,53 @@ def save_project():
     filename = f"projects/{current_project['name'].replace(' ', '_')}.json"
     with open(filename, 'w') as f:
         json.dump(current_project, f, indent=4)
+
+@app.route('/download_project')
+def download_project():
+    """Download the current project as a JSON file"""
+    if not current_project["name"]:
+        return redirect(url_for('index'))
+    
+    # Create a temporary file
+    filename = f"{current_project['name'].replace(' ', '_')}.json"
+    temp_path = os.path.join('static', 'downloads', filename)
+    
+    # Ensure directory exists
+    os.makedirs(os.path.dirname(temp_path), exist_ok=True)
+    
+    # Save project to temp file
+    with open(temp_path, 'w') as f:
+        json.dump(current_project, f, indent=4)
+    
+    # Send file for download
+    return send_file(temp_path, as_attachment=True)
+
+@app.route('/profile_editor')
+def profile_editor():
+    """Page for editing the profile structure"""
+    return render_template('profile_editor.html', config=CONFIG)
+
+@app.route('/save_config', methods=['POST'])
+def save_config():
+    """Save the updated profile configuration"""
+    if not request.is_json:
+        return jsonify({"error": "JSON data expected"}), 400
+    
+    config_data = request.json
+    
+    # Basic validation
+    if "sections" not in config_data:
+        return jsonify({"error": "Invalid configuration format"}), 400
+    
+    # Save to file
+    with open('data_config.yaml', 'w') as f:
+        yaml.dump(config_data, f, default_flow_style=False)
+    
+    # Update global config
+    global CONFIG
+    CONFIG = config_data
+    
+    return jsonify({"success": True})
 
 if __name__ == '__main__':
     # Create projects directory if it doesn't exist

@@ -1,123 +1,99 @@
-// ui-people-list.js - Handles people list rendering and interaction
+// ui-people-list.js - Handles displaying and interacting with the list of people
 
-import { selectPerson } from './ui-person-details.js';
+import { getDisplayName, calculateBassetAge } from './utils.js';
+import { renderPersonDetails } from './ui-person-details.js';
 
-// Function to render the people list
-function renderPeopleList(people, selectedPersonId) {
+// Function to render the list of people
+function renderPeopleList(people, selectedPersonId = null) {
     const personList = document.getElementById('person-list');
     personList.innerHTML = '';
     
-    people.forEach((person, index) => {
-        const primaryName = person.names && person.names.length > 0 ? person.names[0] : { first_name: '', last_name: '' };
-        const displayName = `${primaryName.first_name} ${primaryName.last_name}`.trim() || 'Unnamed Person';
+    if (people.length === 0) {
+        const noData = document.createElement('li');
+        noData.className = 'list-group-item text-center text-muted';
+        noData.textContent = 'No people added yet';
+        personList.appendChild(noData);
+        return;
+    }
+    
+    // Sort people by name
+    people.sort((a, b) => {
+        const nameA = getDisplayName(a).toLowerCase();
+        const nameB = getDisplayName(b).toLowerCase();
+        return nameA.localeCompare(nameB);
+    });
+    
+    // Create list items for each person
+    people.forEach(person => {
+        const listItem = document.createElement('li');
+        listItem.className = 'list-group-item person-item d-flex justify-content-between align-items-center';
+        if (selectedPersonId && person.id === selectedPersonId) {
+            listItem.classList.add('active');
+        }
         
-        const li = document.createElement('li');
-        li.className = 'person-item' + (index === selectedPersonId ? ' active' : '');
+        const personInfo = document.createElement('div');
         
-        // Create name element
-        const nameElement = document.createElement('div');
-        nameElement.className = 'person-name';
-        nameElement.textContent = displayName;
+        const personName = document.createElement('div');
+        personName.className = 'fw-bold';
+        personName.textContent = getDisplayName(person);
+        personInfo.appendChild(personName);
         
-        // Create ID element
-        const idElement = document.createElement('div');
-        idElement.className = 'person-id text-muted small';
-        idElement.textContent = `ID: ${person.id || 'Unknown'}`;
+        // Add age info if available
+        if (person.created_at) {
+            const ageInfo = calculateBassetAge(person.created_at);
+            const personAge = document.createElement('small');
+            personAge.className = 'text-muted';
+            personAge.textContent = ageInfo.shortDisplay;
+            personInfo.appendChild(personAge);
+        }
         
-        // Add elements to list item
-        li.appendChild(nameElement);
-        li.appendChild(idElement);
+        listItem.appendChild(personInfo);
         
-        li.addEventListener('click', () => selectPerson(index));
-        personList.appendChild(li);
+        // Add click event to select person
+        listItem.addEventListener('click', function() {
+            // Remove active class from all items
+            document.querySelectorAll('.person-item').forEach(item => {
+                item.classList.remove('active');
+            });
+
+            // Add active class to clicked item
+            listItem.classList.add('active');
+
+            // ✅ FIXED: Render into actual container
+            const detailsContainer = document.getElementById('person-details');
+            renderPersonDetails(detailsContainer, person);
+
+            // On mobile, hide sidebar
+            if (window.innerWidth < 768) {
+                document.querySelector('.sidebar').classList.add('d-none');
+                detailsContainer.classList.remove('d-none');
+            }
+        });
+
+        
+        personList.appendChild(listItem);
     });
 }
 
-// Setup search functionality
+// Function to filter people list based on search term
+function filterPeople(people, searchTerm) {
+    if (!searchTerm) return people;
+    
+    searchTerm = searchTerm.toLowerCase();
+    return people.filter(person => {
+        const name = getDisplayName(person).toLowerCase();
+        return name.includes(searchTerm);
+    });
+}
+
+// Function to setup search functionality
 function setupSearch(people) {
-    document.getElementById('search-input').addEventListener('input', function(e) {
-        const searchTerm = e.target.value.toLowerCase();
-        const personList = document.getElementById('person-list');
-        personList.innerHTML = '';
-        
-        people.forEach((person, index) => {
-            // Check if any of the person's data contains the search term
-            let matches = false;
-            
-            // Check ID
-            if (person.id && person.id.toLowerCase().includes(searchTerm)) {
-                matches = true;
-            }
-            
-            // Check names
-            if (!matches && person.names) {
-                for (const name of person.names) {
-                    const fullName = `${name.first_name || ''} ${name.middle_name || ''} ${name.last_name || ''}`.toLowerCase();
-                    if (fullName.includes(searchTerm)) {
-                        matches = true;
-                        break;
-                    }
-                }
-            }
-            
-            // Check emails
-            if (!matches && person.emails) {
-                for (const email of person.emails) {
-                    if (email.toLowerCase().includes(searchTerm)) {
-                        matches = true;
-                        break;
-                    }
-                }
-            }
-            
-            // Check social media
-            const socialFields = ['linkedin', 'twitter', 'facebook', 'instagram'];
-            for (const field of socialFields) {
-                if (!matches && person[field]) {
-                    for (const profile of person[field]) {
-                        if (profile.toLowerCase().includes(searchTerm)) {
-                            matches = true;
-                            break;
-                        }
-                    }
-                }
-            }
-            
-            // Check dates of birth
-            if (!matches && person.dates_of_birth) {
-                for (const dob of person.dates_of_birth) {
-                    if (dob.includes(searchTerm)) {
-                        matches = true;
-                        break;
-                    }
-                }
-            }
-            
-            if (matches) {
-                const primaryName = person.names && person.names.length > 0 ? person.names[0] : { first_name: '', last_name: '' };
-                const displayName = `${primaryName.first_name} ${primaryName.last_name}`.trim() || 'Unnamed Person';
-                
-                const li = document.createElement('li');
-                li.className = 'person-item' + (index === window.selectedPersonId ? ' active' : '');
-                
-                // Create name element
-                const nameElement = document.createElement('div');
-                nameElement.className = 'person-name';
-                nameElement.textContent = displayName;
-                
-                // Create ID element
-                const idElement = document.createElement('div');
-                idElement.className = 'person-id text-muted small';
-                idElement.textContent = `ID: ${person.id || 'Unknown'}`;
-                
-                // Add elements to list item
-                li.appendChild(nameElement);
-                li.appendChild(idElement);
-                
-                li.addEventListener('click', () => selectPerson(index));
-                personList.appendChild(li);
-            }
-        });
+    const searchInput = document.getElementById('search-input');
+    
+    searchInput.addEventListener('input', function() {
+        const searchTerm = this.value;
+        const filteredPeople = filterPeople(people, searchTerm);
+        renderPeopleList(filteredPeople, window.selectedPersonId);
     });
 }
 

@@ -1,0 +1,40 @@
+sections:
+  - id: core
+    name: Personal Information
+    fields:
+      - id: name
+        type: string
+        multiple: true
+        components:
+          - id: first_name
+            type: string
+          - id: middle_name
+            type: string
+          - id: last_name
+            type: string
+      - id: date_of_birth
+        type: date
+        multiple: true
+      - id: email
+        type: email
+        multiple: true
+
+  - id: social
+    name: Social Media
+    fields:
+      - id: linkedin
+        type: url
+        multiple: true
+        components:
+          - id: url
+            type: url
+          - id: username
+            type: string
+      - id: twitter
+        type: url
+        multiple: true
+        components:
+          - id: handle
+            type: string
+          - id: url
+            type: url
