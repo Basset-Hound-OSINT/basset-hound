@@ -42,6 +42,22 @@ sections:
             type: string
           - id: url
             type: url
+  
+  - id: addresses
+    name: Addresses
+    fields:
+      - id: address
+        type: string
+        multiple: true
+        components:
+          - id: name
+            type: string
+          - id: start_date
+            type: date
+          - id: end_date
+            type: date
+          - id: location
+            type: string
 
   - id: events
     name: Relevant Events
@@ -55,6 +71,4 @@ sections:
           - id: end_date
             type: date
           - id: location
-            type: string
-          - id: starter
             type: string

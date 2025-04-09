@@ -30,13 +30,22 @@ export function renderPersonDetails(container, person) {
     header.appendChild(actionsDiv);
     container.appendChild(header);
 
-    // Age
+    // ID + Account Age
     if (person.created_at) {
         const ageInfo = calculateBassetAge(person.created_at);
-        const ageDiv = document.createElement('div');
-        ageDiv.className = 'mb-4 text-muted';
-        ageDiv.innerHTML = `<strong>Added:</strong> ${ageInfo.fullDisplay}`;
-        container.appendChild(ageDiv);
+
+        const metaRow = document.createElement('div');
+        metaRow.className = 'mb-4 text-muted d-flex gap-4 align-items-center flex-wrap';
+
+        const idSpan = document.createElement('span');
+        idSpan.innerHTML = `<strong>ID:</strong> ${person.id}`;
+
+        const ageSpan = document.createElement('span');
+        ageSpan.innerHTML = `<strong>Added:</strong> ${ageInfo.fullDisplay}`;
+
+        metaRow.appendChild(idSpan);
+        metaRow.appendChild(ageSpan);
+        container.appendChild(metaRow);
     }
 
     // Profile sections

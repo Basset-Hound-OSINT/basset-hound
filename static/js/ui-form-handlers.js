@@ -436,9 +436,20 @@ export function editPerson(personId) {
                             ];
                             const value = fallbackKeys.reduce((acc, key) => acc || val[key], '');
 
+                            // Create a label element for the input
+                            const label = document.createElement('label');
+                            label.className = 'form-label';
+                            label.textContent = component.name || component.id;
+                            label.setAttribute('for', name); // optional, good for accessibility
+
+                            // Create the input element
                             const inputGroup = createInputElement(field, name, value, component);
+
+                            // Append label and input to group
+                            groupDiv.appendChild(label);
                             groupDiv.appendChild(inputGroup);
                         });
+
 
                     } else {
                         const groupTitle = document.createElement('h6');
@@ -491,14 +502,22 @@ export function editPerson(personId) {
                     groupDiv.appendChild(groupTitle);
 
                     if (field.components) {
-                        if (field.components) {
-                            field.components.forEach(component => {
-                                const name = `${section.id}.${field.id}.${component.id}_${index}`;
-                                const inputGroup = createInputElement(field, name, '', component);
-                                groupDiv.appendChild(inputGroup);
-                            });
+                        field.components.forEach(component => {
+                            const name = `${section.id}.${field.id}.${component.id}_${index}`;
 
-                        }
+                            const wrapper = document.createElement('div');
+                            wrapper.className = 'mb-2';
+
+                            const label = document.createElement('label');
+                            label.textContent = component.name || component.id;
+                            label.classList.add('form-label');
+
+                            const inputGroup = createInputElement(field, name, '', component);
+
+                            wrapper.appendChild(label);
+                            wrapper.appendChild(inputGroup);
+                            groupDiv.appendChild(wrapper);
+                        });
                     } else {
                         const name = `${section.id}.${field.id}_${index}`;
                         const inputGroup = createInputElement(field, name, '');
@@ -507,6 +526,7 @@ export function editPerson(personId) {
 
                     sectionDiv.insertBefore(groupDiv, addBtn);
                 });
+
 
 
                 sectionDiv.appendChild(addBtn);
@@ -530,8 +550,6 @@ export function editPerson(personId) {
 
 
 export function deletePerson(personId) {
-  if (!confirm("Are you sure you want to delete this person?")) return;
-
   fetch(`/delete_person/${personId}`, { method: 'POST' })
     .then(() => window.location.reload())
     .catch(err => console.error("Failed to delete person", err));

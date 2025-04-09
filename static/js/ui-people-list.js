@@ -38,13 +38,24 @@ function renderPeopleList(people, selectedPersonId = null) {
         personName.textContent = getDisplayName(person);
         personInfo.appendChild(personName);
         
-        // Add age info if available
+        // Add ID and Account Age 
         if (person.created_at) {
             const ageInfo = calculateBassetAge(person.created_at);
+
+            const personId = document.createElement('small');
+            personId.className = 'text-muted me-2';
+            personId.textContent = `ID: ${person.id}`;
+
             const personAge = document.createElement('small');
             personAge.className = 'text-muted';
             personAge.textContent = ageInfo.shortDisplay;
-            personInfo.appendChild(personAge);
+
+            const infoLine = document.createElement('div');
+            infoLine.className = 'd-flex gap-2 text-muted small';
+            infoLine.appendChild(personId);
+            infoLine.appendChild(personAge);
+
+            personInfo.appendChild(infoLine);
         }
         
         listItem.appendChild(personInfo);
