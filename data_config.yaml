@@ -18,6 +18,9 @@ sections:
       - id: email
         type: email
         multiple: true
+      - id: personal_files
+        type: file
+        multiple: true
 
   - id: social
     name: Social Media

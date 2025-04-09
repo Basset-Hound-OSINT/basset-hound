@@ -74,7 +74,7 @@
                 <!-- Add Person Form -->
                 <div id="add-person-form" style="display: none;">
                     <h2>Add New Person</h2>
-                    <form action="/add_person" method="POST" class="needs-validation" novalidate>
+                    <form action="/add_person" method="POST" class="needs-validation" enctype="multipart/form-data" novalidate>
                         {% for section in config.sections %}
                         <div class="card mb-4">
                             <div class="card-header">
@@ -84,31 +84,42 @@
                                 {% for field in section.fields %}
                                 <div class="mb-3">
                                     <label class="form-label">{{ field.name or field.id | title }}</label>
-                                    
-                                    <!-- Container for field instances -->
-                                    <div id="{{ section.id }}-{{ field.id }}-container" class="field-instances">
-                                        <div class="field-instance mb-3" data-index="0">
-                                            {% if field.components %}
-                                                <!-- Field with components -->
+
+                                    {% if field.type == 'file' %}
+                                        <input type="file" class="form-control" name="{{ section.id }}.{{ field.id }}_0" multiple>
+
+                                    {% elif field.components %}
+                                        <!-- Container for field instances -->
+                                        <div id="{{ section.id }}-{{ field.id }}-container" class="field-instances">
+                                            <div class="field-instance mb-3" data-index="0">
                                                 {% for component in field.components %}
                                                 <div class="mb-2">
                                                     <label class="form-label">{{ component.name or component.id | title }}</label>
-                                                    <input type="{{ component.type|default('text') if component.type in ['text', 'email', 'url', 'date', 'number'] else 'text' }}" 
-                                                           class="form-control" 
-                                                           name="{{ section.id }}.{{ field.id }}.{{ component.id }}_0" 
+                                                    {% set input_type = component.type if component.type in ['text', 'email', 'url', 'date', 'number', 'password'] else 'text' %}
+                                                    {% if component.type == 'comment' %}
+                                                    <textarea class="form-control" name="{{ section.id }}.{{ field.id }}.{{ component.id }}_0" rows="5"
+                                                        {% if component.required %}required{% endif %}></textarea>
+                                                    {% else %}
+                                                    <input type="{{ input_type }}" class="form-control"
+                                                           name="{{ section.id }}.{{ field.id }}.{{ component.id }}_0"
                                                            {% if component.required %}required{% endif %}>
+                                                    {% endif %}
                                                 </div>
                                                 {% endfor %}
-                                            {% else %}
-                                                <!-- Simple field -->
-                                                <input type="{{ field.type|default('text') if field.type in ['text', 'email', 'url', 'date', 'number'] else 'text' }}" 
-                                                       class="form-control" 
-                                                       name="{{ section.id }}.{{ field.id }}_0" 
-                                                       {% if field.required %}required{% endif %}>
-                                            {% endif %}
+                                            </div>
                                         </div>
-                                    </div>
-                                    
+
+                                    {% else %}
+                                        {% set input_type = field.type if field.type in ['text', 'email', 'url', 'date', 'number', 'password'] else 'text' %}
+                                        {% if field.type == 'comment' %}
+                                        <textarea class="form-control" name="{{ section.id }}.{{ field.id }}_0" rows="5"
+                                            {% if field.required %}required{% endif %}></textarea>
+                                        {% else %}
+                                        <input type="{{ input_type }}" class="form-control" name="{{ section.id }}.{{ field.id }}_0"
+                                               {% if field.required %}required{% endif %}>
+                                        {% endif %}
+                                    {% endif %}
+
                                     <!-- Add button for multiple fields -->
                                     {% if field.multiple %}
                                     <button type="button" 
@@ -123,13 +134,14 @@
                             </div>
                         </div>
                         {% endfor %}
-                        
+
                         <div class="d-flex justify-content-between mb-4">
                             <button type="button" id="cancel-add" class="btn btn-secondary">Cancel</button>
                             <button type="submit" class="btn btn-primary">Add Person</button>
                         </div>
                     </form>
                 </div>
+
             </div>
         </div>
     </div>

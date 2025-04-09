@@ -176,13 +176,23 @@ export function renderPersonDetails(container, person) {
                         copyIcon.style.cursor = 'pointer';
                         copyIcon.title = `Copy ${field.name || field.id}`;
 
-                        let valueEl = renderFieldValue(value, field.type);
+                        let valueEl;
                         let copyText = value;
 
-                        if (typeof valueEl === 'string') {
-                            const span = document.createElement('span');
-                            span.textContent = valueEl;
-                            valueEl = span;
+                        if (field.type === 'file' && value?.path && value?.name) {
+                            const link = document.createElement('a');
+                            link.href = `/files/${person.id}/${value.path}`;
+                            link.target = '_blank';
+                            link.textContent = value.name;
+                            valueEl = link;
+                            copyText = value.name;
+                        } else {
+                            valueEl = renderFieldValue(value, field.type);
+                            if (typeof valueEl === 'string') {
+                                const span = document.createElement('span');
+                                span.textContent = valueEl;
+                                valueEl = span;
+                            }
                         }
 
                         copyIcon.addEventListener('click', () => {

@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, jsonify, send_file
+from flask import Flask, render_template, request, redirect, url_for, jsonify, send_file, send_from_directory
 import json
 import os
 from datetime import datetime
@@ -64,13 +64,38 @@ def open_project():
         global current_project
         current_project = json.load(file)
 
-        for person in current_project["people"]:
+        # Ensure safe_name is set
+        if "safe_name" not in current_project:
+            current_project["safe_name"] = slugify(current_project.get("name", "unnamed_project"))
+
+        project_dir = os.path.join("projects", current_project["safe_name"])
+        os.makedirs(project_dir, exist_ok=True)
+
+        # Ensure all people have folders and migration fields
+        for person in current_project.get("people", []):
             if "id" not in person:
                 person["id"] = generate_unique_id()
             if "created_at" not in person:
                 person["created_at"] = datetime.now().isoformat()
 
+            person_folder = os.path.join(project_dir, person["id"])
+            os.makedirs(person_folder, exist_ok=True)
+
         return redirect(url_for('dashboard'))
+
+
+def ensure_person_folders():
+    """Ensure every person has a folder in the project directory."""
+    if 'safe_name' not in current_project:
+        current_project['safe_name'] = slugify(current_project.get('name', 'default_project'))
+
+    project_dir = os.path.join('projects', current_project['safe_name'])
+
+    for person in current_project.get("people", []):
+        person_id = person.get("id")
+        person_folder = os.path.join(project_dir, person_id)
+        if not os.path.exists(person_folder):
+            os.makedirs(person_folder)
 
 @app.route('/dashboard')
 def dashboard():
@@ -105,25 +130,51 @@ def generate_unique_id():
 @app.route('/add_person', methods=['POST'])
 def add_person():
     person_id = generate_unique_id()
+
+    if 'safe_name' not in current_project:
+        current_project['safe_name'] = slugify(current_project.get('name', 'default_project'))
+
     person_data = {
         "id": person_id,
         "created_at": datetime.now().isoformat(),
         "profile": {}
     }
 
+    person_dir = os.path.join("projects", current_project["safe_name"], person_id)
+    os.makedirs(person_dir, exist_ok=True)
+
     for section in CONFIG["sections"]:
         section_id = section["id"]
         person_data["profile"][section_id] = {}
         for field in section["fields"]:
-            field_data = process_field_data(section_id, field)
-            if field_data:
-                person_data["profile"][section_id][field["id"]] = field_data
+            field_id = field["id"]
+            field_key_prefix = f"{section_id}.{field_id}"
+
+            if field.get("type") == "file":
+                files = [f for k, f in request.files.items() if k.startswith(field_key_prefix)]
+                stored_files = []
+                for uploaded_file in files:
+                    if uploaded_file and uploaded_file.filename:
+                        file_id = generate_unique_id()
+                        filename = f"{file_id}_{uploaded_file.filename}"
+                        file_path = os.path.join(person_dir, filename)
+                        uploaded_file.save(file_path)
+
+                        stored_files.append({
+                            "id": file_id,
+                            "name": uploaded_file.filename,
+                            "path": filename
+                        })
+
+                if stored_files:
+                    person_data["profile"][section_id][field_id] = stored_files if field.get("multiple") else stored_files[0]
+
+            else:
+                field_data = process_field_data(section_id, field)
+                if field_data:
+                    person_data["profile"][section_id][field_id] = field_data
 
     current_project["people"].append(person_data)
-
-    # ✅ Create person directory: projects/{project_name}/{person_id}
-    os.makedirs(f"projects/{current_project['safe_name']}/{person_id}", exist_ok=True)
-
     save_project()
     return redirect(url_for('dashboard'))
 
@@ -176,6 +227,7 @@ def update_person(person_id):
     if not person:
         return "Person not found", 404
 
+    # 🔹 JSON request (e.g., via API)
     if request.is_json:
         incoming = request.get_json().get("profile", {})
         for section_id, fields in incoming.items():
@@ -186,18 +238,54 @@ def update_person(person_id):
         save_project()
         return jsonify(success=True)
 
+    # 🔹 Form submission (e.g., via UI form)
+    print("=== UPDATE PERSON FORM KEYS ===")
+    print(list(request.form.keys()))
+
     for section in CONFIG["sections"]:
         section_id = section["id"]
         person["profile"].setdefault(section_id, {})
+
         for field in section["fields"]:
-            field_data = process_field_data(section_id, field)
-            if field_data:
-                person["profile"][section_id][field["id"]] = field_data
-            elif field["id"] in person["profile"][section_id]:
-                del person["profile"][section_id][field["id"]]
+            field_id = field["id"]
+            field_key = f"{section_id}.{field_id}"
+            is_multiple = field.get("multiple", False)
+
+            # Handle file uploads
+            if field.get("type") == "file":
+                matched_files = [f for key, f in request.files.items() if key.startswith(field_key)]
+                stored_files = []
+
+                for uploaded_file in matched_files:
+                    if uploaded_file and uploaded_file.filename:
+                        file_id = generate_unique_id()
+                        filename = f"{file_id}_{uploaded_file.filename}"
+                        person_dir = os.path.join("projects", current_project["safe_name"], person_id)
+                        os.makedirs(person_dir, exist_ok=True)
+                        file_path = os.path.join(person_dir, filename)
+                        uploaded_file.save(file_path)
+
+                        stored_files.append({
+                            "id": file_id,
+                            "name": uploaded_file.filename,
+                            "path": filename
+                        })
+
+                if stored_files:
+                    person["profile"][section_id][field_id] = stored_files if is_multiple else stored_files[0]
+
+            # Handle all other fields (including nested ones)
+            else:
+                field_data = process_field_data(section_id, field)
+                if field_data:
+                    person["profile"][section_id][field_id] = field_data
+                elif field_id in person["profile"][section_id]:
+                    # Remove the field if it's now empty
+                    del person["profile"][section_id][field_id]
 
     save_project()
-    return redirect(url_for('dashboard'))
+    return jsonify(success=True)
+
 
 @app.route('/delete_person/<string:person_id>', methods=['POST'])
 def delete_person(person_id):
@@ -258,6 +346,11 @@ def save_config():
     CONFIG = config_data
 
     return jsonify({"success": True})
+
+@app.route('/files/<person_id>/<filename>')
+def serve_file(person_id, filename):
+    project_path = os.path.join("projects", current_project["safe_name"], person_id)
+    return send_from_directory(project_path, filename)
 
 if __name__ == '__main__':
     os.makedirs('projects', exist_ok=True)

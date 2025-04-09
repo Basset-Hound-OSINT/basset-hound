@@ -154,12 +154,12 @@ export function createInputElement(field, name, value = '', component = null) {
     };
 
     const inputType = component?.type || field.type;
-    const resolvedType = typeMap[inputType] || 'text';
+    const resolvedType = typeMap[inputType] || inputType;
 
     const wrapper = document.createElement('div');
     wrapper.classList.add('input-group');
 
-    // Handle custom comment type
+    // 🔹 Handle comment (textarea)
     if (inputType === 'comment') {
         const textarea = document.createElement('textarea');
         textarea.classList.add('form-control');
@@ -175,7 +175,26 @@ export function createInputElement(field, name, value = '', component = null) {
         return wrapper;
     }
 
-    // Standard input
+    // 🔹 Handle file input
+    if (inputType === 'file') {
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.name = name;
+        fileInput.classList.add('form-control');
+
+        if (field.multiple || component?.multiple) {
+            fileInput.multiple = true;
+        }
+
+        if (field.required || component?.required) {
+            fileInput.required = true;
+        }
+
+        wrapper.appendChild(fileInput);
+        return wrapper;
+    }
+
+    // 🔹 Default input (text/email/url/etc.)
     const input = document.createElement('input');
     input.classList.add('form-control');
     input.name = name;
@@ -188,7 +207,7 @@ export function createInputElement(field, name, value = '', component = null) {
 
     wrapper.appendChild(input);
 
-    // Special handling for password inputs
+    // 🔹 Special handling for password fields
     if (resolvedType === 'password') {
         const toggleBtn = document.createElement('button');
         toggleBtn.type = 'button';
@@ -221,7 +240,6 @@ export function createInputElement(field, name, value = '', component = null) {
 
     return wrapper;
 }
-
 
 export function getSectionById(config, sectionId) {
     return config.sections.find(section => section.id === sectionId) || null;
