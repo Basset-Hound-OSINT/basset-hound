@@ -186,28 +186,54 @@ def process_component_field(field, field_key):
 
 @app.route('/update_person/<person_id>', methods=['POST'])
 def update_person(person_id):
+    from pprint import pprint
+
     person = next((p for p in current_project["people"] if p["id"] == person_id), None)
     if not person:
         return "Person not found", 404
 
     if request.is_json:
-        person["profile"] = request.json.get("profile", {})
-    else:
-        for section in CONFIG["sections"]:
-            section_id = section["id"]
+        incoming_profile = request.get_json().get("profile", {})
+        print("[DEBUG] Incoming JSON profile data:")
+        pprint(incoming_profile)
+
+        for section_id, fields in incoming_profile.items():
             if section_id not in person["profile"]:
                 person["profile"][section_id] = {}
+            for field_id, value in fields.items():
+                person["profile"][section_id][field_id] = value
 
-            for field in section["fields"]:
-                field_id = field["id"]
-                field_data = process_field_data(section_id, field)
-                if field_data:
-                    person["profile"][section_id][field_id] = field_data
-                elif field_id in person["profile"][section_id]:
-                    del person["profile"][section_id][field_id]
+        save_project()
+        print("[DEBUG] Updated person (via JSON):")
+        pprint(person)
+
+        return jsonify(success=True)
+
+    # fallback: handle legacy form submissions
+    print("=== UPDATE PERSON FORM KEYS ===")
+    print(list(request.form.keys()))
+
+    for section in CONFIG["sections"]:
+        section_id = section["id"]
+        if section_id not in person["profile"]:
+            person["profile"][section_id] = {}
+
+        for field in section["fields"]:
+            field_id = field["id"]
+            field_data = process_field_data(section_id, field)
+            print(f"[DEBUG] Processed {section_id}.{field_id} = {field_data}")
+            if field_data:
+                person["profile"][section_id][field_id] = field_data
+            elif field_id in person["profile"][section_id]:
+                del person["profile"][section_id][field_id]
 
     save_project()
+    print("[DEBUG] Updated person (via form):")
+    pprint(person)
+
     return redirect(url_for('dashboard'))
+
+
 
 
 @app.route('/delete_person/<string:person_id>', methods=['POST'])

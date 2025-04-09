@@ -20,18 +20,12 @@ async function fetchPerson(personId) {
 }
 
 // Function to update a person
-export async function updatePerson(personId, formData) {
-    const response = await fetch(`/update_person/${personId}`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ profile: formData })
-    });
-
-    if (!response.ok) {
-        console.error("Failed to update person");
-    }
+export async function updatePerson(personId, profileData) {
+  return fetch(`/update_person/${personId}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ profile: profileData })
+  });
 }
 
 

@@ -1,7 +1,10 @@
 import { createInputElement, getSectionById } from './utils.js';
+import { updatePerson } from './api.js';
+import { renderPersonDetails } from './ui-person-details.js';
+import { renderPeopleList } from './ui-people-list.js';
 
 // Function to setup add buttons for form fields
-function setupAddButtons() {
+export function setupAddButtons() {
     // Set up section add buttons
     document.querySelectorAll('.add-section-field').forEach(button => {
         button.addEventListener('click', function() {
@@ -82,7 +85,7 @@ function addFieldInstance(container, sectionId, field, index) {
 }
 
 // Function to create form for adding/editing people
-function createPersonForm(container, config, person = null) {
+export function createPersonForm(container, config, person = null) {
     container.innerHTML = ''; // Clear existing content
     
     // Create a form
@@ -262,7 +265,10 @@ function createFieldWithValue(container, sectionId, field, value, index) {
 }
 
 // Function to collect form data and organize it according to the configuration
-function collectFormData(form) {
+export function collectFormData(form) {
+    if (typeof form === 'string') {
+        form = document.querySelector(form);
+    }
     const formData = new FormData(form);
     const config = window.appConfig;
     const result = {
@@ -524,4 +530,43 @@ export function deletePerson(personId) {
     .catch(err => console.error("Failed to delete person", err));
 }
 
-export { setupAddButtons, createPersonForm, collectFormData };
+
+document.addEventListener('DOMContentLoaded', () => {
+  const form = document.getElementById('edit-person-form');
+  if (!form) return;
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const formData = new FormData(form);  // ✅ Fixed here
+    const params = new URLSearchParams(formData);
+
+    try {
+        const response = await fetch(`/update_person/${window.selectedPersonId}`, {
+        method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: params
+        });
+
+        if (!response.ok) throw new Error('Failed to update person');
+
+        // ✅ Refresh view
+        const updatedPerson = await fetch(`/get_person/${window.selectedPersonId}`).then(r => r.json());
+        renderPersonDetails(document.getElementById('person-details'), updatedPerson);
+
+        const people = await fetch('/get_people').then(r => r.json());
+        window.people = people;
+
+        // Re-render the sidebar list
+        renderPeopleList(people, window.selectedPersonId);
+
+        document.getElementById('profile-edit').style.display = 'none';
+        document.getElementById('person-details').style.display = 'block';
+
+    } catch (err) {
+      console.error("[ERROR] Failed to update person", err);
+    }
+  });
+});
