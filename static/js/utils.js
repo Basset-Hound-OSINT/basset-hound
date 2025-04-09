@@ -49,7 +49,6 @@ export function renderFieldValue(value, type) {
 }
 
 
-
 function renderSingleValue(val, type) {
     if (!val) return '';
 

@@ -63,24 +63,6 @@ TODO
  - [ ] recently opened projects on index.html
 
 
-I am looking fix my current code for a flask app and remove code that will become obsolete. do not respond yet I will provide the error I am facing in my current code. I will always have a default data_config.yaml file, no need to add into the code a default config. 
-I have the following files for a flask app, I want to add a feature that provides a template for how profile information for people is treated. I want to divide a profile into sections of information. For example, the names, emails, dates of birth, I want to have a data_config.yaml that names and structures sections of data. This way I can have different sections of data but standardize how it is all rendered. If a field is an email, it will have a hyperlink in the html, a date will have a calender to select from when editing user info, and a string will simply be treated as a normal string. notice how different social media sites's data is structured differently? this is to provide a template for the app to generate a person's profile based on how the user wants the data to be treated in the system. Please add this feature and remove code that will become obsolete. Remember that people can have multiple of the same thing, so you should keep the feature to "add another" or "remove" for sections and subsections, essentially in the  "core" section, the user selects "add another" and then is prompted to select from name, date of birth, and email. if in the social section, they are prompted to add a linkedin or twitter. From this template multiple sections are generated, but only sections with fields with entered data (only show fields that have information). Then when editing a profile information, strings are left alone, emails are given email hyperlinks, and urls are given hyperlinks. This should keep profiles simple and make profile structuring easier for different users with different needs.
-    core
-        name: string
-        date of birth: date
-        email: email
-    social
-        linkedin: url
-            login: email
-            pass: string
-            username: string
-            url: url
-        twitter: url
-            user: string
-            password: string
-            email: email
-
-
 I want to add a feature where you can add connections between people, but structure it similar to a social media tag. At the bottom of someone's profile, have block of buttons (instead of a vertical list which would make the page incredibly long) where the user of the app can tag another person in the people manager. then I want the following logic in the tag feature:
 
 logic: if person1 is related to person2 and person2 is related to person3, then person3 is related to person1
