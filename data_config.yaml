@@ -2,7 +2,7 @@ sections:
   - id: Profile Picture Section
     name: Profile Picture
     fields:
-      - id: The Profile Picture File
+      - id: profilepicturefile
         type: file
 
   - id: core
