@@ -214,7 +214,7 @@ def add_person():
                                 if component["type"] == "comment":
                                     # Expected input name format: section.field.comment_INDEX
                                     # We try to detect the index based on uploaded file field name
-                                    index_match = re.search(rf"{field_key_prefix}_(\d+)", uploaded_file.name)
+                                    index_match = re.search(rf"{field_key_prefix}_(\d+)", uploaded_file.filename)
                                     index = index_match.group(1) if index_match else "0"
                                     comment_key = f"{field_key_prefix}.{component['id']}_{index}"
                                     comment_value = request.form.get(comment_key, "").strip()
@@ -257,7 +257,7 @@ def get_display_name(person):
         return f"{first} {last}".strip()
     return "Unnamed"
 
-def process_field_data(section_id, field):
+def process_field_data(section_id, field, person_id=None):
     form_data = request.form
     field_key = f"{section_id}.{field['id']}"
     is_multiple = field.get("multiple", False)
@@ -268,12 +268,13 @@ def process_field_data(section_id, field):
         return values if is_multiple else (values[0] if values else None)
 
     if "components" in field:
-        return process_component_field(field, field_key)
+        return process_component_field(field, field_key, person_id)
 
     values = [v for k, v in form_data.items() if k.startswith(field_key) and v.strip()]
     return values if is_multiple else (values[0] if values else None)
 
-def process_component_field(field, field_key):
+def process_component_field(field, field_key, person_id=None):
+    person_id = person_id or "unknown"
     components = field.get("components", [])
     field_instances = defaultdict(dict)
 
@@ -386,6 +387,8 @@ def update_person(person_id):
     # 🔹 Form submission (e.g., via UI form)
     print("=== UPDATE PERSON FORM KEYS ===")
     print(list(request.form.keys()))
+    
+    form_keys = request.form.keys()  # Define form_keys here
 
     for section in CONFIG["sections"]:
         section_id = section["id"]
@@ -429,7 +432,6 @@ def update_person(person_id):
                         # ✅ Store in the correct person's directory
                         person_dir = os.path.join("projects", current_project["safe_name"], person_id)
                         os.makedirs(person_dir, exist_ok=True)
-
                         file_path = os.path.join(person_dir, filename)
                         uploaded_file.save(file_path)
 
@@ -443,7 +445,7 @@ def update_person(person_id):
                         if "components" in field:
                             for component in field["components"]:
                                 if component["type"] == "comment":
-                                    index_match = re.search(rf"{field_key_prefix}_(\d+)", uploaded_file.name)
+                                    index_match = re.search(rf"{field_key_prefix}_(\d+)", uploaded_file.filename)
                                     index = index_match.group(1) if index_match else "0"
                                     comment_key = f"{field_key_prefix}.{component['id']}_{index}"
                                     comment_value = request.form.get(comment_key, "").strip()
@@ -457,12 +459,12 @@ def update_person(person_id):
             # Handle all other fields (including nested ones)
             else:
                 # Only update this field if it's present in the form data
-                if any(key.startswith(f"{section_id}.{field_id}") for key in form_keys):
+                if any(key.startswith(f"{section_id}.{field_id}") for key in form_keys):  # Use form_keys here
                     existing_values = person["profile"][section_id].get(field_id, [])
                     if not isinstance(existing_values, list):
                         existing_values = [existing_values]
 
-                    new_values = process_field_data(section_id, field)
+                    new_values = process_field_data(section_id, field, person_id)
                     merged_values = []
 
                     if field.get("type") == "component" and isinstance(new_values, list):
@@ -484,10 +486,8 @@ def update_person(person_id):
                         elif field_id in person["profile"][section_id]:
                             del person["profile"][section_id][field_id]
 
-
     save_project()
     return jsonify(success=True)
-
 
 @app.route('/delete_person/<string:person_id>', methods=['POST'])
 def delete_person(person_id):

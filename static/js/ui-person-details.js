@@ -10,10 +10,13 @@ export function renderPersonDetails(container, person) {
 
     container.innerHTML = '';
 
-    // Header
-    const header = document.createElement('div');
-    header.className = 'd-flex justify-content-between align-items-center mb-4';
+    // Create profile header
+    const profileHeader = document.createElement('div');
+    profileHeader.className = 'profile-header card mb-3 p-3';
     
+    // Create main row for header content
+    const headerRow = document.createElement('div');
+    headerRow.className = 'd-flex align-items-center gap-3';
 
     // Profile picture section
     const profilePicData = person.profile?.["Profile Picture Section"]?.profilepicturefile;
@@ -23,13 +26,14 @@ export function renderPersonDetails(container, person) {
         profilePicEl = document.createElement('img');
         profilePicEl.src = `/files/${person.id}/${profilePicData.path}`;
         profilePicEl.alt = "Profile Picture";
-        profilePicEl.className = "rounded-circle mb-3";
+        profilePicEl.className = "rounded-circle";
         profilePicEl.style.width = "100px";
         profilePicEl.style.height = "100px";
         profilePicEl.style.objectFit = "cover";
     } else {
         profilePicEl = document.createElement('i');
-        profilePicEl.className = 'fas fa-user-circle fa-5x text-muted mb-3';
+        profilePicEl.className = 'fas fa-user-circle text-muted';
+        profilePicEl.style.fontSize = '5rem';
         profilePicEl.title = 'Click to upload a profile picture';
         profilePicEl.style.cursor = 'pointer';
 
@@ -70,20 +74,48 @@ export function renderPersonDetails(container, person) {
         });
     }
 
-    container.appendChild(profilePicEl);
+    // Add profile picture to header row
+    headerRow.appendChild(profilePicEl);
 
-    // Now add the name
+    // Name and metadata column
+    const infoCol = document.createElement('div');
+    infoCol.className = 'flex-grow-1';
+
+    // Name heading
     const name = document.createElement('h2');
     name.textContent = getDisplayName(person);
-    header.appendChild(name);
+    name.className = 'mb-1';
+    infoCol.appendChild(name);
 
+    // ID and account age row
+    if (person.created_at) {
+        const ageInfo = calculateBassetAge(person.created_at);
+        const metaRow = document.createElement('div');
+        metaRow.className = 'text-muted d-flex gap-3 align-items-center flex-wrap';
 
-    const actionsDiv = document.createElement('div');
+        const idSpan = document.createElement('span');
+        idSpan.innerHTML = `<strong>ID:</strong> ${person.id}`;
+        
+        const ageSpan = document.createElement('span');
+        ageSpan.innerHTML = `<strong>Added:</strong> ${ageInfo.shortDisplay}`;
+        ageSpan.title = ageInfo.fullDisplay;
+        
+        metaRow.appendChild(idSpan);
+        metaRow.appendChild(ageSpan);
+        infoCol.appendChild(metaRow);
+    }
+
+    headerRow.appendChild(infoCol);
+
+    // Actions column
+    const actionsCol = document.createElement('div');
+    actionsCol.className = 'd-flex gap-2';
+
     const editBtn = document.createElement('button');
-    editBtn.className = 'btn btn-primary me-2';
+    editBtn.className = 'btn btn-primary';
     editBtn.innerHTML = '<i class="fas fa-edit"></i> Edit';
     editBtn.addEventListener('click', () => editPerson(person.id));
-    actionsDiv.appendChild(editBtn);
+    actionsCol.appendChild(editBtn);
 
     const deleteBtn = document.createElement('button');
     deleteBtn.className = 'btn btn-danger';
@@ -93,25 +125,20 @@ export function renderPersonDetails(container, person) {
             deletePerson(person.id);
         }
     });
-    actionsDiv.appendChild(deleteBtn);
-    header.appendChild(actionsDiv);
-    container.appendChild(header);
+    actionsCol.appendChild(deleteBtn);
+    
+    headerRow.appendChild(actionsCol);
+    profileHeader.appendChild(headerRow);
+    
+    // Add header to main container
+    container.appendChild(profileHeader);
 
-    // ID + Account Age
-    if (person.created_at) {
-        const ageInfo = calculateBassetAge(person.created_at);
-        const metaRow = document.createElement('div');
-        metaRow.className = 'mb-4 text-muted d-flex gap-4 align-items-center flex-wrap';
-
-        const idSpan = document.createElement('span');
-        idSpan.innerHTML = `<strong>ID:</strong> ${person.id}`;
-        const ageSpan = document.createElement('span');
-        ageSpan.innerHTML = `<strong>Added:</strong> ${ageInfo.fullDisplay}`;
-
-        metaRow.appendChild(idSpan);
-        metaRow.appendChild(ageSpan);
-        container.appendChild(metaRow);
-    }
+    // Create scrollable section container
+    const sectionsContainer = document.createElement('div');
+    sectionsContainer.className = 'profile-sections-container';
+    sectionsContainer.style.height = '75vh';
+    sectionsContainer.style.overflowY = 'auto';
+    sectionsContainer.style.paddingRight = '5px';
 
     // Profile sections
     if (person.profile) {
@@ -127,7 +154,7 @@ export function renderPersonDetails(container, person) {
 
             const section = window.appConfig.sections.find(s => s.id === sectionId);
             const sectionCard = document.createElement('div');
-            sectionCard.className = 'card mb-4';
+            sectionCard.className = 'card mb-3';
 
             const sectionHeader = document.createElement('div');
             sectionHeader.className = 'card-header';
@@ -290,7 +317,10 @@ export function renderPersonDetails(container, person) {
             }
 
             sectionCard.appendChild(sectionBody);
-            container.appendChild(sectionCard);
+            sectionsContainer.appendChild(sectionCard);
         }
     }
+    
+    // Add scrollable sections container to main container
+    container.appendChild(sectionsContainer);
 }

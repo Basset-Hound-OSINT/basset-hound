@@ -67,3 +67,14 @@ I now want to add the functionality to create a network of people based on who t
 logic: if person1 is related to person2 and person2 is related to person3, then person3 is related to person1
 
 feature: when person1 is tagged in person2's profile, update all other connections between people in the app recursively.
+
+
+
+ok this is the current code for adding and updating people, i get an error when trying to updat a person's information
+
+ERROR] Failed to update person Error: <!doctype html> <html lang=en> <head> <title>NameError: name &#39;form_keys&#39; is not defined // Werkzeug Debugger</title> <link rel="stylesheet" href="?__debugger__=yes&amp;cmd=resource&amp;f=style.css"> <link rel="shortcut icon" href="?__debugger__=yes&amp;cmd=resource&amp;f=console.png"> <script src="?__debugger__=yes&amp;cmd=resource&amp;f=debugger.js"></script> <script> var CONSOLE_MODE = false, EVALEX = true, EVALEX_TRUSTED = false, SECRET = "gKGWl84nNmQrAYKi8ZLS"; </script> </head> <body style="background-color: #fff"> <div class="debugger"> <h1>NameError</h1> <div class="detail"> <p class="errormsg">NameError: name &#39;form_keys&#39; is not defined </p> </div> <h2 class="traceback">Traceback <em>(most recent call last)</em></h2> <div class="traceback"> <h3></h3> <ul><li><div class="frame" id="frame-140262796485904"> <h4>File <cite class="filename">"/home/ubuntu/Downloads/tmp/basset-hound/v…
+
+    updatePersonData http://localhost:5000/static/js/ui-form-handlers.js:757
+
+ ui-form-handlers.js:787:17
+

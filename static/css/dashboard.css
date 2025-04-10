@@ -45,12 +45,35 @@ body {
 }
 
 .profile-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 20px;
-    padding-bottom: 15px;
-    border-bottom: 1px solid #eee;
+    background-color: white;
+    border-radius: 8px 8px 0 0;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.profile-sections-container {
+    padding-top: 10px;
+    scrollbar-width: thin;
+}
+
+.profile-sections-container::-webkit-scrollbar {
+    width: 8px;
+}
+
+.profile-sections-container::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+}
+
+.profile-sections-container::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 10px;
+}
+
+.profile-sections-container::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
 }
 
 .add-person-form, .add-organization-form {
@@ -141,8 +164,14 @@ body {
         align-items: flex-start;
     }
     
-    .profile-header div {
+    .profile-header .d-flex {
+        flex-direction: column;
+        width: 100%;
+    }
+    
+    .profile-header .d-flex > div {
         margin-top: 10px;
+        width: 100%;
     }
 }
 
@@ -150,7 +179,6 @@ body {
     display: flex;
     flex-direction: column;
 }
-
 
 .person-id {
     font-size: 0.8rem;
