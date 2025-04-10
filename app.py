@@ -189,9 +189,16 @@ def add_person():
                 for uploaded_file in files:
                     if uploaded_file and uploaded_file.filename:
                         file_id = generate_unique_id()
-                        filename = f"{file_id}_{uploaded_file.filename}"
+                        if section_id == "profile" and field_id == "profile_picture":
+                            if not is_image_file(uploaded_file.filename):
+                                continue  # Skip non-image files for profile pictures
+
+                        file_id = generate_unique_id()
+                        filename = f"{file_id}_{uploaded_file.filename}"  # ✅ Prepend ID
+                        os.makedirs(person_dir, exist_ok=True)
                         file_path = os.path.join(person_dir, filename)
                         uploaded_file.save(file_path)
+
 
                         field_key_prefix = f"{section_id}.{field_id}"
 
@@ -354,6 +361,11 @@ def process_component_field(field, field_key):
     instances = [entry for entry in field_instances.values() if entry]
     return instances if field.get("multiple") else (instances[0] if instances else None)
 
+ALLOWED_IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp'}
+
+def is_image_file(filename):
+    return os.path.splitext(filename)[1].lower() in ALLOWED_IMAGE_EXTENSIONS
+
 @app.route('/update_person/<person_id>', methods=['POST'])
 def update_person(person_id):
     person = next((p for p in current_project["people"] if p["id"] == person_id), None)
@@ -405,21 +417,29 @@ def update_person(person_id):
                 # Add new files
                 for uploaded_file in files:
                     if uploaded_file and uploaded_file.filename:
-                        file_id = generate_unique_id()  # Generate a new unique ID for each file
-                        filename = f"{file_id}_{uploaded_file.filename}"
+                        # ✅ Reject non-image files for profile pictures
+                        if section_id == "Profile Picture Section" and field_id == "profilepicturefile":
+                            if not is_image_file(uploaded_file.filename):
+                                print("Rejected non-image file for profile picture.")
+                                continue
+
+                        file_id = generate_unique_id()
+                        filename = f"{file_id}_{uploaded_file.filename}"  # ✅ Prepend ID to filename
+
+                        # ✅ Store in the correct person's directory
                         person_dir = os.path.join("projects", current_project["safe_name"], person_id)
                         os.makedirs(person_dir, exist_ok=True)
+
                         file_path = os.path.join(person_dir, filename)
                         uploaded_file.save(file_path)
-                        
-                        # Make sure to use the actual file name from the upload
+
                         file_data = {
                             "id": file_id,
-                            "name": uploaded_file.filename,  # Use the actual filename
-                            "path": filename
+                            "name": uploaded_file.filename,  # Keep original filename
+                            "path": filename  # Store with ID-prefixed path
                         }
 
-                        # Try to get associated comments if they exist
+                        # 🔹 Check for associated comments in components
                         if "components" in field:
                             for component in field["components"]:
                                 if component["type"] == "comment":
@@ -431,37 +451,38 @@ def update_person(person_id):
                                         file_data[component["id"]] = comment_value
 
                         stored_files.append(file_data)
-                
+
                 if stored_files:
                     person["profile"][section_id][field_id] = stored_files if field.get("multiple") else stored_files[0]
             # Handle all other fields (including nested ones)
             else:
-                existing_values = person["profile"][section_id].get(field_id, [])
-                if not isinstance(existing_values, list):
-                    existing_values = [existing_values]
+                # Only update this field if it's present in the form data
+                if any(key.startswith(f"{section_id}.{field_id}") for key in form_keys):
+                    existing_values = person["profile"][section_id].get(field_id, [])
+                    if not isinstance(existing_values, list):
+                        existing_values = [existing_values]
 
-                new_values = process_field_data(section_id, field)
-                merged_values = []
+                    new_values = process_field_data(section_id, field)
+                    merged_values = []
 
-                if field.get("type") == "component" and isinstance(new_values, list):
-                    for i, new_entry in enumerate(new_values):
-                        merged_entry = new_entry.copy()
+                    if field.get("type") == "component" and isinstance(new_values, list):
+                        for i, new_entry in enumerate(new_values):
+                            merged_entry = new_entry.copy()
 
-                        if i < len(existing_values):
-                            for component in field.get("components", []):
-                                comp_id = component["id"]
-                                if comp_id not in merged_entry and comp_id in existing_values[i]:
-                                    merged_entry[comp_id] = existing_values[i][comp_id]
+                            if i < len(existing_values):
+                                for component in field.get("components", []):
+                                    comp_id = component["id"]
+                                    if comp_id not in merged_entry and comp_id in existing_values[i]:
+                                        merged_entry[comp_id] = existing_values[i][comp_id]
 
-                        merged_values.append(merged_entry)
+                            merged_values.append(merged_entry)
 
-                    person["profile"][section_id][field_id] = merged_values
-                else:
-                    if new_values:
-                        person["profile"][section_id][field_id] = new_values
-                    elif field_id in person["profile"][section_id]:
-                        # Remove the field if it's now empty
-                        del person["profile"][section_id][field_id]
+                        person["profile"][section_id][field_id] = merged_values
+                    else:
+                        if new_values:
+                            person["profile"][section_id][field_id] = new_values
+                        elif field_id in person["profile"][section_id]:
+                            del person["profile"][section_id][field_id]
 
 
     save_project()

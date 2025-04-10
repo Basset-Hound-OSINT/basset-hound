@@ -13,9 +13,70 @@ export function renderPersonDetails(container, person) {
     // Header
     const header = document.createElement('div');
     header.className = 'd-flex justify-content-between align-items-center mb-4';
+    
+
+    // Profile picture section
+    const profilePicData = person.profile?.["Profile Picture Section"]?.profilepicturefile;
+    let profilePicEl;
+
+    if (profilePicData && profilePicData.path && profilePicData.name) {
+        profilePicEl = document.createElement('img');
+        profilePicEl.src = `/files/${person.id}/${profilePicData.path}`;
+        profilePicEl.alt = "Profile Picture";
+        profilePicEl.className = "rounded-circle mb-3";
+        profilePicEl.style.width = "100px";
+        profilePicEl.style.height = "100px";
+        profilePicEl.style.objectFit = "cover";
+    } else {
+        profilePicEl = document.createElement('i');
+        profilePicEl.className = 'fas fa-user-circle fa-5x text-muted mb-3';
+        profilePicEl.title = 'Click to upload a profile picture';
+        profilePicEl.style.cursor = 'pointer';
+
+        // Optional: Click to trigger file input
+        profilePicEl.addEventListener('click', () => {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'image/*';
+            input.style.display = 'none';
+
+            input.addEventListener('change', async () => {
+                const file = input.files[0];
+                if (!file) return;
+
+                // Check file type client-side
+                if (!file.type.startsWith('image/')) {
+                    alert('Only image files are allowed as profile pictures.');
+                    return;
+                }
+
+                const formData = new FormData();
+                formData.append('profile.profile_picture', file);
+                formData.append('person_id', person.id);
+
+                const res = await fetch(`/update_person/${person.id}`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (res.ok) {
+                    const updated = await fetch(`/get_person/${person.id}`).then(r => r.json());
+                    renderPersonDetails(container, updated); // Refresh
+                }
+            });
+
+            document.body.appendChild(input);
+            input.click();
+        });
+    }
+
+    container.appendChild(profilePicEl);
+
+    // Now add the name
     const name = document.createElement('h2');
     name.textContent = getDisplayName(person);
     header.appendChild(name);
+
 
     const actionsDiv = document.createElement('div');
     const editBtn = document.createElement('button');

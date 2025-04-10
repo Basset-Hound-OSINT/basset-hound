@@ -185,12 +185,19 @@ export function createPersonForm(container, config, person = null) {
             containerDiv.className = 'field-instances';
 
             const values = person?.profile?.[section.id]?.[field.id];
-            const entries = Array.isArray(values) ? values : values ? [values] : [null];
+            const isCommentOrString = ['string', 'comment', 'email', 'url', 'date', 'number', 'password'].includes(field.type);
+            const entries = Array.isArray(values) ? values : values ? [values] : (isCommentOrString ? [''] : [null]);
+
 
             const entryCount = field.multiple ? Math.max(entries.length, 1) : 1;
 
             for (let index = 0; index < entryCount; index++) {
-                const entry = entries[index] || {};
+                let entry = entries[index];
+                if (entry === null || entry === undefined) {
+                    const isSimpleField = ['string', 'comment', 'email', 'url', 'date', 'number', 'password'].includes(field.type);
+                    entry = isSimpleField ? '' : {};
+                }
+
                 const groupDiv = document.createElement('div');
                 groupDiv.className = 'mb-3 field-instance';
                 groupDiv.setAttribute('data-field', field.id);

@@ -21,7 +21,7 @@ body {
     list-style: none;
     padding: 0;
     margin: 0;
-    max-height: calc(100vh - 250px);
+    max-height: calc(66vh);
     overflow-y: auto;
 }
 
