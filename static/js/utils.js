@@ -256,8 +256,8 @@ export function createInputElement(field, name, value = '', component = null, se
         fileInput.name = name;
         fileInput.classList.add('form-control');
 
-        // Optional: allow selecting multiple files for a field
-        if (field.multiple) {
+        // ✅ Allow selecting multiple files (on top-level or component level)
+        if (field.multiple || component?.multiple) {
             fileInput.multiple = true;
         }
 
@@ -266,8 +266,18 @@ export function createInputElement(field, name, value = '', component = null, se
         }
 
         wrapper.appendChild(fileInput);
+
+        // ✅ Show previously uploaded file name (only during edit)
+        if (value?.name) {
+            const fileLabel = document.createElement('div');
+            fileLabel.className = 'form-text text-muted';
+            fileLabel.textContent = `Previously uploaded: ${value.name}`;
+            wrapper.appendChild(fileLabel);
+        }
+
         return wrapper;
     }
+
 
     // 🔹 Default input (text/email/url/etc.)
     const input = document.createElement('input');

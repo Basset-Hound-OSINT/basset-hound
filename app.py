@@ -270,6 +270,7 @@ def process_component_field(field, field_key):
     components = field.get("components", [])
     field_instances = defaultdict(dict)
 
+    # --- Process regular form fields ---
     for key, value in request.form.items():
         if not key.startswith(field_key):
             continue
@@ -279,15 +280,12 @@ def process_component_field(field, field_key):
             continue
 
         component_part = parts[2]
-
-        # Match things like: email_0_1 or email_0
         match = re.match(r"(\w+)_([0-9]+)(?:\.([0-9]+))?", component_part)
         if not match:
             continue
 
         component_id = match.group(1)
         field_index = match.group(2)
-        sub_index = match.group(3)
 
         value = value.strip()
         if not value:
@@ -299,12 +297,60 @@ def process_component_field(field, field_key):
 
         is_multiple = component_cfg.get("multiple", False)
 
-        # Store appropriately: single or multiple values
         if is_multiple:
             field_instances[field_index].setdefault(component_id, []).append(value)
         else:
             field_instances[field_index][component_id] = value
 
+    # --- Process file components ---
+    for key, uploaded_file in request.files.items():
+        if not key.startswith(field_key):
+            continue
+
+        parts = key.split('.')
+        if len(parts) < 3:
+            continue
+
+        component_part = parts[2]
+        match = re.match(r"(\w+)_([0-9]+)", component_part)
+        if not match:
+            continue
+
+        component_id = match.group(1)
+        field_index = match.group(2)
+
+        component_cfg = next((c for c in components if c["id"] == component_id and c["type"] == "file"), None)
+        if not component_cfg or not uploaded_file.filename:
+            continue
+
+        file_id = generate_unique_id()
+        filename = f"{file_id}_{uploaded_file.filename}"
+        person_id = request.form.get("person_id", "unknown")
+        person_dir = os.path.join("projects", current_project["safe_name"], person_id)
+        os.makedirs(person_dir, exist_ok=True)
+        file_path = os.path.join(person_dir, filename)
+        uploaded_file.save(file_path)
+
+        file_data = {
+            "id": file_id,
+            "name": uploaded_file.filename,
+            "path": filename
+        }
+
+        # Attach comments (if defined) to the file
+        for comp in components:
+            if comp["type"] == "comment":
+                comment_key = f"{field_key}.{comp['id']}_{field_index}"
+                comment_value = request.form.get(comment_key, "").strip()
+                if comment_value:
+                    file_data[comp["id"]] = comment_value
+
+        # Only add file_data if we actually uploaded a file
+        if uploaded_file and uploaded_file.filename:
+            field_instances[field_index][component_id] = file_data
+
+
+    # --- Final aggregation ---
     instances = [entry for entry in field_instances.values() if entry]
     return instances if field.get("multiple") else (instances[0] if instances else None)
 
@@ -390,12 +436,33 @@ def update_person(person_id):
                     person["profile"][section_id][field_id] = stored_files if field.get("multiple") else stored_files[0]
             # Handle all other fields (including nested ones)
             else:
-                field_data = process_field_data(section_id, field)
-                if field_data:
-                    person["profile"][section_id][field_id] = field_data
-                elif field_id in person["profile"][section_id]:
-                    # Remove the field if it's now empty
-                    del person["profile"][section_id][field_id]
+                existing_values = person["profile"][section_id].get(field_id, [])
+                if not isinstance(existing_values, list):
+                    existing_values = [existing_values]
+
+                new_values = process_field_data(section_id, field)
+                merged_values = []
+
+                if field.get("type") == "component" and isinstance(new_values, list):
+                    for i, new_entry in enumerate(new_values):
+                        merged_entry = new_entry.copy()
+
+                        if i < len(existing_values):
+                            for component in field.get("components", []):
+                                comp_id = component["id"]
+                                if comp_id not in merged_entry and comp_id in existing_values[i]:
+                                    merged_entry[comp_id] = existing_values[i][comp_id]
+
+                        merged_values.append(merged_entry)
+
+                    person["profile"][section_id][field_id] = merged_values
+                else:
+                    if new_values:
+                        person["profile"][section_id][field_id] = new_values
+                    elif field_id in person["profile"][section_id]:
+                        # Remove the field if it's now empty
+                        del person["profile"][section_id][field_id]
+
 
     save_project()
     return jsonify(success=True)

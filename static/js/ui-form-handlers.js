@@ -152,6 +152,13 @@ export function createPersonForm(container, config, person = null) {
     form.noValidate = true;
     form.enctype = 'multipart/form-data';
 
+    if (person) {
+        const hiddenIdInput = document.createElement('input');
+        hiddenIdInput.type = 'hidden';
+        hiddenIdInput.name = 'person_id';
+        hiddenIdInput.value = person.id;
+        form.appendChild(hiddenIdInput);
+    }
     config.sections.forEach(section => {
         const sectionDiv = document.createElement('div');
         sectionDiv.className = 'card mb-4';
@@ -264,6 +271,13 @@ export function createPersonForm(container, config, person = null) {
                             const compValue = entry?.[component.id] || '';
                             const input = createInputElement(component, baseName, compValue, null, section.id);
                             compWrapper.appendChild(input);
+
+                            if (component.type === 'file' && compValue?.name) {
+                                const fileNote = document.createElement('div');
+                                fileNote.className = 'form-text text-muted';
+                                fileNote.textContent = `Previously uploaded: ${compValue.name}`;
+                                compWrapper.appendChild(fileNote);
+                            }
                         }
 
                         groupDiv.appendChild(compWrapper);
@@ -381,6 +395,37 @@ export function createFieldWithValue(container, sectionId, field, value, index) 
     const fieldTitle = document.createElement('h6');
     fieldTitle.textContent = field.name || fieldId;
     fieldHeader.appendChild(fieldTitle);
+
+    if (field.type === "component" && field.components) {
+      const container = document.createElement("div");
+
+      const addComponentInstance = (index) => {
+        const instanceWrapper = document.createElement("div");
+
+        field.components.forEach(component => {
+          const input = document.createElement("input");
+          input.name = `${section.id}.${field.id}.${component.id}_${index}`;
+          input.placeholder = component.id;
+
+          if (component.type === "file") {
+            input.type = "file";
+          } else if (component.type === "comment") {
+            input.type = "text"; // or a <textarea>
+          } else {
+            input.type = "text";
+          }
+
+          instanceWrapper.appendChild(input);
+        });
+
+        container.appendChild(instanceWrapper);
+      };
+
+      addComponentInstance(0); // Start with one
+
+      fieldWrapper.appendChild(container);
+    }
+
 
     if (field.type === 'file') {
         const files = value ? (Array.isArray(value) ? value : [value]) : [];

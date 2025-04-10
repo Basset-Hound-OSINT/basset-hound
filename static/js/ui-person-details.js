@@ -90,81 +90,68 @@ export function renderPersonDetails(container, person) {
 
                 const values = Array.isArray(fieldValue) ? fieldValue : [fieldValue];
 
-                if (field?.components) {
+                if (field?.type === "component" && field.components) {
                     values.forEach((entry, idx) => {
                         const entryDiv = document.createElement('div');
                         entryDiv.classList.add('mb-2');
 
                         field.components.forEach(component => {
-                            let compVals = entry[component.id];
-                            if (!compVals || (Array.isArray(compVals) && compVals.length === 0)) return;
-                            if (!Array.isArray(compVals)) compVals = [compVals];
+                          let compVals = entry[component.id];
+                          if (!compVals || (Array.isArray(compVals) && compVals.length === 0)) return;
+                          if (!Array.isArray(compVals)) compVals = [compVals];
 
-                            compVals.forEach((compVal, compIdx) => {
-                                const compRow = document.createElement('div');
-                                compRow.classList.add('mb-2', 'd-flex', 'align-items-center', 'gap-2');
+                          compVals.forEach((compVal, compIdx) => {
+                            const compRow = document.createElement('div');
+                            compRow.classList.add('mb-2', 'd-flex', 'align-items-center', 'gap-2');
 
-                                const copyIcon = document.createElement('i');
-                                copyIcon.className = 'fas fa-copy text-secondary';
-                                copyIcon.style.cursor = 'pointer';
-                                copyIcon.title = `Copy ${component.name || component.id}`;
+                            const copyIcon = document.createElement('i');
+                            copyIcon.className = 'fas fa-copy text-secondary';
+                            copyIcon.style.cursor = 'pointer';
+                            copyIcon.title = `Copy ${component.name || component.id}`;
 
-                                const label = document.createElement('span');
-                                label.classList.add('text-muted', 'me-1');
-                                label.textContent = `${component.name || component.id}${compVals.length > 1 ? ` [${compIdx + 1}]` : ''}: `;
+                            const label = document.createElement('span');
+                            label.classList.add('text-muted', 'me-1');
+                            label.textContent = `${component.name || component.id}${compVals.length > 1 ? ` [${compIdx + 1}]` : ''}: `;
 
-                                let valueDisplay;
-                                let copyText = compVal;
+                            let valueDisplay;
+                            let copyText = '';
 
-                                if (component.type === 'password') {
-                                    const masked = document.createElement('span');
-                                    masked.textContent = '••••••••';
+                            if (component.type === 'password') {
+                              // Your existing password logic
+                            } else if (component.type === 'file' && compVal && compVal.path) {
+                              const link = document.createElement('a');
+                              link.href = `/files/${person.id}/${compVal.path}`;
+                              link.target = '_blank';
+                              link.textContent = compVal.name || 'Download File';
+                              valueDisplay = link;
+                            } else {
+                              valueDisplay = renderFieldValue(compVal, component.type, person.id);
+                              copyText = typeof compVal === 'string' ? compVal : '';
+                              if (typeof valueDisplay === 'string') {
+                                const span = document.createElement('span');
+                                span.textContent = valueDisplay;
+                                valueDisplay = span;
+                              }
+                            }
 
-                                    const real = document.createElement('span');
-                                    real.textContent = compVal;
-                                    real.style.display = 'none';
-
-                                    const toggleBtn = document.createElement('i');
-                                    toggleBtn.className = 'fas fa-eye text-secondary';
-                                    toggleBtn.style.cursor = 'pointer';
-                                    toggleBtn.title = 'Show password';
-                                    toggleBtn.addEventListener('click', () => {
-                                        const showing = masked.style.display === 'none';
-                                        masked.style.display = showing ? 'inline' : 'none';
-                                        real.style.display = showing ? 'none' : 'inline';
-                                        toggleBtn.className = showing ? 'fas fa-eye' : 'fas fa-eye-slash';
-                                    });
-
-                                    valueDisplay = document.createElement('span');
-                                    valueDisplay.appendChild(masked);
-                                    valueDisplay.appendChild(real);
-                                    valueDisplay.appendChild(toggleBtn);
-                                } else {
-                                    valueDisplay = renderFieldValue(compVal, component.type, person.id);
-                                    if (typeof valueDisplay === 'string') {
-                                        const span = document.createElement('span');
-                                        span.textContent = valueDisplay;
-                                        valueDisplay = span;
-                                    }
-                                }
-
-                                copyIcon.addEventListener('click', () => {
-                                    navigator.clipboard.writeText(copyText).then(() => {
-                                        copyIcon.classList.replace('fa-copy', 'fa-check');
-                                        copyIcon.classList.add('text-success');
-                                        setTimeout(() => {
-                                            copyIcon.classList.replace('fa-check', 'fa-copy');
-                                            copyIcon.classList.remove('text-success');
-                                        }, 1000);
-                                    });
-                                });
-
-                                compRow.appendChild(copyIcon);
-                                compRow.appendChild(label);
-                                compRow.appendChild(valueDisplay);
-                                entryDiv.appendChild(compRow);
+                            copyIcon.addEventListener('click', () => {
+                              navigator.clipboard.writeText(copyText).then(() => {
+                                copyIcon.classList.replace('fa-copy', 'fa-check');
+                                copyIcon.classList.add('text-success');
+                                setTimeout(() => {
+                                  copyIcon.classList.replace('fa-check', 'fa-copy');
+                                  copyIcon.classList.remove('text-success');
+                                }, 1000);
+                              });
                             });
+
+                            compRow.appendChild(copyIcon);
+                            compRow.appendChild(label);
+                            compRow.appendChild(valueDisplay);
+                            entryDiv.appendChild(compRow);
+                          });
                         });
+
 
                         if (idx > 0) fieldDiv.appendChild(document.createElement('hr'));
                         fieldDiv.appendChild(entryDiv);
