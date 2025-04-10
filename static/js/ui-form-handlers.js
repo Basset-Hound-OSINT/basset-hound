@@ -147,7 +147,7 @@ export function createPersonForm(container, config, person = null) {
     container.innerHTML = '';
 
     const form = document.createElement('form');
-    form.id = person ? 'edit-person-form' : 'add-person-form';
+    form.id = 'person-form';
     form.className = 'needs-validation';
     form.noValidate = true;
     form.enctype = 'multipart/form-data';
@@ -185,7 +185,7 @@ export function createPersonForm(container, config, person = null) {
             for (let index = 0; index < entryCount; index++) {
                 const entry = entries[index] || {};
                 const groupDiv = document.createElement('div');
-                groupDiv.className = 'mb-3';
+                groupDiv.className = 'mb-3 field-instance';
                 groupDiv.setAttribute('data-field', field.id);
 
                 if (field.components) {
@@ -203,9 +203,9 @@ export function createPersonForm(container, config, person = null) {
                         compWrapper.appendChild(label);
 
                         if (component.multiple) {
-                            const container = document.createElement('div');
-                            container.className = 'component-container';
-                            container.id = `${section.id}-${field.id}-${component.id}-container-${index}`;
+                            const compContainer = document.createElement('div');
+                            compContainer.className = 'component-container';
+                            compContainer.id = `${section.id}-${field.id}-${component.id}-container-${index}`;
 
                             const compValues = entry?.[component.id]
                                 ? (Array.isArray(entry[component.id]) ? entry[component.id] : [entry[component.id]])
@@ -226,7 +226,7 @@ export function createPersonForm(container, config, person = null) {
                                     addBtn.className = 'btn btn-outline-secondary';
                                     addBtn.innerHTML = '<i class="fas fa-plus"></i>';
                                     addBtn.addEventListener('click', function () {
-                                        const newIndex = container.querySelectorAll('.input-group').length;
+                                        const newIndex = compContainer.querySelectorAll('.input-group').length;
                                         const newInputGroup = document.createElement('div');
                                         newInputGroup.className = 'input-group mb-2';
 
@@ -242,7 +242,7 @@ export function createPersonForm(container, config, person = null) {
                                         removeBtn.addEventListener('click', () => newInputGroup.remove());
                                         newInputGroup.appendChild(removeBtn);
 
-                                        container.appendChild(newInputGroup);
+                                        compContainer.appendChild(newInputGroup);
                                     });
 
                                     inputGroup.appendChild(addBtn);
@@ -255,10 +255,10 @@ export function createPersonForm(container, config, person = null) {
                                     inputGroup.appendChild(removeBtn);
                                 }
 
-                                container.appendChild(inputGroup);
+                                compContainer.appendChild(inputGroup);
                             });
 
-                            compWrapper.appendChild(container);
+                            compWrapper.appendChild(compContainer);
                         } else {
                             const baseName = `${section.id}.${field.id}.${component.id}_${index}`;
                             const compValue = entry?.[component.id] || '';
@@ -297,6 +297,7 @@ export function createPersonForm(container, config, person = null) {
         form.appendChild(sectionDiv);
     });
 
+    // Action Buttons
     const actionButtons = document.createElement('div');
     actionButtons.className = 'd-flex justify-content-between mb-4';
 
@@ -304,7 +305,7 @@ export function createPersonForm(container, config, person = null) {
     cancelButton.type = 'button';
     cancelButton.className = 'btn btn-secondary';
     cancelButton.textContent = 'Cancel';
-    cancelButton.id = person ? 'cancel-edit' : 'cancel-add';
+    cancelButton.id = 'cancel-form';
 
     const saveButton = document.createElement('button');
     saveButton.type = 'submit';
@@ -314,22 +315,21 @@ export function createPersonForm(container, config, person = null) {
     actionButtons.appendChild(cancelButton);
     actionButtons.appendChild(saveButton);
     form.appendChild(actionButtons);
+
+    // Append form to container
     container.appendChild(form);
 
+    // Show/hide relevant UI sections
+    document.getElementById('person-form-container').style.display = 'block';
+    document.getElementById('person-details').style.display = 'none';
+
+    // Set up event handling
     if (person) {
-        // Edit mode
         form.addEventListener('submit', async function (e) {
             e.preventDefault();
-            const formData = new FormData(form);
-            await updatePersonData(person.id, formData);
-        });
-
-        cancelButton.addEventListener('click', function () {
-            document.getElementById('profile-edit').style.display = 'none';
-            document.getElementById('person-details').style.display = 'block';
+            await updatePersonData(person.id, e.target);
         });
     } else {
-        // Add mode — use JavaScript to submit with FormData
         form.addEventListener('submit', async function (e) {
             e.preventDefault();
 
@@ -351,7 +351,6 @@ export function createPersonForm(container, config, person = null) {
                     throw new Error(errorText);
                 }
 
-                // Reload to show new person
                 window.location.reload();
 
             } catch (error) {
@@ -359,12 +358,13 @@ export function createPersonForm(container, config, person = null) {
                 alert('Failed to add person. Please try again.');
             }
         });
-
-        cancelButton.addEventListener('click', function () {
-            document.getElementById('person-form-container').style.display = 'none';
-            document.getElementById('person-details').style.display = 'block';
-        });
     }
+
+    cancelButton.addEventListener('click', function () {
+        document.getElementById('person-form-container').style.display = 'none';
+        document.getElementById('person-details').style.display = 'block';
+    });
+
     setupAddButtons();
 }
 
@@ -671,7 +671,6 @@ export function collectFormData(form) {
 }
 
 // Function to update person data via API using FormData
-// Function to update person data via API using FormData
 async function updatePersonData(personId, form) {
     try {
         // Ensure we're passing an actual HTMLFormElement
@@ -703,9 +702,11 @@ async function updatePersonData(personId, form) {
         // Re-render the sidebar list
         renderPeopleList(people, personId);
 
-        // Toggle visibility
-        document.getElementById('profile-edit').style.display = 'none';
-        document.getElementById('person-details').style.display = 'block';
+        const editSection = document.getElementById('profile-edit');
+        const detailsSection = document.getElementById('person-details');
+
+        if (editSection) editSection.style.display = 'none';
+        if (detailsSection) detailsSection.style.display = 'block';
         
         return result;
     } catch (error) {
@@ -715,206 +716,25 @@ async function updatePersonData(personId, form) {
 }
 
 export function editPerson(personId) {
-    const personDetails = document.getElementById('person-details');
-    const profileEdit = document.getElementById('profile-edit');
-    const form = document.getElementById('edit-person-form');
+    const person = window.people.find(p => p.id === personId);
+    if (!person) return;
 
-    if (!personDetails || !profileEdit || !form) return;
-
-    form.enctype = 'multipart/form-data';
-    form.classList.remove('was-validated');
-    personDetails.style.display = 'none';
-    profileEdit.classList.remove('d-none');
-    profileEdit.style.display = 'block';
-
-    const person = window.selectedPerson = window.people.find(p => p.id === personId);
     window.selectedPersonId = personId;
-    const profile = person.profile || {};
-    const config = window.appConfig;
+    window.selectedPerson = person;
 
-    form.innerHTML = '';
+    const container = document.getElementById('person-form-container');
+    const details = document.getElementById('person-details');
 
-    for (const section of config.sections) {
-        const sectionData = profile[section.id] || {};
-        const sectionDiv = document.createElement('div');
-        sectionDiv.className = 'mb-4';
+    if (!container || !details) return;
 
-        const sectionHeader = document.createElement('h5');
-        sectionHeader.textContent = section.name || section.id;
-        sectionDiv.appendChild(sectionHeader);
+    // Hide the details view
+    details.style.display = 'none';
 
-        for (const field of section.fields) {
-            const fieldValues = sectionData[field.id] || [];
-            const values = Array.isArray(fieldValues) ? fieldValues : [fieldValues];
-            const maxEntries = field.multiple ? Math.max(values.length, 1) : 1;
+    // Generate the edit form with person data
+    createPersonForm(container, window.appConfig, person);
 
-            for (let index = 0; index < maxEntries; index++) {
-                const val = values[index] || {};
-                const groupDiv = document.createElement('div');
-                groupDiv.className = 'mb-3';
-                groupDiv.setAttribute('data-field', field.id);
-
-                const groupTitle = document.createElement('h6');
-                groupTitle.textContent = `${field.name || field.id} #${index + 1}`;
-                groupDiv.appendChild(groupTitle);
-
-                if (field.components) {
-                    field.components.forEach(component => {
-                        const compWrapper = document.createElement('div');
-                        compWrapper.className = 'mb-2';
-
-                        const label = document.createElement('label');
-                        label.className = 'form-label';
-                        label.textContent = component.name || component.id;
-                        compWrapper.appendChild(label);
-
-                        // Check if this component allows multiple values
-                        if (component.multiple) {
-                            // Create a container for multiple entries
-                            const componentContainer = document.createElement('div');
-                            componentContainer.className = 'component-container';
-                            componentContainer.id = `${section.id}-${field.id}-${component.id}-container-${index}`;
-                            
-                            // Get component values (ensure it's an array)
-                            const componentValues = val && val[component.id] 
-                                ? (Array.isArray(val[component.id]) ? val[component.id] : [val[component.id]])
-                                : [''];
-                            
-                            // Add an input group for each existing value
-                            componentValues.forEach((compValue, compIndex) => {
-                                const inputGroup = document.createElement('div');
-                                inputGroup.className = 'input-group mb-2';
-                                
-                                const inputName = `${section.id}.${field.id}.${component.id}_${index}.${compIndex}`;
-                                const input = createInputElement(component, inputName, compValue, null, section.id);
-                                input.classList.add('form-control');
-                                inputGroup.appendChild(input);
-                                
-                                // Only add plus button to the first item, remove buttons to the rest
-                                if (compIndex === 0) {
-                                    // Add button for adding more values
-                                    const addBtn = document.createElement('button');
-                                    addBtn.type = 'button';
-                                    addBtn.className = 'btn btn-outline-secondary';
-                                    addBtn.innerHTML = '<i class="fas fa-plus"></i>';
-                                    addBtn.title = `Add another ${component.name || component.id}`;
-                                    addBtn.addEventListener('click', function() {
-                                        const newIndex = componentContainer.querySelectorAll('.input-group').length;
-                                        const newInputGroup = document.createElement('div');
-                                        newInputGroup.className = 'input-group mb-2';
-                                        
-                                        const newInputName = `${section.id}.${field.id}.${component.id}_${index}.${newIndex}`;
-                                        const newInput = createInputElement(component, newInputName, '', null, section.id);
-                                        newInput.classList.add('form-control');
-                                        newInputGroup.appendChild(newInput);
-                                        
-                                        // Add remove button
-                                        const removeBtn = document.createElement('button');
-                                        removeBtn.type = 'button';
-                                        removeBtn.className = 'btn btn-outline-danger';
-                                        removeBtn.innerHTML = '<i class="fas fa-times"></i>';
-                                        removeBtn.addEventListener('click', function() {
-                                            newInputGroup.remove();
-                                        });
-                                        newInputGroup.appendChild(removeBtn);
-                                        
-                                        componentContainer.appendChild(newInputGroup);
-                                    });
-                                    
-                                    inputGroup.appendChild(addBtn);
-                                } else {
-                                    // Add remove button
-                                    const removeBtn = document.createElement('button');
-                                    removeBtn.type = 'button';
-                                    removeBtn.className = 'btn btn-outline-danger';
-                                    removeBtn.innerHTML = '<i class="fas fa-times"></i>';
-                                    removeBtn.addEventListener('click', function() {
-                                        inputGroup.remove();
-                                    });
-                                    inputGroup.appendChild(removeBtn);
-                                }
-                                
-                                componentContainer.appendChild(inputGroup);
-                            });
-                            
-                            compWrapper.appendChild(componentContainer);
-                        } else {
-                            // Single component (existing code)
-                            const inputName = `${section.id}.${field.id}.${component.id}_${index}`;
-                            const componentValue = val && val[component.id] ? val[component.id] : '';
-                            const input = createInputElement(component, inputName, componentValue, null, section.id);
-                            compWrapper.appendChild(input);
-                        }
-                        
-                        groupDiv.appendChild(compWrapper);
-                    });
-                }
-
-                sectionDiv.appendChild(groupDiv);
-            }
-
-            if (field.multiple) {
-                const addBtn = document.createElement('button');
-                addBtn.className = 'btn btn-sm btn-outline-primary mt-2';
-                addBtn.type = 'button';
-                addBtn.innerHTML = `<i class="fas fa-plus"></i> Add Another`;
-
-                addBtn.addEventListener('click', () => {
-                    const currentGroups = sectionDiv.querySelectorAll(`div[data-field="${field.id}"]`);
-                    const index = currentGroups.length;
-
-                    const groupDiv = document.createElement('div');
-                    groupDiv.className = 'mb-3';
-                    groupDiv.setAttribute('data-field', field.id);
-
-                    const groupTitle = document.createElement('h6');
-                    groupTitle.textContent = `${field.name || field.id} #${index + 1}`;
-                    groupDiv.appendChild(groupTitle);
-
-                    if (field.components) {
-                        field.components.forEach(component => {
-                            const name = `${section.id}.${field.id}.${component.id}_${index}`;
-                            const wrapper = document.createElement('div');
-                            wrapper.className = 'mb-2';
-
-                            const label = document.createElement('label');
-                            label.className = 'form-label';
-                            label.textContent = component.name || component.id;
-
-                            const inputGroup = createInputElement(field, name, '', component, section.id);
-
-                            wrapper.appendChild(label);
-                            wrapper.appendChild(inputGroup);
-                            groupDiv.appendChild(wrapper);
-                        });
-                    } else {
-                        const name = `${section.id}.${field.id}_${index}`;
-                        const inputGroup = createInputElement(field, name, '');
-                        groupDiv.appendChild(inputGroup);
-                    }
-
-                    sectionDiv.insertBefore(groupDiv, addBtn);
-                });
-
-                sectionDiv.appendChild(addBtn);
-            }
-        }
-
-        form.appendChild(sectionDiv);
-    }
-
-    const cancelBtn = document.getElementById('cancel-edit');
-    if (cancelBtn) {
-        cancelBtn.addEventListener('click', () => {
-            document.getElementById('profile-edit').style.display = 'none';
-            document.getElementById('person-details').style.display = 'block';
-        });
-    }
-    form.addEventListener('submit', async function (e) {
-        e.preventDefault();
-        await updatePersonData(person.id, form);
-    });
-
+    // Ensure the form container is visible
+    container.style.display = 'block';
 }
 
 export function deletePerson(personId) {
@@ -922,8 +742,6 @@ export function deletePerson(personId) {
     .then(() => window.location.reload())
     .catch(err => console.error("Failed to delete person", err));
 }
-
-
 
 document.getElementById('add-person-btn').addEventListener('click', () => {
     const container = document.getElementById('person-form-container');
