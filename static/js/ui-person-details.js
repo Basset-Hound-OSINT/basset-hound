@@ -119,20 +119,31 @@ export function renderPersonDetails(container, person) {
                             if (component.type === 'password') {
                               // Your existing password logic
                             } else if (component.type === 'file' && compVal && compVal.path) {
-                              const link = document.createElement('a');
-                              link.href = `/files/${person.id}/${compVal.path}`;
-                              link.target = '_blank';
-                              link.textContent = compVal.name || 'Download File';
-                              valueDisplay = link;
+                                valueDisplay = document.createElement('div');
+
+                                const fileId = document.createElement('div');
+                                fileId.className = 'text-muted small';
+                                fileId.textContent = `ID: ${compVal.id || '(missing)'}`;
+
+                                const link = document.createElement('a');
+                                link.href = `/files/${person.id}/${compVal.path}`;
+                                link.target = '_blank';
+                                link.textContent = compVal.name || compVal.path;
+
+                                valueDisplay.appendChild(fileId);
+                                valueDisplay.appendChild(link);
+
+                                copyText = compVal.name || compVal.path;
                             } else {
-                              valueDisplay = renderFieldValue(compVal, component.type, person.id);
-                              copyText = typeof compVal === 'string' ? compVal : '';
-                              if (typeof valueDisplay === 'string') {
-                                const span = document.createElement('span');
-                                span.textContent = valueDisplay;
-                                valueDisplay = span;
-                              }
+                                valueDisplay = renderFieldValue(compVal, component.type, person.id);
+                                copyText = typeof compVal === 'string' ? compVal : '';
+                                if (typeof valueDisplay === 'string') {
+                                    const span = document.createElement('span');
+                                    span.textContent = valueDisplay;
+                                    valueDisplay = span;
+                                }
                             }
+
 
                             copyIcon.addEventListener('click', () => {
                               navigator.clipboard.writeText(copyText).then(() => {
