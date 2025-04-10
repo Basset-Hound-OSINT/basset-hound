@@ -122,6 +122,13 @@ export function renderFieldValue(value, type, personId) {
         return container;
     }
 
+    if (type === 'comment') {
+        const pre = document.createElement('pre');
+        pre.className = 'bg-light p-2 rounded border';
+        pre.textContent = value;
+        return pre;
+    }
+
     return document.createTextNode(value.toString());
 }
 

@@ -283,7 +283,10 @@ export function createPersonForm(container, config, person = null) {
                         groupDiv.appendChild(compWrapper);
                     });
                 } else {
-                    const name = `${section.id}.${field.id}_${index}`;
+                    const isComment = field.type === 'comment';
+
+                    // For comment fields, avoid the `_0`, `_1` suffix (backend looks for exact key)
+                    const name = isComment ? `${section.id}.${field.id}` : `${section.id}.${field.id}_${index}`;
                     const value = entry || '';
                     const inputGroup = createInputElement(field, name, value, null, section.id);
                     groupDiv.appendChild(inputGroup);
