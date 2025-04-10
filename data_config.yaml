@@ -1,4 +1,10 @@
 sections:
+  - id: Profile Picture Section
+    name: profilepicname
+    fields:
+      - id: profilepicturefile
+        type: file
+
   - id: core
     name: Personal Information
     fields:
