@@ -46,10 +46,13 @@ sections:
         type: url
         multiple: true
         components:
-          - id: handle
-            type: string
           - id: url
             type: url
+          - id: handle
+            type: string
+          - id: email
+            type: email
+            multiple: true
       - id: social files
         type: file
         multiple: true

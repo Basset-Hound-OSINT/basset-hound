@@ -703,11 +703,18 @@ async function updatePersonData(personId, form) {
         renderPeopleList(people, personId);
 
         const editSection = document.getElementById('profile-edit');
-        const detailsSection = document.getElementById('person-details');
-
         if (editSection) editSection.style.display = 'none';
-        if (detailsSection) detailsSection.style.display = 'block';
         
+        // hide and clear the update person form after changes to info are made
+        const formContainer = document.getElementById('person-form-container');
+        if (formContainer) {
+            formContainer.style.display = 'none';
+            formContainer.innerHTML = '';
+        }
+
+        const detailsSection = document.getElementById('person-details');
+        if (detailsSection) detailsSection.style.display = 'block';
+
         return result;
     } catch (error) {
         console.error('[ERROR] Failed to update person', error);
