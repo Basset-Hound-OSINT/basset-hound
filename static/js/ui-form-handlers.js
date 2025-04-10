@@ -368,7 +368,6 @@ export function createPersonForm(container, config, person = null) {
     setupAddButtons();
 }
 
-
 // Function to create a field with existing value
 export function createFieldWithValue(container, sectionId, field, value, index) {
     const fieldId = field.id;
@@ -384,27 +383,39 @@ export function createFieldWithValue(container, sectionId, field, value, index) 
     fieldHeader.appendChild(fieldTitle);
 
     if (field.type === 'file') {
-        // For file fields, show existing files and allow adding more
-        if (value) {
-            const fileList = document.createElement('div');
-            fileList.className = 'mb-2 file-list';
-            
-            // Handle both single file and multiple files
-            const files = Array.isArray(value) ? value : [value];
-            
-            files.forEach(file => {
-                const fileLink = document.createElement('a');
-                fileLink.href = `/files/${window.selectedPersonId}/${file.path}`;
-                fileLink.textContent = file.name;
-                fileLink.target = '_blank';
-                fileLink.className = 'me-3';
-                fileList.appendChild(fileLink);
-            });
-            
+        const files = value ? (Array.isArray(value) ? value : [value]) : [];
+
+        const fileList = document.createElement('div');
+        fileList.className = 'mb-2 file-list';
+
+        files.forEach((file, i) => {
+            const fileEntry = document.createElement('div');
+            fileEntry.className = 'mb-2';
+
+            // 🔹 File download link
+            const fileLink = document.createElement('a');
+            fileLink.href = `/files/${window.selectedPersonId}/${file.path}`;
+            fileLink.textContent = file.name;
+            fileLink.target = '_blank';
+            fileLink.className = 'me-3';
+            fileEntry.appendChild(fileLink);
+
+            // 🔹 Textarea for existing comment
+            const commentInput = document.createElement('textarea');
+            commentInput.name = `${sectionId}.${fieldId}.comment_${i}`;
+            commentInput.className = 'form-control mt-1';
+            commentInput.placeholder = 'Comment about this file...';
+            commentInput.value = file.comment || '';
+            fileEntry.appendChild(commentInput);
+
+            fileList.appendChild(fileEntry);
+        });
+
+        if (files.length) {
             fieldInstance.appendChild(fileList);
         }
-        
-        // Add file input
+
+        // 🔹 New file input
         const fileInput = document.createElement('input');
         fileInput.type = 'file';
         fileInput.name = `${sectionId}.${fieldId}_${index}`;
@@ -413,10 +424,11 @@ export function createFieldWithValue(container, sectionId, field, value, index) 
             fileInput.multiple = true;
         }
         fieldInstance.appendChild(fileInput);
-        
+
         container.appendChild(fieldInstance);
         return;
     }
+
     
     // Add remove button for multiple instances
     if (field.multiple && index > 0) {

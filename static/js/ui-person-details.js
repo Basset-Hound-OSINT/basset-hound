@@ -39,13 +39,11 @@ export function renderPersonDetails(container, person) {
     // ID + Account Age
     if (person.created_at) {
         const ageInfo = calculateBassetAge(person.created_at);
-
         const metaRow = document.createElement('div');
         metaRow.className = 'mb-4 text-muted d-flex gap-4 align-items-center flex-wrap';
 
         const idSpan = document.createElement('span');
         idSpan.innerHTML = `<strong>ID:</strong> ${person.id}`;
-
         const ageSpan = document.createElement('span');
         ageSpan.innerHTML = `<strong>Added:</strong> ${ageInfo.fullDisplay}`;
 
@@ -72,7 +70,7 @@ export function renderPersonDetails(container, person) {
 
             const sectionHeader = document.createElement('div');
             sectionHeader.className = 'card-header';
-            sectionHeader.innerHTML = `<h5>${section.name || sectionId}</h5>`;
+            sectionHeader.innerHTML = `<h5>${section?.name || sectionId}</h5>`;
             sectionCard.appendChild(sectionHeader);
 
             const sectionBody = document.createElement('div');
@@ -82,24 +80,23 @@ export function renderPersonDetails(container, person) {
                 const fieldValue = sectionData[fieldId];
                 if (!fieldValue || (Array.isArray(fieldValue) && fieldValue.length === 0)) continue;
 
-                const field = section.fields.find(f => f.id === fieldId);
+                const field = section?.fields?.find(f => f.id === fieldId);
                 const fieldDiv = document.createElement('div');
                 fieldDiv.className = 'mb-3';
 
                 const fieldLabel = document.createElement('h6');
-                fieldLabel.textContent = field.name || fieldId;
+                fieldLabel.textContent = field?.name || fieldId;
                 fieldDiv.appendChild(fieldLabel);
 
                 const values = Array.isArray(fieldValue) ? fieldValue : [fieldValue];
 
-                if (field.components) {
+                if (field?.components) {
                     values.forEach((entry, idx) => {
                         const entryDiv = document.createElement('div');
                         entryDiv.classList.add('mb-2');
 
                         field.components.forEach(component => {
                             let compVals = entry[component.id];
-
                             if (!compVals || (Array.isArray(compVals) && compVals.length === 0)) return;
                             if (!Array.isArray(compVals)) compVals = [compVals];
 
@@ -143,7 +140,7 @@ export function renderPersonDetails(container, person) {
                                     valueDisplay.appendChild(real);
                                     valueDisplay.appendChild(toggleBtn);
                                 } else {
-                                    valueDisplay = renderFieldValue(compVal, component.type);
+                                    valueDisplay = renderFieldValue(compVal, component.type, person.id);
                                     if (typeof valueDisplay === 'string') {
                                         const span = document.createElement('span');
                                         span.textContent = valueDisplay;
@@ -175,42 +172,40 @@ export function renderPersonDetails(container, person) {
                 } else {
                     values.forEach((value, idx) => {
                         const wrapper = document.createElement('div');
-                        wrapper.classList.add('mb-2', 'd-flex', 'align-items-center', 'gap-2');
+                        wrapper.classList.add('mb-2', 'd-flex', 'align-items-start', 'gap-2');
 
                         const copyIcon = document.createElement('i');
-                        copyIcon.className = 'fas fa-copy text-secondary';
+                        copyIcon.className = 'fas fa-copy text-secondary mt-1';
                         copyIcon.style.cursor = 'pointer';
-                        copyIcon.title = `Copy ${field.name || field.id}`;
+                        copyIcon.title = `Copy ${field?.name || fieldId}`;
 
                         let valueEl;
                         let copyText = value;
 
-                        if (field.type === 'file' && value?.path && value?.name) {
-                            const fileDisplay = document.createElement('div');
-                            fileDisplay.className = 'd-flex align-items-center';
-
-                            const fileId = value.id || value.path.split('_')[0];
-
-                            const idLabel = document.createElement('span');
-                            idLabel.className = 'text-muted me-2';
-                            idLabel.textContent = `[${fileId}] `;
-                            fileDisplay.appendChild(idLabel);
-
-                            const link = document.createElement('a');
-                            link.href = `/files/${person.id}/${value.path}`;
-                            link.target = '_blank';
-                            link.textContent = value.name || value.path.split('_').slice(1).join('_');
-                            fileDisplay.appendChild(link);
-
-                            valueEl = fileDisplay;
-                            copyText = value.name;
-                        } else {
-                            valueEl = renderFieldValue(value, field.type);
-                            if (typeof valueEl === 'string') {
-                                const span = document.createElement('span');
-                                span.textContent = valueEl;
-                                valueEl = span;
+                        // Special handling for file type values before sending to renderFieldValue
+                        if (field?.type === 'file') {
+                            if (typeof value === 'object' && value.path && value.name) {
+                                // Make sure the file value has its ID if available
+                                if (!value.id && value.file_id) {
+                                    value.id = value.file_id;
+                                }
+                                copyText = value.name;
+                            } else if (typeof value === 'string') {
+                                // If it's a simple string, check if it's in format "id:path"
+                                if (value.includes(':')) {
+                                    const parts = value.split(':');
+                                    copyText = parts.slice(1).join(':').split('/').pop() || value;
+                                } else {
+                                    copyText = value.split('/').pop() || value;
+                                }
                             }
+                        }
+
+                        valueEl = renderFieldValue(value, field?.type, person.id);
+                        if (typeof valueEl === 'string') {
+                            const span = document.createElement('span');
+                            span.textContent = valueEl;
+                            valueEl = span;
                         }
 
                         copyIcon.addEventListener('click', () => {

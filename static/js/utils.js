@@ -1,8 +1,29 @@
-export function renderFieldValue(value, type) {
+export function renderFieldValue(value, type, personId) {
     if (!value) return document.createTextNode('');
 
     // ✅ Structured object with components (like name or linkedin)
     if (typeof value === 'object' && !Array.isArray(value)) {
+        // Handle file type object specifically
+        if (type === 'file' && value.path && value.name) {
+            const container = document.createElement('div');
+            
+            // Add file ID if available
+            if (value.id) {
+                const idEl = document.createElement('div');
+                idEl.className = 'small text-muted mb-1';
+                idEl.textContent = `ID: ${value.id}`;
+                container.appendChild(idEl);
+            }
+            
+            const link = document.createElement('a');
+            link.href = personId ? `/files/${personId}/${value.path}` : value.path;
+            link.target = '_blank';
+            link.textContent = value.name;
+            container.appendChild(link);
+            
+            return container;
+        }
+        
         const container = document.createElement('div');
 
         for (const [key, val] of Object.entries(value)) {
@@ -13,7 +34,7 @@ export function renderFieldValue(value, type) {
             label.classList.add('text-muted');
             label.textContent = `${key}: `;
 
-            const content = renderFieldValue(val, type);  // ← recurse for component type rendering
+            const content = renderFieldValue(val, type, personId);  // Pass personId here too
             row.appendChild(label);
             row.appendChild(content);
 
@@ -45,35 +66,59 @@ export function renderFieldValue(value, type) {
         return document.createTextNode(date.toLocaleDateString());
     }
 
-    // In utils.js - fix the file rendering in renderFieldValue function
+    // Handle file type
     if (type === 'file') {
-        if (!value) return document.createTextNode('');
-        
-        // Handle both single file and multiple files
-        const files = Array.isArray(value) ? value : [value];
-        
-        if (files.length === 0) return document.createTextNode('');
-        
         const container = document.createElement('div');
-        container.className = 'd-flex flex-wrap gap-2';
         
-        files.forEach(file => {
-            // Ensure proper file object structure
-            if (!file || !file.path) return;
-            
-            const fileLink = document.createElement('a');
-            fileLink.href = `/files/${window.selectedPersonId}/${file.path}`;
-            fileLink.target = '_blank';
-            
-            // Display the original filename (without the added file ID)
-            // If using the format fileId_filename.ext
-            const displayName = file.name || file.path.split('_').slice(1).join('_');
-            
-            fileLink.textContent = displayName;
-            fileLink.className = 'me-2';
-            container.appendChild(fileLink);
-        });
+        // Handle array of files
+        if (Array.isArray(value)) {
+          value.forEach((item, idx) => {
+            if (item && typeof item === 'object') {
+              if (item.path && item.name) {
+                html += `<div class="mb-2">
+                  <strong>ID:</strong> ${item.id}<br>
+                  <a href="/files/${person.id}/${item.path}" target="_blank">${item.name}</a>`;
+              }
+
+              // 🔹 Render extra metadata (like 'comment')
+              Object.entries(item).forEach(([key, val]) => {
+                if (!['id', 'name', 'path'].includes(key)) {
+                  html += `<br><em>${key}:</em> ${val}`;
+                }
+              });
+
+              html += `</div>`;
+            }
+          });
+        }
+
+
         
+        // For simple string values, try to extract an ID if present in the format "id:path"
+        let fileId = null;
+        let filePath = value;
+        
+        if (typeof value === 'string' && value.includes(':')) {
+            const parts = value.split(':');
+            if (parts.length >= 2) {
+                fileId = parts[0];
+                filePath = parts.slice(1).join(':'); // Rejoin in case the path itself contains colons
+            }
+        }
+        
+        // Add file ID if available
+        if (fileId) {
+            const idEl = document.createElement('div');
+            idEl.className = 'small text-muted mb-1';
+            idEl.textContent = `ID: ${fileId}`;
+            container.appendChild(idEl);
+        }
+        
+        const link = document.createElement('a');
+        link.href = personId ? `/files/${personId}/${filePath}` : filePath;
+        link.target = '_blank';
+        link.textContent = filePath.split('/').pop() || filePath; // Display filename part or full path
+        container.appendChild(link);
         return container;
     }
 

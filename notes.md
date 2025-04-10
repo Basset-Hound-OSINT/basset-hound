@@ -68,3 +68,12 @@ logic: if person1 is related to person2 and person2 is related to person3, then 
 
 feature: when person1 is tagged in person2's profile, update all other connections between people in the app recursively.
 
+
+
+
+
+
+
+I have a flask app for managing people's information that I just added the ability to handle file uploads and display on their profile. I have a data config file that guides the flask app on how a user's profile should be organized and what data to expect. I can handle files just fine when a file is a field in the data config, but not when a file is a component of a field in the data config. the following occurs when trying to add a commentated file (file that is a component of commentated files) Where are the errors coming from an how do i fix this?
+
+I notice when I change commentated_file to a url type, some of the data renders properly on the profile, but not when the commentated_file is of type file.
