@@ -9,10 +9,11 @@ from config_loader import load_config, initialize_person_data
 import re
 import zipfile
 import shutil
+from neo4j_handler import Neo4jHandler
 
 app = Flask(__name__)
+neo4j_handler = Neo4jHandler()
 
-# Load profile configuration
 try:
     CONFIG = load_config()
 except Exception as e:
@@ -676,15 +677,12 @@ def tag_person(person_id):
 def serve_project_data(project_name):
     return send_from_directory(f'projects/{project_name}', 'project_data.json')
 
-    
-@app.route('/get_all_people')
-def get_all_people():
-    try:
-        project_data = load_project_data(current_project_path)
-        return jsonify(project_data.get('people', []))
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
 
+@app.route('/get_connections/<person_id>')
+def get_connections(person_id):
+    max_hops = request.args.get('max_hops', 2, type=int)
+    connections = neo4j_handler.get_connections(person_id, max_hops)
+    return jsonify(connections)
 
 if __name__ == '__main__':
     os.makedirs('projects', exist_ok=True)

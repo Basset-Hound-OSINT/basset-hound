@@ -1,3 +1,5 @@
 **venv/
 **projects/
 **__pycache__/
+**downloads/
+.env

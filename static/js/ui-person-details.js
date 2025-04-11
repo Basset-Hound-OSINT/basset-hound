@@ -119,6 +119,14 @@ export function renderPersonDetails(container, person) {
     tagBtn.addEventListener('click', () => openTagModal(person.id));
     actionsCol.appendChild(tagBtn);
 
+    const mapBtn = document.createElement('button');
+        mapBtn.className = 'btn btn-secondary';
+        mapBtn.innerHTML = '<i class="fas fa-map"></i> Map';
+        mapBtn.addEventListener('click', () => {
+            window.open(`/map.html?personId=${person.id}`, '_blank');
+    });
+    actionsCol.appendChild(mapBtn);
+
     const reportBtn = document.createElement('button');
     reportBtn.className = 'btn btn-secondary';
     reportBtn.innerHTML = '<i class="fas fa-file-alt"></i> Report';

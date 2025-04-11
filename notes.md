@@ -6,12 +6,6 @@ TODO
 	- [ ] list / table / tags of other related people by hopping in profile
 	- [ ] if person1 is related to person2 and person2 is related to person3, then person3 is related to person1
 	- [ ] keep track of how many hops between a person
- - [ ] when delete person, choice to keep files
-	- [ ] choice which files to keep (can choose all)
-	- [ ] if files not chosen to keep, delete files
-	- [ ] if chose to keep files
-		- [ ] zip user files and append user's display name to zip (in a safe format for fs)
-		- [ ] prompt with path to folder containing files
  - [ ] fast api for automating people adding/editing/deleting data import and export
  - [ ] neo4j (dockerized)
  - [ ] graphical/visual connections (map.html)
@@ -48,13 +42,37 @@ TODO
 
 ## Helpful prompts to currently work with
 
+```
+pip freeze > requirements.txt
+```
+
+The folders that you want to mount must exist before starting Docker, otherwise, Neo4j fails to start due to permissions errors.
+
+```bash
+docker run \
+    --restart always \
+    --publish=7474:7474 --publish=7687:7687 \
+    --env NEO4J_AUTH=neo4j/neo4jbasset \
+    --volume=./projects/data/:/data \
+	-d \
+	--name=neo4j-basset \
+    neo4j:2025.03.0
+```
+
+```
+http://localhost:7474
+```
+
+```bash
+docker stop containerid && docker container prune -f
+```
+
+https://blog.armbruster-it.de/2019/07/how-to-add-bloom-and-apoc-to-a-neo4j-docker-container/
+
+https://neo4j.com/product/bloom/
 
 
-
-
-
-
-I now want to add the functionality to create a network of people based on who they tag and render this on a new page "map.html". I want make a button on a user's profile next to "edit" and "delete" labeld "map". when clicked, this button will open a new tab with the url of the map page, load the data from the person's profile from which the map button was clicked, and then render a recursive, visual network of connections stemming from this individual. I want to use transitive relationship logic - if person1 is related to person2 and person2 is related to person3, then person3 is related to person1. I will consider the people tagged on a person's profile (the subject) as 1 hop from the subject, then the people tagged on the profiles of the people tagged on the subject's profile will be considered 2 hops from the subject. I want to keep track of the routes and combinations of hops between everybody, essentially performing recursion. I want to make a new page called "tagged.html" where I want to have a dynamic, visual graph of all the connections between all the people.
+I now want to add the functionality to create a network of people based on who they tag and render this on a new page "map.html". I want make a button on a user's profile next to "edit" and "delete" labeld "map". when clicked, this button will open a new tab with the url of the map page (map.html will need to be created), load the data from the person's profile from which the map button was clicked, and then render a recursive, visual network of connections stemming from this individual. I want to use transitive relationship logic - if person1 tags person2 and person2 tags person3, then person3 is related to person1. I will consider the people tagged on a person's profile (the subject) as 1 hop from the subject, then the people tagged on the profiles of the people tagged on the subject's profile will be considered 2 hops from the subject. I want to keep track of the routes and combinations of hops between everybody, essentially performing recursion. I want to make a new page called "tagged.html" where I want to have a dynamic, visual graph of all the connections between all the people.
 
 logic: if person1 is related to person2 and person2 is related to person3, then person3 is related to person1
 
