@@ -554,6 +554,45 @@ def serve_file(person_id, filename):
     project_path = os.path.join("projects", current_project["safe_name"], person_id)
     return send_from_directory(project_path, filename)
 
+@app.route('/tag_person/<person_id>', methods=['POST'])
+def tag_person(person_id):
+    # Find the person we want to add tags to
+    person = next((p for p in current_project["people"] if p["id"] == person_id), None)
+    if not person:
+        return jsonify({"error": "Person not found"}), 404
+        
+    # Get the list of person IDs to tag
+    if request.is_json:
+        tag_data = request.get_json()
+        tagged_ids = tag_data.get("tagged_ids", [])
+        
+        # Initialize the Tagged People section if it doesn't exist
+        if "Tagged People" not in person["profile"]:
+            person["profile"]["Tagged People"] = {}
+            
+        # Update or add tagged_people field
+        person["profile"]["Tagged People"]["tagged_people"] = tagged_ids
+        
+        save_project()
+        return jsonify({"success": True})
+    else:
+        return jsonify({"error": "Expected JSON data"}), 400
+
+
+@app.route('/projects/<project_name>/project_data.json')
+def serve_project_data(project_name):
+    return send_from_directory(f'projects/{project_name}', 'project_data.json')
+
+    
+@app.route('/get_all_people')
+def get_all_people():
+    try:
+        project_data = load_project_data(current_project_path)
+        return jsonify(project_data.get('people', []))
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 if __name__ == '__main__':
     os.makedirs('projects', exist_ok=True)
     app.run(debug=True)

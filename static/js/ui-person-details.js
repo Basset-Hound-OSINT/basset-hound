@@ -1,5 +1,6 @@
 import { getDisplayName, calculateBassetAge, renderFieldValue } from './utils.js';
 import { editPerson, deletePerson } from './ui-form-handlers.js';
+import { openTagModal, initTagModal } from './tag_handler.js';
 
 export function renderPersonDetails(container, person) {
     if (!person) {
@@ -110,6 +111,12 @@ export function renderPersonDetails(container, person) {
     // Actions column
     const actionsCol = document.createElement('div');
     actionsCol.className = 'd-flex gap-2';
+
+    const tagBtn = document.createElement('button');
+    tagBtn.className = 'btn btn-info';
+    tagBtn.innerHTML = '<i class="fas fa-tags"></i> Tag';
+    tagBtn.addEventListener('click', () => openTagModal(person.id));
+    actionsCol.appendChild(tagBtn);
 
     const editBtn = document.createElement('button');
     editBtn.className = 'btn btn-primary';
@@ -319,6 +326,90 @@ export function renderPersonDetails(container, person) {
             sectionCard.appendChild(sectionBody);
             sectionsContainer.appendChild(sectionCard);
         }
+    }
+
+    if (person.profile && person.profile["Tagged People"] && 
+        person.profile["Tagged People"]["tagged_people"] && 
+        person.profile["Tagged People"]["tagged_people"].length > 0) {
+        
+        const taggedIds = person.profile["Tagged People"]["tagged_people"];
+        
+        const taggedSection = document.createElement('div');
+        taggedSection.className = 'card mb-3';
+        
+        const taggedHeader = document.createElement('div');
+        taggedHeader.className = 'card-header d-flex justify-content-between align-items-center';
+        
+        const taggedTitle = document.createElement('h5');
+        taggedTitle.textContent = 'Tagged People';
+        taggedHeader.appendChild(taggedTitle);
+        
+        const editTagsBtn = document.createElement('button');
+        editTagsBtn.className = 'btn btn-sm btn-outline-primary';
+        editTagsBtn.innerHTML = '<i class="fas fa-edit"></i> Edit Tags';
+        editTagsBtn.addEventListener('click', () => openTagModal(person.id));
+        taggedHeader.appendChild(editTagsBtn);
+        
+        taggedSection.appendChild(taggedHeader);
+        
+        const taggedBody = document.createElement('div');
+        taggedBody.className = 'card-body';
+        
+        const taggedList = document.createElement('ul');
+        taggedList.className = 'list-group';
+        
+        // Find the full person objects for these IDs
+        const taggedPeople = taggedIds.map(id => 
+            window.people.find(p => p.id === id)
+        ).filter(p => p); // Filter out any undefined (in case person was deleted)
+        
+        if (taggedPeople.length === 0) {
+            const noData = document.createElement('li');
+            noData.className = 'list-group-item text-muted';
+            noData.textContent = 'No tagged people found (they may have been deleted)';
+            taggedList.appendChild(noData);
+        } else {
+            taggedPeople.forEach(taggedPerson => {
+                const item = document.createElement('li');
+                item.className = 'list-group-item d-flex justify-content-between align-items-center';
+                
+                const personInfo = document.createElement('div');
+                
+                const personName = document.createElement('div');
+                personName.className = 'fw-bold';
+                personName.textContent = getDisplayName(taggedPerson);
+                personInfo.appendChild(personName);
+                
+                const personId = document.createElement('small');
+                personId.className = 'text-muted';
+                personId.textContent = `ID: ${taggedPerson.id}`;
+                personInfo.appendChild(personId);
+                
+                item.appendChild(personInfo);
+                
+                // Add copy button
+                const copyBtn = document.createElement('button');
+                copyBtn.className = 'btn btn-sm btn-outline-secondary';
+                copyBtn.innerHTML = '<i class="fas fa-copy"></i> Copy';
+                copyBtn.addEventListener('click', () => {
+                    const copyText = `${getDisplayName(taggedPerson)} (${taggedPerson.id})`;
+                    navigator.clipboard.writeText(copyText).then(() => {
+                        copyBtn.innerHTML = '<i class="fas fa-check"></i> Copied';
+                        setTimeout(() => {
+                            copyBtn.innerHTML = '<i class="fas fa-copy"></i> Copy';
+                        }, 1500);
+                    });
+                });
+                
+                item.appendChild(copyBtn);
+                taggedList.appendChild(item);
+            });
+        }
+        
+        taggedBody.appendChild(taggedList);
+        taggedSection.appendChild(taggedBody);
+        
+        sectionsContainer.appendChild(taggedSection);
     }
     
     // Add scrollable sections container to main container

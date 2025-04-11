@@ -54,7 +54,9 @@ TODO
 
 ## Helpful prompts to currently work with
 
-I have the following flask app, I want to add a feature where i can "tag" another person from a person's profile so that I can make a connection to that person. effectively, i want to have a list of tagged people at the bottom of a person's profile where their display names and ids are shown for me to be able to copy. I want to have this tag feature when i add people and edit people's information, but be separate from the concept of my data configuration file. I would then want a list of tagged people attatched with their ids stored in the project json. for example I would want to have at the bottom of a user's profile:
+I have the following flask app, I want to add a feature where i can "tag" another person from a person's profile so that I can make a connection to that person. effectively, i want to have a list of tagged people in a "tagged people" section at the bottom of a person's profile where their display names and ids are shown for me to be able to copy. I want to create a "tag" form and create tag_handler.js to help with it. the tag form should have a search bar that searches for a string amongst all users and dynamically updates (just like the search function in the sid bar), then when a user in the results of this search is clicked, they are added to the temporary list of tagged users. for every person on this list, make sure to render their id and name and have a button labled "remove" so that I can remove them from the list if needed before saving changes and making a post request with the list. I might also need to add handler to my flask app for managing a persons tag - I very much want to not delete the person's data from the project JSON, so when adding a person's tagged people, make sure to duplicate the person's json data into memory and simply inject the tagged data as a new section then save it in the project json. From here, make sure to properly render the person's tagged people list on the person's profile. 
+
+example format of the tagged people section.
 
 Tagged People
 
@@ -64,7 +66,66 @@ id: "123ntni23u3"
 name: "joel"
 id: "927ifia7837"
 
-I want to leverage the list of people on the side bar. basically, make a tag button in the person's profile next to the edit and delete buttons. when it is clicked, the user should able to select from the scrollable list of users from the side bar - turn it into a checked list - of people of who to tag, the people that get selected are then added to the tagged people in the JSON for that person and then rendered on the dashboard in their profile. One problem you might run into is that the create person form (add person) and edit person forms may overwrite tagged people data. If you can, store all people tagged by the person's profile in a list using the update people and edit people and add people forms or whatever is the best way for the current code to get the list of tags into the JSON file. At the bottom of the current person's profile, have a section that is a grid of buttons, these buttons will be rendered from the list of tags of the person's profile. when one of those buttons is clicked, it takes the user to the new person's profile. if the user would like to remove a tag, they can choose to edit the profile, scroll down to an auto populated list, and click remove for an item on that list. All tags on a profile should have the tagged person's id under the same person's display name so that the user can know who is who.
+
+this is what i see on the tag form when trying a basic search for something i know is in the project data - basically i am just searching for a string and if that string is found anywhere in a user's data, that users should be displayed in the search results
+
+Tag People for llama man
+Search People
+No matching people found
+Tagged People
+No people tagged yet
+
+ubuntu@ubuntu2004:/opt/basset-hound/projects$ cat lol/project_data.json 
+{
+    "name": "lol",
+    "safe_name": "lol",
+    "start_date": "2025-04-11",
+    "people": [
+        {
+            "id": "01fff63e0411",
+            "created_at": "2025-04-11T03:27:13.763160",
+            "profile": {
+                "Profile Picture Section": {
+                    "profilepicturefile": {
+                        "id": "ff4e850bc8d6",
+                        "name": "profilepic.png",
+                        "path": "ff4e850bc8d6_profilepic.png"
+                    }
+                },
+                "core": {
+                    "name": [
+                        {
+                            "first_name": "llama",
+                            "last_name": "man"
+                        }
+                    ],
+                    "summary": [
+                        "this is llama man"
+                    ]
+                },
+                "social": {}
+            }
+        }
+    ]
+}
+
+I will say though, that when i save changes to the tag people form, there is a tag list item that shows up in the person's data in the project json - i just can't seem to search through people and be able to add them. I just have issues rendering peoples names and ids into the form and peoples data in the background so that i can search through it and add them to the tag list
+
+
+
+I might need to implement a function in my flask app that returns all people's data, this way i can search through it all for the tag people form
+
+@app.route('/get_all_people')
+def get_all_people():
+    try:
+        project_data = load_project_data()
+        return jsonify(project_data.get('people', []))
+    except Exception as e:
+        print(f"Error in get_all_people: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+One problem you might run into is that the create person form (add person) and edit person forms may overwrite tagged people data. 
 
 
 
