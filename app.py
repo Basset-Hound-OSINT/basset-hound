@@ -6,8 +6,8 @@ import hashlib
 from collections import defaultdict
 import yaml
 from config_loader import load_config, initialize_person_data
-import pprint
 import re
+import zipfile
 
 app = Flask(__name__)
 
@@ -519,14 +519,40 @@ def download_project():
     if not current_project["name"]:
         return redirect(url_for('index'))
 
-    filename = f"{current_project['name'].replace(' ', '_')}.json"
-    temp_path = os.path.join('static', 'downloads', filename)
-    os.makedirs(os.path.dirname(temp_path), exist_ok=True)
+    # Define project directory and JSON file path
+    project_safe_name = current_project["safe_name"]
+    project_dir = os.path.join('projects', project_safe_name)
+    json_filename = f"{current_project['name'].replace(' ', '_')}.json"
+    json_path = os.path.join(project_dir, json_filename)
 
-    with open(temp_path, 'w') as f:
+    # Ensure the project directory exists
+    os.makedirs(project_dir, exist_ok=True)
+
+    # Save the JSON file
+    with open(json_path, 'w') as f:
         json.dump(current_project, f, indent=4)
 
-    return send_file(temp_path, as_attachment=True)
+    # Check if there are additional files in the project directory
+    additional_files = [
+        f for f in os.listdir(project_dir)
+        if os.path.isfile(os.path.join(project_dir, f)) and f != json_filename
+    ]
+
+    # Create a zip file if there are additional files or just the JSON file
+    zip_filename = f"{project_safe_name}.zip"
+    zip_path = os.path.join('static', 'downloads', zip_filename)
+    os.makedirs(os.path.dirname(zip_path), exist_ok=True)
+
+    with zipfile.ZipFile(zip_path, 'w') as zipf:
+        for root, _, files in os.walk(project_dir):
+            for file in files:
+                file_path = os.path.join(root, file)
+                # Include the project directory name in the archive structure
+                arcname = os.path.join(project_safe_name, os.path.relpath(file_path, project_dir))
+                zipf.write(file_path, arcname)
+
+    # Send the zip file to the user
+    return send_file(zip_path, as_attachment=True)
 
 @app.route('/profile_editor')
 def profile_editor():

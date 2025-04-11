@@ -272,7 +272,7 @@ function saveTaggedPeople() {
         })
         .then(data => {
             if (data.success) {
-                alert('Tagged people saved successfully!');
+                //alert('Tagged people saved successfully!');
                 const modal = bootstrap.Modal.getInstance(document.getElementById('tag-people-modal'));
                 modal.hide();
             } else {
