@@ -1,6 +1,7 @@
 import { getDisplayName, calculateBassetAge, renderFieldValue } from './utils.js';
 import { editPerson, deletePerson } from './ui-form-handlers.js';
-import { openTagModal, initTagModal } from './tag_handler.js';
+import { openTagModal, initTagModal } from './tag-handler.js';
+import { generateReport } from './report-handler.js';
 
 export function renderPersonDetails(container, person) {
     if (!person) {
@@ -117,6 +118,12 @@ export function renderPersonDetails(container, person) {
     tagBtn.innerHTML = '<i class="fas fa-tags"></i> Tag';
     tagBtn.addEventListener('click', () => openTagModal(person.id));
     actionsCol.appendChild(tagBtn);
+
+    const reportBtn = document.createElement('button');
+    reportBtn.className = 'btn btn-secondary';
+    reportBtn.innerHTML = '<i class="fas fa-file-alt"></i> Report';
+    reportBtn.addEventListener('click', () => generateReport(person.id));
+    actionsCol.appendChild(reportBtn);
 
     const editBtn = document.createElement('button');
     editBtn.className = 'btn btn-primary';

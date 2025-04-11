@@ -580,6 +580,37 @@ def serve_file(person_id, filename):
     project_path = os.path.join("projects", current_project["safe_name"], person_id)
     return send_from_directory(project_path, filename)
 
+@app.route('/zip_user_files/<person_id>', methods=['POST'])
+def zip_user_files(person_id):
+    # Define the user's directory
+    project_safe_name = current_project["safe_name"]
+    user_dir = os.path.join("projects", project_safe_name, person_id)
+
+    if not os.path.exists(user_dir):
+        return jsonify({"error": "User directory not found"}), 404
+
+    # Create a temporary directory for the zip file
+    zip_filename = f"{person_id}.zip"
+    zip_path = os.path.join("static", "downloads", zip_filename)
+    os.makedirs(os.path.dirname(zip_path), exist_ok=True)
+
+    # Save the Markdown report sent from the frontend
+    report_content = request.data.decode('utf-8')
+    report_path = os.path.join(user_dir, f"{person_id}.md")
+    with open(report_path, 'w') as report_file:
+        report_file.write(report_content)
+
+    # Create the zip file
+    with zipfile.ZipFile(zip_path, 'w') as zipf:
+        for root, _, files in os.walk(user_dir):
+            for file in files:
+                file_path = os.path.join(root, file)
+                arcname = os.path.join(person_id, os.path.relpath(file_path, user_dir))  # Include user ID as folder
+                zipf.write(file_path, arcname)
+
+    # Send the zip file to the user
+    return send_file(zip_path, as_attachment=True)
+
 @app.route('/tag_person/<person_id>', methods=['POST'])
 def tag_person(person_id):
     # Find the person we want to add tags to

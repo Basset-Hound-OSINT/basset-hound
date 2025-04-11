@@ -1,4 +1,4 @@
-// tag_handler.js - Handles tagging relationships between people
+// tag-handler.js - Handles tagging relationships between people
 
 import { getDisplayName } from './utils.js';
 import { filterPeople } from './ui-people-list.js';
