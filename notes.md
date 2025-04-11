@@ -2,8 +2,8 @@ TODO
 
 ## Phase 1 - Manage People Data
 
- - [ ] able to tag people to people, people to organizations, and people to events
- - [ ] connected people
+ - [ ] able to tag people
+   - [ ] edit tags form to search, add, and remove tags instead of modifying dashboard components
 	- [ ] list / table / tags of people in profile
 	- [ ] list / table / tags of other related people by hopping in profile
 	- [ ] if person1 is related to person2 and person2 is related to person3, then person3 is related to person1
@@ -14,10 +14,11 @@ TODO
 	- [ ] if chose to keep files
 		- [ ] zip user files and append user's display name to zip (in a safe format for fs)
 		- [ ] prompt with path to folder containing files
- - [ ] button to generate report (simply show information) in markdown, button for pdf
+ - [ ] button to generate report (simply show information) in markdown, or button for pdf
  	- [ ] Have report templates
   		- [ ] modular/selectable 
   		- [ ] default - simple raw	
+ - [ ] when downloading a project, if files other than project data, send a zip file.
  - [ ] fast api for automating people adding/editing/deleting data import and export
  - [ ] neo4j (dockerized)
  - [ ] graphical/visual connections (map.html)
