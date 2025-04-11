@@ -1,6 +1,7 @@
 // tag_handler.js - Handles tagging relationships between people
 
 import { getDisplayName } from './utils.js';
+import { filterPeople } from './ui-people-list.js';
 
 // Global state for the tag form
 let tagState = {
@@ -23,19 +24,18 @@ export function initTagModal() {
 
 // Open the tag modal for a specific person
 export function openTagModal(personId) {
-    console.log('Loaded project:', projectName);
-    etch(`/get_people?project=${encodeURIComponent(projectName)}`)  // ✅ updated fetch path
+    console.log('Opening tag modal for person:', personId);
+
+    // Fetch all people data
+    fetch('/get_people')
         .then(response => {
-            if (!response.ok) throw new Error('Failed to fetch project data');
+            if (!response.ok) throw new Error('Failed to fetch people data');
             return response.json();
         })
-        .then(data => {
-            const peopleData = data.people || [];
+        .then(peopleData => {
             console.log('Fetched people data:', peopleData);
 
-            // Store globally if needed
-            window.people = peopleData;
-
+            // Update tagState with fetched data
             tagState = {
                 personId,
                 taggedPeople: [],
@@ -43,6 +43,7 @@ export function openTagModal(personId) {
                 searchResults: []
             };
 
+            // Find the current person
             const person = peopleData.find(p => p.id === personId);
             let taggedIds = [];
 
@@ -61,15 +62,23 @@ export function openTagModal(personId) {
             renderTaggedPeopleList();
             document.getElementById('tag-search').value = '';
 
-            // Filter out self and already tagged
+            // Filter out self and already tagged people
             const availablePeople = peopleData.filter(p =>
-                p.id !== personId &&
-                !tagState.taggedPeople.some(tp => tp.id === p.id)
+                p.id !== personId && // Exclude the current person
+                !tagState.taggedPeople.some(tp => tp.id === p.id) // Exclude already tagged people
             );
 
             console.log('Available people for tagging:', availablePeople);
             renderTagSearchResults(availablePeople);
 
+            // Debugging logs (moved inside the .then() block)
+            console.log('All people:', peopleData);
+            console.log('Current person:', person);
+            console.log('Tagged IDs:', taggedIds);
+            console.log('Tagged people:', tagState.taggedPeople);
+            console.log('Available people for tagging:', availablePeople);
+
+            // Show the modal
             const modal = new bootstrap.Modal(document.getElementById('tag-people-modal'));
             modal.show();
         })
@@ -78,7 +87,6 @@ export function openTagModal(personId) {
             alert('Failed to load people data. Please try again.');
         });
 }
-
 
 // Create the tag modal HTML structure
 function createTagModal() {
@@ -117,174 +125,162 @@ function createTagModal() {
         </div>
     </div>
     `;
-    
+
     const modalContainer = document.createElement('div');
     modalContainer.innerHTML = modalHtml;
     document.body.appendChild(modalContainer);
+
+    // Add the event listener for the "Save Changes" button
+    document.getElementById('save-tags-btn').addEventListener('click', saveTaggedPeople);
 }
 
 // Set up event listeners for the tag modal
 function setupTagModalEvents() {
-    // Search input
     const searchInput = document.getElementById('tag-search');
-    searchInput.addEventListener('input', function() {
+    searchInput.addEventListener('input', function () {
         const searchTerm = this.value.toLowerCase().trim();
-        
-        // Filter available people (exclude current person and already tagged people)
-        const searchFilter = person => {
-            const searchKeys = (obj, term) => {
-                return Object.values(obj).some(value => {
-                    if (typeof value === 'string') return value.toLowerCase().includes(term);
-                    if (Array.isArray(value)) return value.some(item => searchKeys(item, term));
-                    if (typeof value === 'object') return searchKeys(value, term);
-                    return false;
-                });
-            };
-
-            return searchKeys(person.profile || {}, searchTerm) || 
-                   getDisplayName(person).toLowerCase().includes(searchTerm);
-        };
-        
-        renderTagSearchResults(availablePeople);
-    });
-    
-    // Save changes button
-    const saveBtn = document.getElementById('save-tags-btn');
-    saveBtn.addEventListener('click', async function() {
-        // Get IDs of tagged people
-        const taggedIds = tagState.taggedPeople.map(p => p.id);
-        
-        try {
-            // Send data to server
-            const response = await fetch(`/tag_person/${tagState.personId}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    tagged_ids: taggedIds
-                })
-            });
-            
-            if (response.ok) {
-                // Update the person in the global people array
-                const personIndex = window.people.findIndex(p => p.id === tagState.personId);
-                if (personIndex !== -1) {
-                    const person = window.people[personIndex];
-                    
-                    // Initialize the Tagged People section if it doesn't exist
-                    if (!person.profile) person.profile = {};
-                    if (!person.profile["Tagged People"]) person.profile["Tagged People"] = {};
-                    
-                    // Update tagged_people field
-                    person.profile["Tagged People"]["tagged_people"] = taggedIds;
-                    
-                    // Re-render the person details
-                    const detailsContainer = document.getElementById('person-details');
-                    if (detailsContainer) {
-                        const personObj = window.people.find(p => p.id === tagState.personId);
-                        if (personObj) {
-                            // Import here to avoid circular dependency
-                            import('./ui-person-details.js').then(module => {
-                                module.renderPersonDetails(detailsContainer, personObj);
-                            });
-                        }
-                    }
-                }
-                
-                // Close the modal
-                bootstrap.Modal.getInstance(document.getElementById('tag-people-modal')).hide();
-            } else {
-                console.error('Failed to save tags:', await response.text());
-                alert('Failed to save tags. Please try again.');
-            }
-        } catch (error) {
-            console.error('Error saving tags:', error);
-            alert('An error occurred while saving tags. Please try again.');
-        }
+        const filteredPeople = filterPeople(tagState.allPeople, searchTerm).filter(person =>
+            !tagState.taggedPeople.some(tp => tp.id === person.id) && person.id !== tagState.personId
+        );
+        renderTagSearchResults(filteredPeople);
     });
 }
 
 // Render the list of tagged people
-function renderTaggedPeople(container, person) {
-    const section = document.createElement('div');
-    section.className = 'mt-4';
-    section.innerHTML = `<h5>Tagged People</h5>`;
-    
-    const list = document.createElement('div');
-    person.profile?.["Tagged People"]?.tagged_people?.forEach(taggedId => {
-        const taggedPerson = window.people.find(p => p.id === taggedId);
-        if (taggedPerson) {
-            const div = document.createElement('div');
-            div.className = 'd-flex justify-content-between align-items-center mb-2';
-            div.innerHTML = `
-                <div>
-                    <span class="fw-bold">${getDisplayName(taggedPerson)}</span>
-                    <small class="text-muted ms-2">ID: ${taggedPerson.id}</small>
-                </div>
-                <button class="btn btn-sm btn-outline-secondary py-0" 
-                        onclick="navigator.clipboard.writeText('${taggedPerson.id}')">
-                    Copy ID
-                </button>
-            `;
-            list.appendChild(div);
-        }
+function renderTaggedPeopleList() {
+    const container = document.getElementById('tagged-people-list');
+    container.innerHTML = '';
+
+    if (tagState.taggedPeople.length === 0) {
+        const noTagged = document.createElement('div');
+        noTagged.className = 'text-muted text-center py-3';
+        noTagged.textContent = 'No people tagged yet';
+        container.appendChild(noTagged);
+        return;
+    }
+
+    const taggedList = document.createElement('ul');
+    taggedList.className = 'list-group';
+
+    tagState.taggedPeople.forEach(taggedPerson => {
+        const item = document.createElement('li');
+        item.className = 'list-group-item d-flex justify-content-between align-items-center';
+
+        const personInfo = document.createElement('div');
+
+        // Display person's name
+        const personName = document.createElement('div');
+        personName.className = 'fw-bold';
+        personName.textContent = getDisplayName(taggedPerson);
+        personInfo.appendChild(personName);
+
+        // Display person's ID
+        const personId = document.createElement('small');
+        personId.className = 'text-muted';
+        personId.textContent = `ID: ${taggedPerson.id}`;
+        personInfo.appendChild(personId);
+
+        item.appendChild(personInfo);
+
+        // Add copy button
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'btn btn-sm btn-outline-secondary';
+        copyBtn.innerHTML = '<i class="fas fa-copy"></i> Copy';
+        copyBtn.addEventListener('click', () => {
+            const copyText = `${getDisplayName(taggedPerson)} (${taggedPerson.id})`;
+            navigator.clipboard.writeText(copyText).then(() => {
+                copyBtn.innerHTML = '<i class="fas fa-check"></i> Copied';
+                setTimeout(() => {
+                    copyBtn.innerHTML = '<i class="fas fa-copy"></i> Copy';
+                }, 1500);
+            });
+        });
+
+        item.appendChild(copyBtn);
+
+        // Add remove button
+        const removeButton = document.createElement('button');
+        removeButton.className = 'btn btn-sm btn-outline-danger';
+        removeButton.textContent = 'Remove';
+        removeButton.onclick = () => {
+            tagState.taggedPeople = tagState.taggedPeople.filter(p => p.id !== taggedPerson.id);
+            renderTaggedPeopleList();
+        };
+
+        item.appendChild(removeButton);
+        taggedList.appendChild(item);
     });
-    
-    section.appendChild(list);
-    container.appendChild(section);
+
+    container.appendChild(taggedList);
 }
-
-
 
 // Render search results
 function renderTagSearchResults(results) {
     const container = document.getElementById('tag-search-results');
     container.innerHTML = '';
-    
+
     if (results.length === 0) {
         const noResults = document.createElement('div');
         noResults.className = 'text-muted text-center py-3';
-        noResults.textContent = 'No matching people found';
+        noResults.textContent = 'No people available for tagging';
         container.appendChild(noResults);
         return;
     }
-    
+
     results.forEach(person => {
         const item = document.createElement('div');
         item.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-center';
-        
+
         const info = document.createElement('div');
-        
-        const name = document.createElement('div');
-        name.className = 'fw-bold';
-        name.textContent = getDisplayName(person);
-        info.appendChild(name);
-        
-        const id = document.createElement('small');
-        id.className = 'text-muted';
-        id.textContent = `ID: ${person.id}`;
-        info.appendChild(id);
-        
+        info.innerHTML = `
+            <div class="fw-bold">${getDisplayName(person)}</div>
+            <small class="text-muted">ID: ${person.id}</small>
+        `;
+
         item.appendChild(info);
-        
-        item.addEventListener('click', function() {
-            // Add to tagged people list
+
+        item.addEventListener('click', function () {
             if (!tagState.taggedPeople.some(p => p.id === person.id)) {
                 tagState.taggedPeople.push(person);
-                renderTaggedPeople();
-                
-                // Re-render available people list to exclude newly tagged person
-                const searchTerm = document.getElementById('tag-search').value.toLowerCase().trim();
-                const updatedAvailablePeople = tagState.allPeople.filter(p => 
-                    p.id !== tagState.personId && 
-                    !tagState.taggedPeople.some(tp => tp.id === p.id) &&
-                    (!searchTerm || getDisplayName(p).toLowerCase().includes(searchTerm))
-                );
-                renderTagSearchResults(updatedAvailablePeople);
+                renderTaggedPeopleList();
+                renderTagSearchResults(tagState.allPeople.filter(p =>
+                    p.id !== tagState.personId &&
+                    !tagState.taggedPeople.some(tp => tp.id === p.id)
+                ));
             }
         });
-        
+
         container.appendChild(item);
     });
+}
+
+function saveTaggedPeople() {
+    const taggedIds = tagState.taggedPeople.map(person => person.id);
+
+    fetch(`/tag_person/${tagState.personId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ tagged_ids: taggedIds }),
+    })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Failed to save tagged people');
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                alert('Tagged people saved successfully!');
+                const modal = bootstrap.Modal.getInstance(document.getElementById('tag-people-modal'));
+                modal.hide();
+            } else {
+                alert('Failed to save tagged people. Please try again.');
+            }
+        })
+        .catch(error => {
+            console.error('Error saving tagged people:', error);
+            alert('An error occurred while saving tagged people.');
+        });
 }
