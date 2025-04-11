@@ -8,6 +8,7 @@ import yaml
 from config_loader import load_config, initialize_person_data
 import re
 import zipfile
+import shutil
 
 app = Flask(__name__)
 
@@ -491,13 +492,48 @@ def update_person(person_id):
 
 @app.route('/delete_person/<string:person_id>', methods=['POST'])
 def delete_person(person_id):
-    for idx, person in enumerate(current_project["people"]):
-        if person.get("id") == person_id:
-            del current_project["people"][idx]
-            save_project()
-            return jsonify(success=True) if request.content_type == 'application/json' else redirect(url_for('dashboard'))
+    data = request.get_json()
+    keep_files = data.get('keepFiles', False)
 
-    return jsonify(error="Person not found") if request.content_type == 'application/json' else redirect(url_for('dashboard'))
+    # Find the person in the current project
+    person = next((p for p in current_project["people"] if p["id"] == person_id), None)
+    if not person:
+        return jsonify({"error": "Person not found"}), 404
+
+    # Remove the person from the project
+    current_project["people"] = [p for p in current_project["people"] if p["id"] != person_id]
+    save_project()
+
+    # Define the person's directory
+    project_safe_name = current_project["safe_name"]
+    person_dir = os.path.join("projects", project_safe_name, person_id)
+
+    if os.path.exists(person_dir):
+        if keep_files:
+            # Zip the person's files
+            zip_filename = f"{person_id}.zip"
+            zip_path = os.path.join("static", "downloads", zip_filename)
+            os.makedirs(os.path.dirname(zip_path), exist_ok=True)
+
+            with zipfile.ZipFile(zip_path, 'w') as zipf:
+                for root, _, files in os.walk(person_dir):
+                    for file in files:
+                        file_path = os.path.join(root, file)
+                        # Include the user's ID as the root folder in the zip archive
+                        arcname = os.path.join(person_id, os.path.relpath(file_path, person_dir))
+                        zipf.write(file_path, arcname)
+
+            # Delete the person's directory
+            shutil.rmtree(person_dir)
+
+            # Return the URL to the zip file
+            zip_url = f"/static/downloads/{zip_filename}"
+            return jsonify({"success": True, "zipFileUrl": zip_url})
+        else:
+            # Delete the person's directory
+            shutil.rmtree(person_dir)
+
+    return jsonify({"success": True})
 
 @app.route('/save_project', methods=['POST'])
 def save_project_endpoint():

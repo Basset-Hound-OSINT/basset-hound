@@ -132,12 +132,56 @@ export function renderPersonDetails(container, person) {
     actionsCol.appendChild(editBtn);
 
     const deleteBtn = document.createElement('button');
-    deleteBtn.className = 'btn btn-danger';
-    deleteBtn.innerHTML = '<i class="fas fa-trash"></i> Delete';
-    deleteBtn.addEventListener('click', () => {
-        if (confirm('Are you sure you want to delete this person?')) {
-            deletePerson(person.id);
-        }
+        deleteBtn.className = 'btn btn-danger';
+        deleteBtn.innerHTML = '<i class="fas fa-trash"></i> Delete';
+        deleteBtn.addEventListener('click', () => {
+            // Create the modal
+            const modal = document.createElement('div');
+            modal.className = 'modal fade';
+            modal.tabIndex = -1;
+            modal.innerHTML = `
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Delete Person</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p>Are you sure you want to delete this person?</p>
+                            <p>You can choose to keep their files or delete them permanently.</p>
+                        </div>
+                        <div class="modal-footer">
+                            <button id="keep-files-btn" type="button" class="btn btn-secondary">Keep Files</button>
+                            <button id="delete-files-btn" type="button" class="btn btn-danger">Delete Files</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            document.body.appendChild(modal);
+
+            // Initialize the modal using Bootstrap's JavaScript API
+            const bootstrapModal = new bootstrap.Modal(modal);
+            bootstrapModal.show();
+
+            // Handle "Keep Files" button click
+            modal.querySelector('#keep-files-btn').addEventListener('click', async () => {
+                await handleDeletePerson(person.id, true);
+                bootstrapModal.hide();
+                modal.remove();
+            });
+
+            // Handle "Delete Files" button click
+            modal.querySelector('#delete-files-btn').addEventListener('click', async () => {
+                await handleDeletePerson(person.id, false);
+                bootstrapModal.hide();
+                modal.remove();
+            });
+
+            // Remove the modal from the DOM when hidden
+            modal.addEventListener('hidden.bs.modal', () => {
+                modal.remove();
+            });
     });
     actionsCol.appendChild(deleteBtn);
     
@@ -337,4 +381,39 @@ export function renderPersonDetails(container, person) {
     
     // Add scrollable sections container to main container
     container.appendChild(sectionsContainer);
+}
+
+async function handleDeletePerson(personId, keepFiles) {
+    try {
+        const response = await fetch(`/delete_person/${personId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ keepFiles }),
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to delete person');
+        }
+
+        const result = await response.json();
+
+        if (keepFiles && result.zipFileUrl) {
+            // If files are kept, download the zip file
+            const a = document.createElement('a');
+            a.href = result.zipFileUrl;
+            a.download = `${personId}.zip`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+        alert('Person deleted successfully.');
+        // Refresh the people list or redirect to the dashboard
+        location.reload();
+    } catch (error) {
+        console.error('Error deleting person:', error);
+        alert('An error occurred while deleting the person.');
+    }
 }
