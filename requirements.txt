@@ -32,9 +32,11 @@ joint-state-publisher-gui==1.15.1
 laser-geometry==1.6.7
 MarkupSafe==2.1.5
 message-filters==1.17.0
+neo4j==5.28.1
 pyaml==25.1.0
 python-dotenv==1.0.1
 python-qt-binding==0.4.4
+pytz==2025.2
 PyYAML==6.0.2
 qt-dotgraph==0.4.2
 qt-gui==0.4.2

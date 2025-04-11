@@ -113,6 +113,14 @@ export function renderPersonDetails(container, person) {
     const actionsCol = document.createElement('div');
     actionsCol.className = 'd-flex gap-2';
 
+    const osintBtn = document.createElement('button');
+        osintBtn.className = 'btn btn-secondary';
+        osintBtn.innerHTML = '<i class="fas fa-search"></i> OSINT';
+        osintBtn.addEventListener('click', () => {
+            window.open(`/osint.html?personId=${person.id}`, '_blank');
+        });
+    actionsCol.appendChild(osintBtn);
+    
     const tagBtn = document.createElement('button');
     tagBtn.className = 'btn btn-info';
     tagBtn.innerHTML = '<i class="fas fa-tags"></i> Tag';

@@ -15,7 +15,6 @@ TODO
 ## Phase 2 - Performing Background Tasks
  - [ ] get permission to open multiple new tabs before trying to open multiple new tabs?
  - [ ] Conduct OSINT (tison.html)
- 	- [ ] load user data
  	- [ ] categories of OSINT tools
  		- [ ] osint tools config
  			- [ ] required fields
@@ -66,6 +65,15 @@ http://localhost:7474
 ```bash
 docker stop containerid && docker container prune -f
 ```
+
+example .env
+
+```
+NEO4J_URI=bolt://localhost:7687
+NEO4J_USER=neo4j
+NEO4J_PASSWORD=neo4jbasset
+```
+
 
 https://blog.armbruster-it.de/2019/07/how-to-add-bloom-and-apoc-to-a-neo4j-docker-container/
 
