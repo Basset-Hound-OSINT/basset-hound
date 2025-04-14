@@ -5,14 +5,17 @@ from datetime import datetime
 import hashlib
 from collections import defaultdict
 import yaml
-from config_loader import load_config, initialize_person_data
 import re
 import zipfile
-import shutil
 from neo4j_handler import Neo4jHandler
 
+# Import config loader functions
+from config_loader import load_config, initialize_person_data
+
 app = Flask(__name__)
-neo4j_handler = Neo4jHandler()
+
+# Initialize Neo4j handler
+neo4j = Neo4jHandler()
 
 try:
     CONFIG = load_config()
@@ -113,7 +116,8 @@ def dashboard():
 
 @app.route('/get_people')
 def get_people():
-    return jsonify(current_project["people"])
+    people = neo4j.get_all_people()
+    return jsonify(people)
 
 @app.route('/get_config')
 def get_config():
@@ -125,9 +129,9 @@ def get_config():
 
 @app.route('/get_person/<string:person_id>')
 def get_person(person_id):
-    for person in current_project["people"]:
-        if person.get("id") == person_id:
-            return jsonify(person)
+    person = neo4j.get_person_by_id(person_id)
+    if person:
+        return jsonify(person)
     return jsonify({"error": "Person not found"}), 404
 
 @app.route('/generate_id')
@@ -141,7 +145,6 @@ def generate_unique_id():
     # Project folder path
     safe_name = current_project.get("safe_name") or slugify(current_project.get("name", "default_project"))
     project_dir = os.path.join("projects", safe_name)
-
 
     # 1. Check all folder names (person IDs)
     if os.path.isdir(project_dir):
@@ -173,90 +176,14 @@ def generate_unique_id():
 @app.route('/add_person', methods=['POST'])
 def add_person():
     person_id = generate_unique_id()
-
     if 'safe_name' not in current_project:
         current_project['safe_name'] = slugify(current_project.get('name', 'default_project'))
-
     person_data = {
         "id": person_id,
         "created_at": datetime.now().isoformat(),
         "profile": {}
     }
-
-    person_dir = os.path.join("projects", current_project["safe_name"], person_id)
-    os.makedirs(person_dir, exist_ok=True)
-
-    for section in CONFIG["sections"]:
-        section_id = section["id"]
-        person_data["profile"][section_id] = {}
-        for field in section["fields"]:
-            field_id = field["id"]
-            field_key_prefix = f"{section_id}.{field_id}"
-
-            if field.get("type") == "file":
-                files = [f for k, f in request.files.items() if k.startswith(field_key_prefix)]
-                stored_files = []
-                for uploaded_file in files:
-                    if uploaded_file and uploaded_file.filename:
-                        file_id = generate_unique_id()
-                        if section_id == "profile" and field_id == "profile_picture":
-                            if not is_image_file(uploaded_file.filename):
-                                continue  # Skip non-image files for profile pictures
-
-                        file_id = generate_unique_id()
-                        filename = f"{file_id}_{uploaded_file.filename}"  # ✅ Prepend ID
-                        os.makedirs(person_dir, exist_ok=True)
-                        file_path = os.path.join(person_dir, filename)
-                        uploaded_file.save(file_path)
-
-
-                        field_key_prefix = f"{section_id}.{field_id}"
-
-                        file_data = {
-                            "id": file_id,
-                            "name": uploaded_file.filename,
-                            "path": filename
-                        }
-
-                        # Attempt to fetch associated comment
-                        if "components" in field:
-                            for component in field["components"]:
-                                if component["type"] == "comment":
-                                    # Expected input name format: section.field.comment_INDEX
-                                    # We try to detect the index based on uploaded file field name
-                                    index_match = re.search(rf"{field_key_prefix}_(\d+)", uploaded_file.filename)
-                                    index = index_match.group(1) if index_match else "0"
-                                    comment_key = f"{field_key_prefix}.{component['id']}_{index}"
-                                    comment_value = request.form.get(comment_key, "").strip()
-                                    if comment_value:
-                                        file_data[component["id"]] = comment_value
-
-                        stored_files.append(file_data)
-
-
-                if stored_files:
-                    # 🔹 Try to preserve existing file metadata (like comments)
-                    existing_files = person_data["profile"][section_id].get(field_id, [])
-                    if not isinstance(existing_files, list):
-                        existing_files = [existing_files]
-
-                    # Update new files with any matching old metadata
-                    for file_data in stored_files:
-                        for existing in existing_files:
-                            if existing["name"] == file_data["name"]:
-                                file_data.update({k: v for k, v in existing.items() if k != "path"})
-
-                    person_data["profile"][section_id][field_id] = stored_files if field.get("multiple") else stored_files[0]
-
-
-
-            else:
-                field_data = process_field_data(section_id, field)
-                if field_data:
-                    person_data["profile"][section_id][field_id] = field_data
-
-    current_project["people"].append(person_data)
-    save_project()
+    neo4j.create_person(person_data)
     return redirect(url_for('dashboard'))
 
 def get_display_name(person):
@@ -378,170 +305,16 @@ def is_image_file(filename):
     return os.path.splitext(filename)[1].lower() in ALLOWED_IMAGE_EXTENSIONS
 
 @app.route('/update_person/<person_id>', methods=['POST'])
-def update_person(person_id):
-    person = next((p for p in current_project["people"] if p["id"] == person_id), None)
-    if not person:
-        return "Person not found", 404
-
-    # 🔹 JSON request (e.g., via API)
-    if request.is_json:
-        incoming = request.get_json().get("profile", {})
-        for section_id, fields in incoming.items():
-            person["profile"].setdefault(section_id, {})
-            for field_id, value in fields.items():
-                person["profile"][section_id][field_id] = value
-
-        save_project()
-        return jsonify(success=True)
-
-    # 🔹 Form submission (e.g., via UI form)
-    print("=== UPDATE PERSON FORM KEYS ===")
-    print(list(request.form.keys()))
-    
-    form_keys = request.form.keys()  # Define form_keys here
-
-    for section in CONFIG["sections"]:
-        section_id = section["id"]
-        person["profile"].setdefault(section_id, {})
-
-        for field in section["fields"]:
-            field_id = field["id"]
-            field_key = f"{section_id}.{field_id}"
-            is_multiple = field.get("multiple", False)
-
-            # In update_person function
-            if field.get("type") == "file":
-                field_key_prefix = f"{section_id}.{field_id}"
-                files = [f for k, f in request.files.items() if k.startswith(field_key) and f.filename]
-                
-                # Keep existing files if no new ones uploaded
-                if not files and field_id in person["profile"][section_id]:
-                    continue
-                    
-                stored_files = []
-                
-                # Retrieve existing files if we have them
-                if field_id in person["profile"][section_id]:
-                    existing = person["profile"][section_id][field_id]
-                    if not isinstance(existing, list):
-                        existing = [existing]
-                    stored_files.extend(existing)
-                
-                # Add new files
-                for uploaded_file in files:
-                    if uploaded_file and uploaded_file.filename:
-                        # ✅ Reject non-image files for profile pictures
-                        if section_id == "Profile Picture Section" and field_id == "profilepicturefile":
-                            if not is_image_file(uploaded_file.filename):
-                                print("Rejected non-image file for profile picture.")
-                                continue
-
-                        file_id = generate_unique_id()
-                        filename = f"{file_id}_{uploaded_file.filename}"  # ✅ Prepend ID to filename
-
-                        # ✅ Store in the correct person's directory
-                        person_dir = os.path.join("projects", current_project["safe_name"], person_id)
-                        os.makedirs(person_dir, exist_ok=True)
-                        file_path = os.path.join(person_dir, filename)
-                        uploaded_file.save(file_path)
-
-                        file_data = {
-                            "id": file_id,
-                            "name": uploaded_file.filename,  # Keep original filename
-                            "path": filename  # Store with ID-prefixed path
-                        }
-
-                        # 🔹 Check for associated comments in components
-                        if "components" in field:
-                            for component in field["components"]:
-                                if component["type"] == "comment":
-                                    index_match = re.search(rf"{field_key_prefix}_(\d+)", uploaded_file.filename)
-                                    index = index_match.group(1) if index_match else "0"
-                                    comment_key = f"{field_key_prefix}.{component['id']}_{index}"
-                                    comment_value = request.form.get(comment_key, "").strip()
-                                    if comment_value:
-                                        file_data[component["id"]] = comment_value
-
-                        stored_files.append(file_data)
-
-                if stored_files:
-                    person["profile"][section_id][field_id] = stored_files if field.get("multiple") else stored_files[0]
-            # Handle all other fields (including nested ones)
-            else:
-                # Only update this field if it's present in the form data
-                if any(key.startswith(f"{section_id}.{field_id}") for key in form_keys):  # Use form_keys here
-                    existing_values = person["profile"][section_id].get(field_id, [])
-                    if not isinstance(existing_values, list):
-                        existing_values = [existing_values]
-
-                    new_values = process_field_data(section_id, field, person_id)
-                    merged_values = []
-
-                    if field.get("type") == "component" and isinstance(new_values, list):
-                        for i, new_entry in enumerate(new_values):
-                            merged_entry = new_entry.copy()
-
-                            if i < len(existing_values):
-                                for component in field.get("components", []):
-                                    comp_id = component["id"]
-                                    if comp_id not in merged_entry and comp_id in existing_values[i]:
-                                        merged_entry[comp_id] = existing_values[i][comp_id]
-
-                            merged_values.append(merged_entry)
-
-                        person["profile"][section_id][field_id] = merged_values
-                    else:
-                        if new_values:
-                            person["profile"][section_id][field_id] = new_values
-                        elif field_id in person["profile"][section_id]:
-                            del person["profile"][section_id][field_id]
-
-    save_project()
+def update_person_route(person_id):
+    updates = request.json
+    if not updates:
+        return jsonify({"error": "No updates provided"}), 400
+    neo4j.update_person(person_id, updates)
     return jsonify(success=True)
 
 @app.route('/delete_person/<string:person_id>', methods=['POST'])
-def delete_person(person_id):
-    data = request.get_json()
-    keep_files = data.get('keepFiles', False)
-
-    # Find the person in the current project
-    person = next((p for p in current_project["people"] if p["id"] == person_id), None)
-    if not person:
-        return jsonify({"error": "Person not found"}), 404
-
-    # Remove the person from the project
-    current_project["people"] = [p for p in current_project["people"] if p["id"] != person_id]
-    save_project()
-
-    # Define the person's directory
-    project_safe_name = current_project["safe_name"]
-    person_dir = os.path.join("projects", project_safe_name, person_id)
-
-    if os.path.exists(person_dir):
-        if keep_files:
-            # Zip the person's files
-            zip_filename = f"{person_id}.zip"
-            zip_path = os.path.join("static", "downloads", zip_filename)
-            os.makedirs(os.path.dirname(zip_path), exist_ok=True)
-
-            with zipfile.ZipFile(zip_path, 'w') as zipf:
-                for root, _, files in os.walk(person_dir):
-                    for file in files:
-                        file_path = os.path.join(root, file)
-                        # Include the user's ID as the root folder in the zip archive
-                        arcname = os.path.join(person_id, os.path.relpath(file_path, person_dir))
-                        zipf.write(file_path, arcname)
-
-            # Delete the person's directory
-            shutil.rmtree(person_dir)
-
-            # Return the URL to the zip file
-            zip_url = f"/static/downloads/{zip_filename}"
-            return jsonify({"success": True, "zipFileUrl": zip_url})
-        else:
-            # Delete the person's directory
-            shutil.rmtree(person_dir)
-
+def delete_person_route(person_id):
+    neo4j.delete_person(person_id)
     return jsonify({"success": True})
 
 @app.route('/save_project', methods=['POST'])
@@ -599,10 +372,6 @@ def download_project():
     # Send the zip file to the user
     return send_file(zip_path, as_attachment=True)
 
-@app.route('/profile_editor')
-def profile_editor():
-    return render_template('profile_editor.html', config=CONFIG)
-
 @app.route('/save_config', methods=['POST'])
 def save_config():
     if not request.is_json:
@@ -658,40 +427,30 @@ def zip_user_files(person_id):
 
 @app.route('/tag_person/<person_id>', methods=['POST'])
 def tag_person(person_id):
-    # Find the person we want to add tags to
-    person = next((p for p in current_project["people"] if p["id"] == person_id), None)
-    if not person:
-        return jsonify({"error": "Person not found"}), 404
-        
-    # Get the list of person IDs to tag
-    if request.is_json:
-        tag_data = request.get_json()
-        tagged_ids = tag_data.get("tagged_ids", [])
-        
-        # Initialize the Tagged People section if it doesn't exist
-        if "Tagged People" not in person["profile"]:
-            person["profile"]["Tagged People"] = {}
-            
-        # Update or add tagged_people field
-        person["profile"]["Tagged People"]["tagged_people"] = tagged_ids
-        
-        save_project()
-        return jsonify({"success": True})
-    else:
-        return jsonify({"error": "Expected JSON data"}), 400
-
+    tag_data = request.get_json()
+    tagged_ids = tag_data.get("tagged_ids", [])
+    neo4j.tag_person(person_id, tagged_ids)
+    return jsonify({"success": True})
 
 @app.route('/projects/<project_name>/project_data.json')
 def serve_project_data(project_name):
     return send_from_directory(f'projects/{project_name}', 'project_data.json')
 
-
 @app.route('/get_connections/<person_id>')
-def get_connections(person_id):
+def get_connections_route(person_id):
     max_hops = request.args.get('max_hops', 2, type=int)
-    connections = neo4j_handler.get_connections(person_id, max_hops)
+    connections = neo4j.get_connections(person_id, max_hops)
     return jsonify(connections)
+
+@app.route('/get_full_graph')
+def get_full_graph_route():
+    return jsonify(neo4j.get_full_graph())
+
+@app.teardown_appcontext
+def shutdown_neo4j(exception=None):
+    """Close Neo4j driver on application shutdown."""
+    neo4j.close()
 
 if __name__ == '__main__':
     os.makedirs('projects', exist_ok=True)
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=5000, debug=True)

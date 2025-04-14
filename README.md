@@ -32,6 +32,5 @@ Visit the app in your web browser [here](http://localhost:5000)
 http://localhost:5000
 ```
 
-
 Observe how ***./projects*** is created when you make a project and how data is handled in ***./projects/{project_name}/***
 Other than that - feel free to find bugs and report

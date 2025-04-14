@@ -88,3 +88,35 @@ feature: when person1 is tagged in person2's profile, update all other connectio
 
 
 
+
+build images when spinning up
+
+```
+docker compose up --build
+```
+
+docker compose down -v
+docker compose down --volumes --remove-orphans
+
+
+
+### Setting up Docker Compose
+
+Install the newer docker compose on your system, i am using ubuntu
+
+> [source](https://docs.docker.com/compose/install/linux/)
+
+in one line
+```
+DOCKER_CONFIG=${DOCKER_CONFIG:-$HOME/.docker}; mkdir -p $DOCKER_CONFIG/cli-plugins; curl -SL https://github.com/docker/compose/releases/download/v2.35.0/docker-compose-linux-x86_64 -o $DOCKER_CONFIG/cli-plugins/docker-compose; chmod +x $DOCKER_CONFIG/cli-plugins/docker-compose; docker compose version
+```
+
+
+the commands being run
+```
+DOCKER_CONFIG=${DOCKER_CONFIG:-$HOME/.docker}
+mkdir -p $DOCKER_CONFIG/cli-plugins
+curl -SL https://github.com/docker/compose/releases/download/v2.35.0/docker-compose-linux-x86_64 -o $DOCKER_CONFIG/cli-plugins/docker-compose
+chmod +x $DOCKER_CONFIG/cli-plugins/docker-compose
+docker compose version
+```
