@@ -87,7 +87,9 @@ logic: if person1 is related to person2 and person2 is related to person3, then 
 feature: when person1 is tagged in person2's profile, update all other connections between people in the app recursively.
 
 
+I have the following flask app that I am trying to integrate with neo4j, i also have an older version of it for reference that handled everything in JSON. I want to maintain handling files through the flask app and not include neo4j, and then handle all profile information through neo4j. So far when i add a profile with the neo4j script, i see a profile get stored but no profile information is actually stored, i just get blank profiles. Overall i want to maintain the logic for maintaining profiles of the old app, but simply integrate neo4j in the new app, what changes in the new app need to be changed?
 
+app.py, app_json.py, and neo4j_handler.py
 
 build images when spinning up
 

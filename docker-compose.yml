@@ -1,3 +1,8 @@
+# docker compose up --build
+# docker compose down -v
+# docker compose down --volumes --remove-orphans
+# git clean -xdn -e venv/
+# git clean -xdf -e venv/
 
 services:
   
@@ -23,7 +28,7 @@ services:
       - NEO4J_dbms_connector_bolt_listen__address=0.0.0.0:7687
       - NEO4J_dbms_connector_http_listen__address=0.0.0.0:7474
     networks:
-      - app_network
+      - basset_network
   
   
   basset_hound:
@@ -46,7 +51,7 @@ services:
       - FLASK_ENV=development
       - FLASK_DEBUG=1
     networks:
-      - app_network
+      - basset_network
 
 volumes:
   neo4j_data:
@@ -55,5 +60,5 @@ volumes:
   neo4j_plugins:
 
 networks:
-  app_network:
+  basset_network:
     driver: bridge
