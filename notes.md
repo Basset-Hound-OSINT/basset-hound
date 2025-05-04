@@ -122,3 +122,104 @@ curl -SL https://github.com/docker/compose/releases/download/v2.35.0/docker-comp
 chmod +x $DOCKER_CONFIG/cli-plugins/docker-compose
 docker compose version
 ```
+
+
+
+
+TODO
+
+Bassett hound OSINT resources data schema
+
+immediate updates
+- Better handle information sent and stored in neo4j
+- neo4j store file information (files attached to profile)
+- Fix file handling for users, drag and drop, file explorer
+ - if click file explorer then use directory list page as file explorer
+
+Git tools 
+- download and setup script
+- choose categories or full
+
+Docker tools
+- Docker setup
+- choose categories or full
+
+static tools / tool installers
+- download & setup script
+- choose categories or full
+
+CMD commands 
+- command has variables
+- if variables don't exist in past command remove arguments altogether from command
+
+git/bin/py serverside tools
+- Output to log files and make accessible from dashboard store and relative profile directory
+- Output to unique log ID {tool_name}_{LOGID}_{timestamp}.log
+
+Server side tool configurations 
+- tool_info: 
+  - name: tool
+  - type: serverside
+  - url: https://github.com/user/repo
+  - usage_url: https://github.com/user/repo/README.md
+- tool_cmd:
+  - sudo: false
+  - cmd: tool -a $A -b $B | tee ${PROFILE}/logs/${tool_name}_${LOGID}_${timestamp}.log
+  - req_info: firstname, lastname
+  - opt_info: phonenumber, email
+
+* If sudo is required for a tool prompt the user for sudo password allow caching of sudo password button for deleting sudo password from cache.
+
+web side tool configurations
+- tool_info: 
+  - name: tool
+  - type: web
+  - url: https://tool.com/
+  - usage_url: https://tool.com/README.md
+- tool_cmd:
+  - login: false
+  - js: window.open...
+  - req_info: fullname, phonenumber, firstname, lastname
+  - opt_info: dob, address, city, state, zipcode, linkedin, twitter
+
+Auto populate information for tools
+- auto populate form
+ - All possible data fields for all required info for all tools
+ - Autopopulate form is autopopulated with first instance of data from a field that matches required data field
+ - User can modify auto populate form to then change the information sent to auto populate tool data fields
+- Check if tool is available
+ - Check for tool folder in tools directory, Check Tool usage command output
+ - web tools automatically available
+ - If tool not available have a setup button
+   - display code block of Bash script to set up the to, if error then not available
+- Populate required information for all available tools
+
+
+OSINT tools web page format
+- Format exactly like osint resources mdbook except with Tool availability, tool selection buttons information population
+
+Cmd builder, web tool info builder
+- Store parameters for required info in osint resources book
+- Store parameters for optional info
+- Auto populate populates required info and provided optional info, then a command or javascript is built for each tool's execution
+- Pass the tools name and timestamp as args, generate unique id, add tool command to queue
+
+
+Tools task viewer page format
+- View running tasks
+  - be able to cancel tasks
+- View previously run tasks
+  - {timestamp}, {toolname}, {information preview}, {logfile link}
+
+running multiple tools at once
+- Be able to select what tools to run 
+ - Select individual tools, select category, select all
+ - Run all selected tools
+- Be able to open multiple tabs of tools but not overload computer
+- Be able to run multiple server side tools, or schedule running of server side tools
+ - Keep track of server side tool tasks, either scheduled, in progress, or complete
+- Be able to run/schedule multiple of both web tools and server side tools at the same time
+
+
+People relations graph format - like bloodhound
+
