@@ -32,6 +32,14 @@ current_project_safe_name = None
 def index():
     return render_template('index.html')
 
+@app.route('/map.html')
+def map_page():
+    return render_template('map.html')
+
+@app.route('/osint.html')
+def osint_page():
+    return render_template('osint.html')
+
 @app.route('/new_project', methods=['POST'])
 def new_project():
     project_name = request.form.get('project_name')

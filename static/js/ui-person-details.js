@@ -119,6 +119,34 @@ export function renderPersonDetails(container, person) {
     const actionsCol = document.createElement('div');
     actionsCol.className = 'd-flex gap-2';
 
+    const osintBtn = document.createElement('button');
+        osintBtn.className = 'btn btn-secondary';
+        osintBtn.innerHTML = '<i class="fas fa-search"></i> OSINT';
+        osintBtn.addEventListener('click', () => {
+            window.open(`/osint.html?personId=${person.id}`, '_blank');
+        });
+    actionsCol.appendChild(osintBtn);
+    
+    const tagBtn = document.createElement('button');
+    tagBtn.className = 'btn btn-info';
+    tagBtn.innerHTML = '<i class="fas fa-tags"></i> Tag';
+    tagBtn.addEventListener('click', () => openTagModal(person.id));
+    actionsCol.appendChild(tagBtn);
+
+    const mapBtn = document.createElement('button');
+        mapBtn.className = 'btn btn-secondary';
+        mapBtn.innerHTML = '<i class="fas fa-map"></i> Map';
+        mapBtn.addEventListener('click', () => {
+            window.open(`/map.html?personId=${person.id}`, '_blank');
+    });
+    actionsCol.appendChild(mapBtn);
+
+    const reportBtn = document.createElement('button');
+    reportBtn.className = 'btn btn-secondary';
+    reportBtn.innerHTML = '<i class="fas fa-file-alt"></i> Report';
+    reportBtn.addEventListener('click', () => generateReport(person.id));
+    actionsCol.appendChild(reportBtn);
+
     const editBtn = document.createElement('button');
     editBtn.className = 'btn btn-primary';
     editBtn.innerHTML = '<i class="fas fa-edit"></i> Edit';
