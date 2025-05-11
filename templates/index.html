@@ -58,9 +58,55 @@
             background-color: #dee2e6;
             z-index: 0;
         }
+        
+        .alert {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            max-width: 400px;
+            opacity: 0;
+            transition: opacity 0.5s;
+        }
+        
+        .alert.show {
+            opacity: 1;
+        }
+        
+        .project-list {
+            max-height: 200px;
+            overflow-y: auto;
+            margin-bottom: 20px;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+        }
+        
+        .project-item {
+            padding: 10px 15px;
+            border-bottom: 1px solid #dee2e6;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        .project-item:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .project-item:last-child {
+            border-bottom: none;
+        }
+        
+        .no-projects {
+            padding: 10px 15px;
+            color: #6c757d;
+            font-style: italic;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
+    <div id="notification-alert" class="alert alert-danger" role="alert" style="display: none;"></div>
+    
     <div class="app-container">
         <div class="app-title">
             <h2>People Manager</h2>
@@ -69,7 +115,7 @@
         
         <div class="form-section">
             <h5>Create New Project</h5>
-            <form action="/new_project" method="post">
+            <form id="new-project-form" method="post">
                 <div class="mb-3">
                     <label for="project_name" class="form-label">Project Name</label>
                     <input type="text" class="form-control" id="project_name" name="project_name" required>
@@ -86,58 +132,149 @@
         
         <div class="form-section">
             <h5>Open Existing Project</h5>
-            <form action="/open_project" method="post" enctype="multipart/form-data">
-                <div class="mb-3">
-                    <label for="project_file" class="form-label">Project File (.json)</label>
-                    <input type="file" class="form-control" id="project_file" name="project_file" accept=".json" required>
+            <div id="project-list-container">
+                <div class="project-list" id="project-list">
+                    <!-- Projects will be loaded here -->
                 </div>
-                <button type="submit" class="btn btn-outline-primary w-100">Open Project</button>
-            </form>
-        </div>
-        
-        <!-- Loading Spinner
-        <div id="loading" class="text-center">
-            <div class="spinner-border text-primary" role="status">
-                <span class="visually-hidden">Loading...</span>
+                <div id="no-projects-message" class="no-projects" style="display: none;">
+                    No existing projects found
+                </div>
             </div>
-        </div> -->
+        </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Show the New Project form
-        document.getElementById('new-project-card').addEventListener('click', function() {
-            document.getElementById('new-project-card').classList.add('hidden');
-            document.getElementById('new-project-form').classList.remove('hidden');
-        });
-        
-        // Show the Existing Project form
-        document.getElementById('existing-project-card').addEventListener('click', function() {
-            document.getElementById('existing-project-card').classList.add('hidden');
-            document.getElementById('existing-project-form').classList.remove('hidden');
-        });
-        
-        // Back button for New Project form
-        document.getElementById('new-project-back').addEventListener('click', function() {
-            document.getElementById('new-project-card').classList.remove('hidden');
-            document.getElementById('new-project-form').classList.add('hidden');
-        });
-        
-        // Back button for Existing Project form
-        document.getElementById('existing-project-back').addEventListener('click', function() {
-            document.getElementById('existing-project-card').classList.remove('hidden');
-            document.getElementById('existing-project-form').classList.add('hidden');
+        // Show notification function
+        function showNotification(message, isError = true) {
+            const alert = document.getElementById('notification-alert');
+            alert.textContent = message;
+            alert.style.display = 'block';
+            alert.className = `alert alert-${isError ? 'danger' : 'success'} show`;
+            
+            setTimeout(() => {
+                alert.classList.remove('show');
+                setTimeout(() => alert.style.display = 'none', 500);
+            }, 5000);
+        }
+
+        // Load projects when page loads
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const response = await fetch('/get_projects');
+                if (!response.ok) {
+                    throw new Error('Failed to fetch projects');
+                }
+                
+                const data = await response.json();
+                
+                // Handle case where we get an error object
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                const projects = Array.isArray(data) ? data : [];
+                const projectList = document.getElementById('project-list');
+                const noProjectsMessage = document.getElementById('no-projects-message');
+                
+                // Clear any existing content
+                projectList.innerHTML = '';
+                
+                if (projects.length === 0) {
+                    noProjectsMessage.style.display = 'block';
+                    return;
+                } else {
+                    noProjectsMessage.style.display = 'none';
+                }
+                
+                projects.forEach(project => {
+                    const projectItem = document.createElement('div');
+                    projectItem.className = 'project-item';
+                    
+                    const projectName = document.createElement('div');
+                    projectName.className = 'fw-bold';
+                    projectName.textContent = project.name || 'Unnamed Project';
+                    
+                    const projectId = document.createElement('div');
+                    projectId.className = 'text-muted small';
+                    projectId.textContent = `ID: ${project.id}`;
+                    
+                    const projectDate = document.createElement('div');
+                    projectDate.className = 'text-muted small';
+                    
+                    if (project.created_at) {
+                        const date = new Date(project.created_at);
+                        projectDate.textContent = `Created: ${date.toLocaleDateString()}`;
+                    }
+                    
+                    projectItem.appendChild(projectName);
+                    projectItem.appendChild(projectId);
+                    projectItem.appendChild(projectDate);
+                    
+                    projectItem.addEventListener('click', () => {
+                        openProject(project.safe_name);
+                    });
+                    projectList.appendChild(projectItem);
+                });
+            } catch (error) {
+                console.error('Error loading projects:', error);
+                showNotification('Error loading projects: ' + error.message);
+            }
         });
 
-        // Enable the submit button when the project name is provided
-        document.getElementById('project_name').addEventListener('input', function() {
-            let projectName = document.getElementById('project_name').value;
-            let submitBtn = document.getElementById('submit-btn');
-            submitBtn.disabled = !projectName.trim();
-        });
+        async function openProject(safeName) {
+            try {
+                const response = await fetch('/set_current_project', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ safe_name: safeName })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Set the project ID globally before redirecting
+                    window.currentProjectId = data.project_id;
+                    console.log("Project ID set to:", window.currentProjectId); // Debug
+                    
+                    // Store in sessionStorage for page reloads
+                    sessionStorage.setItem('currentProjectId', data.project_id);
+                    
+                    window.location.href = data.redirect;
+                } else {
+                    showNotification(data.error || 'Failed to open project');
+                }
+            } catch (error) {
+                showNotification('Error opening project');
+                console.error('Error:', error);
+            }
+        }
 
-        // Show the loading spinner when submitting the form
-        document.getElementById('new-project-form-submit').addEventListener('submit', function() {
-            document.getElementById('loading').style.display = 'block';
+        // Handle new project form submission
+        document.getElementById('new-project-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            
+            try {
+                const response = await fetch('/new_project', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    window.location.href = data.redirect;
+                } else {
+                    showNotification(data.error || 'Failed to create project');
+                }
+            } catch (error) {
+                showNotification('An error occurred while creating the project');
+                console.error('Error:', error);
+            }
         });
     </script>
 </body>

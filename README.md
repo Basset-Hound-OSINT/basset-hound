@@ -1,9 +1,19 @@
 # basset-hound
 Simplified Bloodhound but for OSINT 
 
-## setup current working state - [commit 9aafa79](https://github.com/gndpwnd/basset-hound/tree/9aafa79e1f6d55193b4df4a0524a4596a5309fd9)
+## setup old version with JSON storage - [commit 63dc3f5](https://github.com/gndpwnd/basset-hound/tree/63dc3f5ec37e3730d1a62c7031aff7a5d4474715)
 
 > able to CRUD user data and render add/edit forms and profile based on data_config.yaml
+
+Running just Neo4j
+
+```bash
+docker compose up -d neo4j
+docker compose down -v
+
+# more agressive cleanup of non used containers not defined in the compose file
+docker compose down --volumes --remove-orphans
+```
 
 
 Checkout the proper version of the code from the specific commit

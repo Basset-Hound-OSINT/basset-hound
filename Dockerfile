@@ -1,32 +1,19 @@
-FROM python:3.11-slim
+# Dockerfile for Flask App
 
+FROM python:3.9-slim
+
+# Set working directory
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+# Check if requirements.txt exists and copy it
+COPY requirements.txt /app/ 2>/dev/null
+RUN [ -f /app/requirements.txt ] && pip install --no-cache-dir -r /app/requirements.txt || echo "No requirements.txt found"
 
-RUN pip install --upgrade pip 
-
-# Copy requirements first to leverage Docker cache
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy application code
-COPY . .
-
-# Create necessary directories
-RUN mkdir -p projects static/downloads
-
-# Set environment variables
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
-ENV FLASK_APP=app.py
+# Copy the application code
+COPY . /app/
 
 # Expose port
 EXPOSE 5000
 
-# Command to run the application
+# Command to run the Flask app
 CMD ["python", "app.py"]

@@ -87,7 +87,7 @@ function renderPeopleList(people, selectedPersonId = null) {
 }
 
 // Function to filter people list based on search term
-export function filterPeople(people, searchTerm) {
+function filterPeople(people, searchTerm) {
     if (!searchTerm) return people;
 
     searchTerm = searchTerm.toLowerCase();

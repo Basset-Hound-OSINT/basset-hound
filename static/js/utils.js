@@ -2,45 +2,45 @@ export function renderFieldValue(value, type, personId) {
     if (!value) return document.createTextNode('');
 
     // ✅ Structured object with components (like name or linkedin)
-    if (typeof value === 'object' && !Array.isArray(value)) {
-        // Handle file type object specifically
-        if (type === 'file' && value.path && value.name) {
-            const container = document.createElement('div');
-            
-            // Add file ID if available
-            if (value.id) {
-                const idEl = document.createElement('div');
-                idEl.className = 'small text-muted mb-1';
-                idEl.textContent = `ID: ${value.id}`;
-                container.appendChild(idEl);
-            }
-            
-            const link = document.createElement('a');
-            link.href = personId ? `/files/${personId}/${value.path}` : value.path;
-            link.target = '_blank';
-            link.textContent = value.name;
-            container.appendChild(link);
-            
-            return container;
-        }
+    // Handle file type object specifically
+    if (typeof value === 'object' && !Array.isArray(value) && type === 'file' && value.path && value.name) {
+        const link = document.createElement('a');
+        // Use the file owner ID if available, fall back to the provided personId
+        const fileOwnerId = value.person_id || personId;
+        link.href = `/projects/${window.currentProjectId}/people/${fileOwnerId}/files/${value.path}`;
+        link.target = '_blank';
+        link.textContent = value.name;
         
         const container = document.createElement('div');
+        container.appendChild(link);
+        return container;
+    }
 
-        for (const [key, val] of Object.entries(value)) {
-            const row = document.createElement('div');
-            row.classList.add('mb-2');
-
-            const label = document.createElement('span');
-            label.classList.add('text-muted');
-            label.textContent = `${key}: `;
-
-            const content = renderFieldValue(val, type, personId);  // Pass personId here too
-            row.appendChild(label);
-            row.appendChild(content);
-
-            container.appendChild(row);
-        }
-
+    // Handle array of files
+    if (Array.isArray(value) && type === 'file') {
+        const container = document.createElement('div');
+        
+        value.forEach((item) => {
+            if (item && typeof item === 'object' && item.path && item.name) {
+                const fileDiv = document.createElement('div');
+                fileDiv.className = 'mb-2';
+                
+                if (item.id) {
+                    const idEl = document.createElement('div');
+                    idEl.className = 'small text-muted';
+                    idEl.textContent = `ID: ${item.id}`;
+                    fileDiv.appendChild(idEl);
+                }
+                
+                const link = document.createElement('a');
+                link.href = `/projects/${window.currentProjectId}/people/${personId}/files/${item.path}`;
+                link.target = '_blank';
+                link.textContent = item.name;
+                fileDiv.appendChild(link);
+                container.appendChild(fileDiv);
+            }
+        });
+        
         return container;
     }
 
@@ -64,62 +64,6 @@ export function renderFieldValue(value, type, personId) {
         const [year, month, day] = value.split('-');
         const date = new Date(Date.UTC(year, month - 1, day));
         return document.createTextNode(date.toLocaleDateString());
-    }
-
-    // Handle file type
-    if (type === 'file') {
-        const container = document.createElement('div');
-        
-        // Handle array of files
-        if (Array.isArray(value)) {
-          value.forEach((item, idx) => {
-            if (item && typeof item === 'object') {
-              if (item.path && item.name) {
-                html += `<div class="mb-2">
-                  <strong>ID:</strong> ${item.id}<br>
-                  <a href="/files/${person.id}/${item.path}" target="_blank">${item.name}</a>`;
-              }
-
-              // 🔹 Render extra metadata (like 'comment')
-              Object.entries(item).forEach(([key, val]) => {
-                if (!['id', 'name', 'path'].includes(key)) {
-                  html += `<br><em>${key}:</em> ${val}`;
-                }
-              });
-
-              html += `</div>`;
-            }
-          });
-        }
-
-
-        
-        // For simple string values, try to extract an ID if present in the format "id:path"
-        let fileId = null;
-        let filePath = value;
-        
-        if (typeof value === 'string' && value.includes(':')) {
-            const parts = value.split(':');
-            if (parts.length >= 2) {
-                fileId = parts[0];
-                filePath = parts.slice(1).join(':'); // Rejoin in case the path itself contains colons
-            }
-        }
-        
-        // Add file ID if available
-        if (fileId) {
-            const idEl = document.createElement('div');
-            idEl.className = 'small text-muted mb-1';
-            idEl.textContent = `ID: ${fileId}`;
-            container.appendChild(idEl);
-        }
-        
-        const link = document.createElement('a');
-        link.href = personId ? `/files/${personId}/${filePath}` : filePath;
-        link.target = '_blank';
-        link.textContent = filePath.split('/').pop() || filePath; // Display filename part or full path
-        container.appendChild(link);
-        return container;
     }
 
     if (type === 'comment') {
@@ -149,14 +93,22 @@ function renderSingleValue(val, type) {
 
 // Function to get primary name of a person
 export function getPrimaryName(person) {
-    const names = person?.profile?.core?.name;
-
+    // Handle both old and new name structures
+    const names = person?.profile?.core?.name || person?.profile?.personal_information?.name;
+    
     if (Array.isArray(names) && names.length > 0) {
         const name = names[0];
         return {
             first_name: name.first_name || name.first || '',
             middle_name: name.middle_name || name.middle || '',
             last_name: name.last_name || name.last || ''
+        };
+    } else if (names && typeof names === 'object') {
+        // Handle direct name object
+        return {
+            first_name: names.first_name || names.first || '',
+            middle_name: names.middle_name || names.middle || '',
+            last_name: names.last_name || names.last || ''
         };
     }
 
@@ -240,7 +192,7 @@ export function createInputElement(field, name, value = '', component = null, se
     const wrapper = document.createElement('div');
     wrapper.classList.add('input-group');
 
-    // 🔹 Handle comment (textarea)
+    // Handle comment (textarea)
     if (inputType === 'comment') {
         const textarea = document.createElement('textarea');
         textarea.classList.add('form-control');
@@ -256,14 +208,13 @@ export function createInputElement(field, name, value = '', component = null, se
         return wrapper;
     }
 
-    // 🔹 Handle file input
+    // Handle file input
     if (inputType === 'file') {
         const fileInput = document.createElement('input');
         fileInput.type = 'file';
         fileInput.name = name;
         fileInput.classList.add('form-control');
 
-        // ✅ Allow selecting multiple files (on top-level or component level)
         if (field.multiple || component?.multiple) {
             fileInput.multiple = true;
         }
@@ -274,7 +225,6 @@ export function createInputElement(field, name, value = '', component = null, se
 
         wrapper.appendChild(fileInput);
 
-        // ✅ Show previously uploaded file name (only during edit)
         if (value?.name) {
             const fileLabel = document.createElement('div');
             fileLabel.className = 'form-text text-muted';
@@ -285,8 +235,7 @@ export function createInputElement(field, name, value = '', component = null, se
         return wrapper;
     }
 
-
-    // 🔹 Default input (text/email/url/etc.)
+    // Default input (text/email/url/etc.)
     const input = document.createElement('input');
     input.classList.add('form-control');
     input.name = name;
@@ -299,7 +248,7 @@ export function createInputElement(field, name, value = '', component = null, se
 
     wrapper.appendChild(input);
 
-    // 🔹 Special handling for password fields
+    // Special handling for password fields
     if (resolvedType === 'password') {
         const toggleBtn = document.createElement('button');
         toggleBtn.type = 'button';

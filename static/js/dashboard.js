@@ -3,7 +3,6 @@
 import { fetchPeople } from './api.js';
 import { setupAddButtons, createPersonForm } from './ui-form-handlers.js';
 import { renderPeopleList, setupSearch } from './ui-people-list.js';
-import { initTagModal } from './tag-handler.js';
 
 // Global window variables
 window.people = [];
@@ -25,7 +24,6 @@ async function initApp() {
         setupAddButtons();
         setupSearch(window.people);
         setupFormHandlers();
-        initTagModal(); // Initialize the tag modal
 
         // Setup download button
         const downloadBtn = document.getElementById('download-project-btn');
