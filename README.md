@@ -1,11 +1,11 @@
 <td width="100" align="center">
 
-<img src="static/imgs/basset_hound_logo.png">
+<img src="static/imgs/basset_hound_osint_logo.png">
 
 </td>
 
 # basset-hound
-Simplified BloodhoundAD-inspired tool for OSINT 
+A BloodhoundAD-inspired tool for OSINT 
 
 Running just Neo4j
 
