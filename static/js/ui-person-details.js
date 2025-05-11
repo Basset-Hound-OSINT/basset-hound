@@ -1,5 +1,7 @@
 import { getDisplayName, calculateBassetAge, renderFieldValue } from './utils.js';
 import { editPerson, deletePerson } from './ui-form-handlers.js';
+import { openTagModal } from './tag-handler.js'; // Add this import
+import { generateReport } from './report-handler.js'; // Add this import
 
 export function renderPersonDetails(container, person) {
     if (!person) {

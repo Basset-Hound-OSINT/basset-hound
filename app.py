@@ -533,6 +533,42 @@ def serve_file(project_id, person_id, filename):
     # If we reach here, the file wasn't found
     return "File not found", 404
 
+@app.route('/tag_person/<string:person_id>', methods=['POST'])
+def tag_person(person_id):
+    try:
+        if not current_project_safe_name:
+            return jsonify({"success": False, "error": "No project selected"}), 400
+
+        data = request.get_json()
+        if not data or 'tagged_ids' not in data:
+            return jsonify({"success": False, "error": "Invalid request data"}), 400
+
+        # Update person in Neo4j
+        updated_person = neo4j_handler.update_person(
+            current_project_safe_name,
+            person_id,
+            {
+                "profile": {
+                    "Tagged People": {
+                        "tagged_people": data['tagged_ids'],
+                        "transitive_relationships": data.get('transitive_relationships', [])
+                    }
+                }
+            }
+        )
+
+        if not updated_person:
+            return jsonify({"success": False, "error": "Person not found or update failed"}), 404
+
+        return jsonify({"success": True})
+    
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e),
+            "message": "An error occurred while saving tags"
+        }), 500
+    
 if __name__ == '__main__':
     os.makedirs('projects', exist_ok=True)
     app.run(debug=True)

@@ -32,7 +32,7 @@ export async function generateReport(personId) {
 
         // Download the zip file
         const blob = await response.blob();
-        const zipFile = new File([blob], `${personId}.zip`);
+        const zipFile = new File([blob], `${displayName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_report.zip`);
         downloadFile(zipFile);
     } catch (error) {
         console.error('Error generating report:', error);
@@ -41,20 +41,51 @@ export async function generateReport(personId) {
 }
 
 function generateMarkdownReport(person, displayName) {
-    let report = `# Report for ${displayName}\n\n`;
-    report += `**ID:** ${person.id}\n`;
-    report += `**Created At:** ${person.created_at}\n\n`;
+    let report = `# OSINT Report for ${displayName}\n\n`;
+    report += `## Basic Information\n`;
+    report += `- **ID:** ${person.id}\n`;
+    report += `- **Created At:** ${new Date(person.created_at).toLocaleString()}\n\n`;
 
     if (person.profile) {
         for (const sectionId in person.profile) {
-            report += `## ${sectionId}\n\n`;
+            const sectionTitle = sectionId.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+            report += `## ${sectionTitle}\n\n`;
+            
             const sectionData = person.profile[sectionId];
             for (const fieldId in sectionData) {
+                const fieldTitle = fieldId.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
                 const fieldValue = sectionData[fieldId];
-                report += `- **${fieldId}:** ${JSON.stringify(fieldValue, null, 2)}\n`;
+                
+                if (!fieldValue || (Array.isArray(fieldValue) && fieldValue.length === 0)) continue;
+                
+                report += `### ${fieldTitle}\n`;
+                
+                const values = Array.isArray(fieldValue) ? fieldValue : [fieldValue];
+                values.forEach(value => {
+                    if (typeof value === 'object') {
+                        report += '```json\n';
+                        report += JSON.stringify(value, null, 2);
+                        report += '\n```\n\n';
+                    } else {
+                        report += `- ${value}\n`;
+                    }
+                });
+                report += '\n';
             }
-            report += '\n';
         }
+    }
+
+    // Add tagged people section if they exist
+    if (person.profile?.["Tagged People"]?.tagged_people?.length > 0) {
+        report += `## Tagged Connections\n\n`;
+        report += `This person is connected to:\n\n`;
+        person.profile["Tagged People"].tagged_people.forEach(id => {
+            const taggedPerson = tagState.allPeople.find(p => p.id === id);
+            if (taggedPerson) {
+                report += `- ${getDisplayName(taggedPerson)} (${id})\n`;
+            }
+        });
+        report += '\n';
     }
 
     return report;
