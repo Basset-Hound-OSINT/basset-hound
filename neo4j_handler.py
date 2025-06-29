@@ -552,6 +552,24 @@ class Neo4jHandler:
         else:
             return str(data)
     
+    def add_report_to_person(self, project_safe_name, person_id, report_data):
+        """Add a report reference to a person in Neo4j."""
+        with self.driver.session() as session:
+            # Store reports as a list in the profile under 'reports'
+            session.run("""
+                MATCH (project:Project {safe_name: $project_safe_name})-[:HAS_PERSON]->(person:Person {id: $person_id})
+                SET person.reports = coalesce(person.reports, []) + $report_data
+            """, project_safe_name=project_safe_name, person_id=person_id, report_data=report_data)
+
+    def remove_report_from_person(self, project_safe_name, person_id, report_name):
+        """Remove a report reference from a person in Neo4j."""
+        with self.driver.session() as session:
+            # Remove the report with the given name from the reports list
+            session.run("""
+                MATCH (project:Project {safe_name: $project_safe_name})-[:HAS_PERSON]->(person:Person {id: $person_id})
+                SET person.reports = [r IN coalesce(person.reports, []) WHERE r.name <> $report_name]
+            """, project_safe_name=project_safe_name, person_id=person_id, report_name=report_name)
+
     @staticmethod
     def slugify(value):
         """Convert a string to a slug."""

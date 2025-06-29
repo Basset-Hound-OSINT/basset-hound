@@ -10,20 +10,26 @@ from config_loader import load_config, initialize_person_data
 import pprint
 import re
 from neo4j_handler import Neo4jHandler
+from reports import reports_bp
+from profiles import profiles_bp
+
 
 app = Flask(__name__)
+app.register_blueprint(reports_bp)
+app.register_blueprint(profiles_bp)
 
 # Initialize Neo4j handler
 neo4j_handler = Neo4jHandler()
+app.config['NEO4J_HANDLER'] = neo4j_handler
 
-# Load profile configuration
 try:
     CONFIG = load_config()
-    # Setup schema in Neo4j based on config
     neo4j_handler.setup_schema_from_config(CONFIG)
 except Exception as e:
     print(f"Error loading configuration: {e}")
     CONFIG = {"sections": []}
+
+app.config['CONFIG'] = CONFIG  # <-- Make sure this is always set!
 
 # Global current project (now stored in Neo4j)
 current_project_safe_name = None
@@ -56,6 +62,8 @@ def new_project():
         global current_project_safe_name, current_project_id
         current_project_safe_name = project_safe_name
         current_project_id = project.get('id')  # Ensure `id` is returned by `create_project`
+        app.config['CURRENT_PROJECT_ID'] = current_project_id
+        app.config['CURRENT_PROJECT_SAFE_NAME'] = current_project_safe_name
 
         # Create project directory using the project ID
         os.makedirs(f'projects/{current_project_id}', exist_ok=True)
@@ -97,6 +105,8 @@ def set_current_project():
     global current_project_safe_name, current_project_id
     current_project_safe_name = safe_name
     current_project_id = project.get('id')
+    app.config['CURRENT_PROJECT_ID'] = current_project_id
+    app.config['CURRENT_PROJECT_SAFE_NAME'] = current_project_safe_name
     
     return jsonify({
         "success": True,
@@ -120,13 +130,6 @@ def dashboard():
                         person=None,
                         current_project_id=current_project_id)  # Add this line
 
-@app.route('/get_people')
-def get_people():
-    if not current_project_safe_name:
-        return jsonify([])
-    
-    people = neo4j_handler.get_all_people(current_project_safe_name)
-    return jsonify(people)
 
 @app.route('/get_config')
 def get_config():
@@ -135,313 +138,6 @@ def get_config():
         return jsonify(config)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-@app.route('/get_person/<string:person_id>')
-def get_person(person_id):
-    if not current_project_safe_name:
-        return jsonify({"error": "No project selected"}), 404
-    
-    person = neo4j_handler.get_person(current_project_safe_name, person_id)
-    if not person:
-        return jsonify({"error": "Person not found"}), 404
-    
-    return jsonify(person)
-
-@app.route('/add_person', methods=['POST'])
-def add_person():
-    if not current_project_safe_name:
-        return redirect(url_for('index'))
-    
-    # Generate person ID ONCE
-    person_id = str(uuid4())
-    
-    # Prepare person data
-    person_data = {
-        "id": person_id,
-        "created_at": datetime.now().isoformat(),
-        "profile": {}
-    }
-
-    # Create person's directory before processing files
-    person_dir = os.path.join("projects", current_project_id, "people", person_id, "files")
-    os.makedirs(person_dir, exist_ok=True)
-
-    # Process form data
-    for section in CONFIG["sections"]:
-        section_id = section["id"]
-        person_data["profile"][section_id] = {}
-        
-        for field in section["fields"]:
-            field_id = field["id"]
-            field_key_prefix = f"{section_id}.{field_id}"
-
-            if field.get("type") == "file":
-                files = [f for k, f in request.files.items() if k.startswith(field_key_prefix)]
-                stored_files = []
-                
-                for uploaded_file in files:
-                    if uploaded_file and uploaded_file.filename:
-                        # Skip non-image files for profile pictures
-                        if section_id == "profile" and field_id == "profile_picture":
-                            if not is_image_file(uploaded_file.filename):
-                                continue
-
-                        # Generate unique file ID
-                        file_id = str(hashlib.sha256(os.urandom(32)).hexdigest()[:12])
-                        filename = f"{file_id}_{uploaded_file.filename}"
-                        
-                        # Use the correct person_dir created above
-                        file_path = os.path.join(person_dir, filename)
-                        file_data = {
-                            "id": file_id,
-                            "name": uploaded_file.filename,
-                            "path": filename,
-                            "section_id": section_id,
-                            "field_id": field_id,
-                            "full_path": file_path,
-                            "person_id": person_id
-                        }
-                        uploaded_file.save(file_path)
-
-                        # Handle associated comments
-                        if "components" in field:
-                            for component in field["components"]:
-                                if component["type"] == "comment":
-                                    index_match = re.search(rf"{field_key_prefix}_(\d+)", uploaded_file.filename)
-                                    index = index_match.group(1) if index_match else "0"
-                                    comment_key = f"{field_key_prefix}.{component['id']}_{index}"
-                                    comment_value = request.form.get(comment_key, "").strip()
-                                    if comment_value:
-                                        file_data[component["id"]] = comment_value
-
-                        stored_files.append(file_data)
-
-                if stored_files:
-                    person_data["profile"][section_id][field_id] = stored_files if field.get("multiple") else stored_files[0]
-            else:
-                # Always pass person_id to helper
-                field_data = process_field_data(section_id, field, person_id)
-                if field_data is not None:
-                    person_data["profile"][section_id][field_id] = field_data
-
-    # Create person in Neo4j (do NOT generate a new ID in Neo4j handler!)
-    person = neo4j_handler.create_person(current_project_safe_name, person_data)
-    
-    if not person:
-        return redirect(url_for('dashboard'))
-    
-    return redirect(url_for('dashboard'))
-
-def process_field_data(section_id, field, person_id=None):
-    form_data = request.form
-    field_key = f"{section_id}.{field['id']}"
-    is_multiple = field.get("multiple", False)
-    
-    # Special handling for comment fields
-    if field.get("type") == "comment":
-        values = [v for k, v in form_data.items() if k == field_key and v.strip()]
-        return values if is_multiple else (values[0] if values else None)
-
-    if "components" in field:
-        return process_component_field(field, field_key, person_id)
-
-    values = [v for k, v in form_data.items() if k.startswith(field_key) and v.strip()]
-    return values if is_multiple else (values[0] if values else None)
-
-def process_component_field(field, field_key, person_id=None):
-    person_id = person_id or "unknown"
-    components = field.get("components", [])
-    field_instances = defaultdict(dict)
-
-    # Process regular form fields
-    for key, value in request.form.items():
-        if not key.startswith(field_key):
-            continue
-
-        parts = key.split('.')
-        if len(parts) < 3:
-            continue
-
-        component_part = parts[2]
-        match = re.match(r"(\w+)_([0-9]+)(?:\.([0-9]+))?", component_part)
-        if not match:
-            continue
-
-        component_id = match.group(1)
-        field_index = match.group(2)
-
-        value = value.strip()
-        if not value:
-            continue
-
-        component_cfg = next((c for c in components if c["id"] == component_id), None)
-        if not component_cfg:
-            continue
-
-        is_multiple = component_cfg.get("multiple", False)
-
-        if is_multiple:
-            field_instances[field_index].setdefault(component_id, []).append(value)
-        else:
-            field_instances[field_index][component_id] = value
-
-    # Process file components
-    for key, uploaded_file in request.files.items():
-        if not key.startswith(field_key):
-            continue
-
-        parts = key.split('.')
-        if len(parts) < 3:
-            continue
-
-        component_part = parts[2]
-        match = re.match(r"(\w+)_([0-9]+)", component_part)
-        if not match:
-            continue
-
-        component_id = match.group(1)
-        field_index = match.group(2)
-
-        component_cfg = next((c for c in components if c["id"] == component_id and c["type"] == "file"), None)
-        if not component_cfg or not uploaded_file.filename:
-            continue
-
-        file_id = str(hashlib.sha256(os.urandom(32)).hexdigest()[:12])
-        filename = f"{file_id}_{uploaded_file.filename}"
-        person_dir = os.path.join("projects", current_project_safe_name, "people", person_id)
-        os.makedirs(person_dir, exist_ok=True)
-        file_path = os.path.join(person_dir, filename)
-        uploaded_file.save(file_path)
-
-        file_data = {
-            "id": file_id,
-            "name": uploaded_file.filename,
-            "path": filename
-        }
-
-        # Attach comments to the file
-        for comp in components:
-            if comp["type"] == "comment":
-                comment_key = f"{field_key}.{comp['id']}_{field_index}"
-                comment_value = request.form.get(comment_key, "").strip()
-                if comment_value:
-                    file_data[comp["id"]] = comment_value
-
-        field_instances[field_index][component_id] = file_data
-
-    # Final aggregation
-    instances = [entry for entry in field_instances.values() if entry]
-    return instances if field.get("multiple") else (instances[0] if instances else None)
-
-ALLOWED_IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp'}
-
-def is_image_file(filename):
-    return os.path.splitext(filename)[1].lower() in ALLOWED_IMAGE_EXTENSIONS
-
-@app.route('/update_person/<person_id>', methods=['POST'])
-def update_person(person_id):
-    if not current_project_safe_name:
-        return "No project selected", 404
-    
-    # Get existing person data
-    person = neo4j_handler.get_person(current_project_safe_name, person_id)
-    if not person:
-        return "Person not found", 404
-
-    # Handle JSON API requests
-    if request.is_json:
-        updated_data = request.get_json()
-        updated_person = neo4j_handler.update_person(current_project_safe_name, person_id, updated_data)
-        return jsonify(success=bool(updated_person))
-
-    # Handle form submission
-    updated_data = {
-        "profile": {}
-    }
-
-    for section in CONFIG["sections"]:
-        section_id = section["id"]
-        updated_data["profile"][section_id] = {}
-        
-        for field in section["fields"]:
-            field_id = field["id"]
-            field_key_prefix = f"{section_id}.{field_id}"
-            
-            if field.get("type") == "file":
-                files = [f for k, f in request.files.items() if k.startswith(field_key_prefix)]
-                stored_files = []
-                
-                # Keep existing files if no new ones uploaded
-                if not files and section_id in person["profile"] and field_id in person["profile"][section_id]:
-                    updated_data["profile"][section_id][field_id] = person["profile"][section_id][field_id]
-                    continue
-                
-                for uploaded_file in files:
-                    if uploaded_file and uploaded_file.filename:
-                        # Skip non-image files for profile pictures
-                        if section_id == "profile" and field_id == "profile_picture":
-                            if not is_image_file(uploaded_file.filename):
-                                continue
-
-                        # Generate unique file ID
-                        file_id = str(hashlib.sha256(os.urandom(32)).hexdigest()[:12])
-                        filename = f"{file_id}_{uploaded_file.filename}"
-                        
-                        # Create person's directory if it doesn't exist
-                        person_dir = os.path.join("projects", current_project_id, "people", person_id, "files")
-                        os.makedirs(person_dir, exist_ok=True)
-
-                        # In both add_person and update_person routes, update the file path construction:
-                        file_path = os.path.join("projects", current_project_id, "people", person_id, "files", filename)
-                        file_data = {
-                            "id": file_id,
-                            "name": uploaded_file.filename,
-                            "path": filename,  # Just store the filename, not the full path
-                            "section_id": section_id,
-                            "field_id": field_id,
-                            "full_path": file_path,
-                            "person_id": person_id
-                        }
-                        uploaded_file.save(file_path)
-
-                        # Handle associated comments
-                        if "components" in field:
-                            for component in field["components"]:
-                                if component["type"] == "comment":
-                                    index_match = re.search(rf"{field_key_prefix}_(\d+)", uploaded_file.filename)
-                                    index = index_match.group(1) if index_match else "0"
-                                    comment_key = f"{field_key_prefix}.{component['id']}_{index}"
-                                    comment_value = request.form.get(comment_key, "").strip()
-                                    if comment_value:
-                                        file_data[component["id"]] = comment_value
-
-                        stored_files.append(file_data)
-
-                if stored_files:
-                    updated_data["profile"][section_id][field_id] = stored_files if field.get("multiple") else stored_files[0]
-            else:
-                field_data = process_field_data(section_id, field, person_id)
-                if field_data is not None:
-                    updated_data["profile"][section_id][field_id] = field_data
-
-    # Update person in Neo4j
-    updated_person = neo4j_handler.update_person(current_project_safe_name, person_id, updated_data)
-    
-    if not updated_person:
-        return jsonify(success=False), 400
-    
-    return jsonify(success=True)
-
-@app.route('/delete_person/<string:person_id>', methods=['POST'])
-def delete_person(person_id):
-    if not current_project_safe_name:
-        return jsonify(error="No project selected"), 404
-    
-    success = neo4j_handler.delete_person(current_project_safe_name, person_id)
-    
-    if request.content_type == 'application/json':
-        return jsonify(success=success)
-    return redirect(url_for('dashboard'))
 
 @app.route('/download_project')
 def download_project():
@@ -461,10 +157,6 @@ def download_project():
 
     return send_file(temp_path, as_attachment=True)
 
-@app.route('/profile_editor')
-def profile_editor():
-    return render_template('profile_editor.html', config=CONFIG)
-
 @app.route('/save_config', methods=['POST'])
 def save_config():
     if not request.is_json:
@@ -480,12 +172,13 @@ def save_config():
     global CONFIG
     CONFIG = config_data
 
+    # Update app config for blueprints!
+    app.config['CONFIG'] = CONFIG
+
     # Update Neo4j schema
     neo4j_handler.setup_schema_from_config(CONFIG)
 
     return jsonify({"success": True})
-
-# Update the serve_file route to correctly handle ID mismatches
 
 @app.route('/projects/<project_id>/people/<person_id>/files/<filename>')
 def serve_file(project_id, person_id, filename):

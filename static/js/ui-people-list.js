@@ -98,30 +98,9 @@ export function filterPeople(people, searchTerm) {
             return true;
         }
 
-        // Check entire profile for any match
-        const profile = person.profile || {};
-        for (const sectionId in profile) {
-            const section = profile[sectionId];
-            for (const fieldId in section) {
-                const field = section[fieldId];
-                const values = Array.isArray(field) ? field : [field];
-                for (const value of values) {
-                    if (typeof value === 'string' && value.toLowerCase().includes(searchTerm)) {
-                        return true;
-                    }
-                    if (typeof value === 'object') {
-                        for (const key in value) {
-                            const subValue = value[key];
-                            if (typeof subValue === 'string' && subValue.toLowerCase().includes(searchTerm)) {
-                                return true;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        return false;
+        // Convert the entire profile object to a string and search in it
+        const profileStr = JSON.stringify(person.profile || {}, null, 2).toLowerCase();
+        return profileStr.includes(searchTerm);
     });
 }
 
