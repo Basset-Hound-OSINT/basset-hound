@@ -152,15 +152,19 @@ def add_person():
     if not current_project_safe_name:
         return redirect(url_for('index'))
     
-    # Generate person ID first
+    # Generate person ID ONCE
     person_id = str(uuid4())
     
     # Prepare person data
     person_data = {
-        "id": person_id,  # This ID should be used consistently
+        "id": person_id,
         "created_at": datetime.now().isoformat(),
         "profile": {}
     }
+
+    # Create person's directory before processing files
+    person_dir = os.path.join("projects", current_project_id, "people", person_id, "files")
+    os.makedirs(person_dir, exist_ok=True)
 
     # Process form data
     for section in CONFIG["sections"]:
@@ -186,16 +190,12 @@ def add_person():
                         file_id = str(hashlib.sha256(os.urandom(32)).hexdigest()[:12])
                         filename = f"{file_id}_{uploaded_file.filename}"
                         
-                        # Create person's directory if it doesn't exist
-                        person_dir = os.path.join("projects", current_project_id, "people", person_id, "files")
-                        os.makedirs(person_dir, exist_ok=True)
-
-                        # In both add_person and update_person routes, update the file path construction:
-                        file_path = os.path.join("projects", current_project_id, "people", person_id, "files", filename)
+                        # Use the correct person_dir created above
+                        file_path = os.path.join(person_dir, filename)
                         file_data = {
                             "id": file_id,
                             "name": uploaded_file.filename,
-                            "path": filename,  # Just store the filename, not the full path
+                            "path": filename,
                             "section_id": section_id,
                             "field_id": field_id,
                             "full_path": file_path,
@@ -219,11 +219,12 @@ def add_person():
                 if stored_files:
                     person_data["profile"][section_id][field_id] = stored_files if field.get("multiple") else stored_files[0]
             else:
-                field_data = process_field_data(section_id, field)
+                # Always pass person_id to helper
+                field_data = process_field_data(section_id, field, person_id)
                 if field_data is not None:
                     person_data["profile"][section_id][field_id] = field_data
 
-    # Create person in Neo4j
+    # Create person in Neo4j (do NOT generate a new ID in Neo4j handler!)
     person = neo4j_handler.create_person(current_project_safe_name, person_data)
     
     if not person:

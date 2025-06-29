@@ -227,16 +227,22 @@ class Neo4jHandler:
     
     def create_person(self, project_safe_name, person_data=None):
         """Create a new person in a project."""
-        person_id = str(uuid4())  # Generate ID once
-        now = datetime.now().isoformat()
-        
+        # Use the provided ID if present, otherwise generate one
+        if person_data and "id" in person_data:
+            person_id = person_data["id"]
+        else:
+            person_id = str(uuid4())
+            if person_data is not None:
+                person_data["id"] = person_id
+
+        # Use the provided created_at if present, otherwise set now
+        now = person_data.get("created_at") if person_data and "created_at" in person_data else datetime.now().isoformat()
+        if person_data is not None:
+            person_data["created_at"] = now
+
         if not person_data:
             person_data = {"profile": {}}
-        
-        # Set the ID in the person data
-        person_data["id"] = person_id
-        person_data["created_at"] = now
-        
+
         with self.driver.session() as session:
             # First verify project exists
             project = session.run("""

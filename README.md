@@ -7,7 +7,7 @@
 # basset-hound
 A BloodhoundAD-inspired tool for OSINT 
 
-Running just Neo4j
+**Running just Neo4j**
 
 ```bash
 docker compose up -d neo4j
@@ -17,8 +17,17 @@ docker compose down -v
 docker compose down --volumes --remove-orphans
 ```
 
-Run the basset hound app
+**Run setup the python environment**
+
 ```
+python3.12 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
+**Run the app**
+
+```bash
 python3 app.py
 ```
 
