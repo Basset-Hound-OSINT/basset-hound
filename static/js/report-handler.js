@@ -15,7 +15,7 @@ export async function generateReport(personId) {
 
         // Generate the Markdown content
         const displayName = getDisplayName(person);
-        const reportContent = generateMarkdownReport(person, displayName);
+        const reportContent = await generateMarkdownReport(person, displayName);
 
         // Send the Markdown content to the Flask endpoint
         const response = await fetch(`/zip_user_files/${personId}`, {
@@ -40,19 +40,27 @@ export async function generateReport(personId) {
     }
 }
 
-function generateMarkdownReport(person, displayName) {
+async function generateMarkdownReport(person, displayName) {
     let report = `# OSINT Report for ${displayName}\n\n`;
     report += `## Basic Information\n`;
     report += `- **ID:** ${person.id}\n`;
     report += `- **Created At:** ${new Date(person.created_at).toLocaleString()}\n\n`;
 
+    // Add all sections and fields
     if (person.profile) {
         for (const sectionId in person.profile) {
             const sectionTitle = sectionId.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+            // Skip tagged_people and transitive_relationships fields (handled as tables below)
+            if (
+                    (sectionId === "Tagged People")
+                ) {
+                    continue;
+                }
             report += `## ${sectionTitle}\n\n`;
             
             const sectionData = person.profile[sectionId];
             for (const fieldId in sectionData) {
+
                 const fieldTitle = fieldId.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
                 const fieldValue = sectionData[fieldId];
                 
@@ -75,15 +83,90 @@ function generateMarkdownReport(person, displayName) {
         }
     }
 
-    // Add tagged people section if they exist
-    if (person.profile?.["Tagged People"]?.tagged_people?.length > 0) {
-        report += `## Tagged Connections\n\n`;
-        report += `This person is connected to:\n\n`;
-        person.profile["Tagged People"].tagged_people.forEach(id => {
-            const taggedPerson = tagState.allPeople.find(p => p.id === id);
-            if (taggedPerson) {
-                report += `- ${getDisplayName(taggedPerson)} (${id})\n`;
+    // Fetch all people to resolve names and compute relationships
+    let allPeople = [];
+    try {
+        allPeople = await fetch('/get_people').then(r => r.json());
+    } catch (e) {
+        // fallback: just show IDs
+        allPeople = [];
+    }
+    const peopleMap = {};
+    allPeople.forEach(p => { peopleMap[p.id] = p; });
+
+    // Tagged People Table
+    const taggedIds = person.profile?.["Tagged People"]?.tagged_people || [];
+    if (taggedIds.length > 0) {
+        report += `## Tagged People\n\n`;
+        report += `| Name | ID |\n|---|---|\n`;
+        taggedIds.forEach(id => {
+            const taggedPerson = peopleMap[id];
+            const name = taggedPerson ? getDisplayName(taggedPerson) : "Unknown";
+            report += `| ${name} | ${id} |\n`;
+        });
+        report += '\n';
+    }
+
+    // Transitive Relationships Table (mirrored, with hops)
+    // BFS to find transitive relationships and hops FROM this person
+    const visited = {};
+    const hops = {};
+    const queue = [];
+    visited[person.id] = true;
+    hops[person.id] = 0;
+    queue.push(person.id);
+
+    while (queue.length > 0) {
+        const currentId = queue.shift();
+        const currentPerson = peopleMap[currentId];
+        const directTags = currentPerson?.profile?.["Tagged People"]?.tagged_people || [];
+        for (const tagId of directTags) {
+            if (!visited[tagId]) {
+                visited[tagId] = true;
+                hops[tagId] = hops[currentId] + 1;
+                queue.push(tagId);
             }
+        }
+    }
+
+    let transitiveIds = Object.keys(hops)
+        .filter(id => id !== person.id && hops[id] > 1);
+
+    // Symmetric: check if this person is in anyone else's transitive relationships
+    allPeople.forEach(otherPerson => {
+        if (otherPerson.id === person.id) return;
+        const otherVisited = {};
+        const otherHops = {};
+        const otherQueue = [];
+        otherVisited[otherPerson.id] = true;
+        otherHops[otherPerson.id] = 0;
+        otherQueue.push(otherPerson.id);
+
+        while (otherQueue.length > 0) {
+            const currentId = otherQueue.shift();
+            const currentPerson = peopleMap[currentId];
+            const directTags = currentPerson?.profile?.["Tagged People"]?.tagged_people || [];
+            for (const tagId of directTags) {
+                if (!otherVisited[tagId]) {
+                    otherVisited[tagId] = true;
+                    otherHops[tagId] = otherHops[currentId] + 1;
+                    otherQueue.push(tagId);
+                }
+            }
+        }
+        if (otherHops[person.id] > 1 && !transitiveIds.includes(otherPerson.id)) {
+            transitiveIds.push(otherPerson.id);
+            hops[otherPerson.id] = otherHops[person.id];
+        }
+    });
+
+    if (transitiveIds.length > 0) {
+        report += `## Transitive Relationships\n\n`;
+        report += `| Name | ID | Hops |\n|---|---|---|\n`;
+        transitiveIds.forEach(id => {
+            const relatedPerson = peopleMap[id];
+            const name = relatedPerson ? getDisplayName(relatedPerson) : "Unknown";
+            report += `| ${name} | ${id} | ${hops[id]} |\n`;
         });
         report += '\n';
     }

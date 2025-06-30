@@ -34,10 +34,64 @@ document.getElementById('file-upload-input').onchange = async function(e) {
     loadFolder(currentPath);
 };
 
+document.getElementById('new-report-btn').onclick = async function() {
+    let filename = prompt('Enter new report filename (must end with .md, only letters, numbers, dashes, underscores):', 'untitled.md');
+    if (!filename) return;
+    filename = filename.trim();
+    // Basic filename safety check
+    if (!/^[\w\-]+\.md$/.test(filename)) {
+        alert('Invalid filename. Use only letters, numbers, dashes, underscores, and end with .md');
+        return;
+    }
+    // Create the file on the server
+    const res = await fetch(`/projects/${window.currentProjectId}/people/${currentPersonId}/reports`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({filename, content: '# New Report\n\n'})
+    });
+    if (res.ok) {
+        loadFolder('reports');
+        // Optionally open the new file in the editor
+        showMarkdownViewer(filename, '# New Report\n\n', `/projects/${window.currentProjectId}/people/${currentPersonId}/reports/${filename}`);
+    } else {
+        const data = await res.json();
+        alert(data.error || 'Could not create report');
+    }
+};
+
+document.getElementById('rename-markdown-btn').onclick = async function() {
+    const oldName = document.getElementById('markdown-filename').textContent;
+    let newName = prompt('Enter new filename (must end with .md, only letters, numbers, dashes, underscores):', oldName);
+    if (!newName || newName === oldName) return;
+    newName = newName.trim();
+    if (!/^[\w\-]+\.md$/.test(newName)) {
+        alert('Invalid filename. Use only letters, numbers, dashes, underscores, and end with .md');
+        return;
+    }
+    // Call backend to rename
+    const res = await fetch(`/projects/${window.currentProjectId}/people/${currentPersonId}/reports/${oldName}/rename`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({new_name: newName})
+    });
+    if (res.ok) {
+        loadFolder('reports');
+        showMarkdownViewer(newName, document.getElementById('markdown-editor').value || document.getElementById('markdown-content').textContent, `/projects/${window.currentProjectId}/people/${currentPersonId}/reports/${newName}`);
+    } else {
+        const data = await res.json();
+        alert(data.error || 'Could not rename file');
+    }
+};
+
 function showUploadButton(path) {
     // Only show if path starts with "files" or is exactly "files"
     const show = path === 'files' || path.startsWith('files/');
     document.getElementById('upload-files-btn').style.display = show ? 'inline-block' : 'none';
+}
+
+function showNewReportButton(path) {
+    const show = path === 'reports' || path.startsWith('reports/');
+    document.getElementById('new-report-btn').style.display = show ? 'inline-block' : 'none';
 }
 
 async function loadFolder(path) {
@@ -46,6 +100,7 @@ async function loadFolder(path) {
     renderSidebar(data.tree, path);
     renderTable(data.entries, path);
     showUploadButton(path.replace(/\\/g, '/').replace(/^\//, ''));
+    showNewReportButton(path.replace(/\\/g, '/').replace(/^\//, ''));
 }
 
 function renderSidebar(tree, path) {
@@ -119,9 +174,12 @@ function renderTable(entries, path) {
 }
 
 function showMarkdownViewer(filename, content, url) {
+    let currentContent = content; // Track the latest content
+
     document.getElementById('markdown-viewer').style.display = 'block';
     document.getElementById('markdown-filename').textContent = filename;
-    document.getElementById('markdown-content').innerHTML = marked.parse(content);
+    document.getElementById('markdown-content').innerHTML = marked.parse(currentContent);
+    document.getElementById('markdown-content').style.display = 'block';
     document.getElementById('markdown-editor').style.display = 'none';
     document.getElementById('save-markdown-btn').style.display = 'none';
 
@@ -129,7 +187,7 @@ function showMarkdownViewer(filename, content, url) {
     if (filename.endsWith('.md')) {
         document.getElementById('edit-markdown-btn').style.display = 'inline-block';
         document.getElementById('edit-markdown-btn').onclick = function() {
-            document.getElementById('markdown-editor').value = content;
+            document.getElementById('markdown-editor').value = currentContent;
             document.getElementById('markdown-content').style.display = 'none';
             document.getElementById('markdown-editor').style.display = 'block';
             document.getElementById('save-markdown-btn').style.display = 'inline-block';
@@ -141,12 +199,18 @@ function showMarkdownViewer(filename, content, url) {
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({content: newContent})
             });
+            currentContent = newContent; // Update the tracked content
             document.getElementById('markdown-content').style.display = 'block';
             document.getElementById('markdown-editor').style.display = 'none';
             document.getElementById('save-markdown-btn').style.display = 'none';
-            document.getElementById('markdown-content').innerHTML = marked.parse(newContent);
+            document.getElementById('markdown-content').innerHTML = marked.parse(currentContent);
         };
     } else {
         document.getElementById('edit-markdown-btn').style.display = 'none';
     }
+
+    // Add close button handler
+    document.getElementById('close-markdown-viewer-btn').onclick = function() {
+        document.getElementById('markdown-viewer').style.display = 'none';
+    };
 }

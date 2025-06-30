@@ -21,25 +21,25 @@ sections:
       - id: summary
         type: comment
         multiple: true
-      - id: basic_file
-        type: file
-        multiple: true
+      #- id: basic_file
+      #  type: file
+      #  multiple: true
       - id: date_of_birth
         type: date
         multiple: true
       - id: email
         type: email
         multiple: true
-      - id: commentated_file
-        type: component
-        multiple: true
-        components:
-          - id: filename
-            type: file
-            multiple: true
-          - id: comment
-            type: comment
-            multiple: true
+      #- id: commentated_file
+      #  type: component
+      #  multiple: true
+      #  components:
+      #    - id: filename
+      #      type: file
+      #      multiple: true
+      #    - id: comment
+      #      type: comment
+      #      multiple: true
 
   - id: social
     name: Social Media

@@ -122,12 +122,22 @@ export async function renderPersonDetails(container, person) {
     const actionsCol = document.createElement('div');
     actionsCol.className = 'd-flex gap-2';
 
+    const refreshBtn = document.createElement('button');
+    refreshBtn.className = 'btn btn-outline-primary';
+    refreshBtn.innerHTML = '<i class="fas fa-sync-alt"></i> Refresh';
+    refreshBtn.addEventListener('click', async () => {
+        // Fetch the latest person data and re-render
+        const updated = await fetch(`/get_person/${person.id}`).then(r => r.json());
+        renderPersonDetails(container, updated);
+    });
+    actionsCol.appendChild(refreshBtn);
+
     const osintBtn = document.createElement('button');
-        osintBtn.className = 'btn btn-secondary';
-        osintBtn.innerHTML = '<i class="fas fa-search"></i> OSINT';
-        osintBtn.addEventListener('click', () => {
-            window.open(`/osint.html?personId=${person.id}`, '_blank');
-        });
+    osintBtn.className = 'btn btn-secondary';
+    osintBtn.innerHTML = '<i class="fas fa-search"></i> OSINT';
+    osintBtn.addEventListener('click', () => {
+        window.open(`/osint.html?personId=${person.id}`, '_blank');
+    });
     actionsCol.appendChild(osintBtn);
     
     const tagBtn = document.createElement('button');
@@ -401,10 +411,10 @@ export async function renderPersonDetails(container, person) {
     }
     
     container.appendChild(sectionsContainer);
-    await renderTaggedPeopleSection(sectionsContainer, person.id);
-    await renderTransitivePeopleSection(sectionsContainer, person.id);
     await renderAssociatedFilesSection(sectionsContainer, person.id);
     await renderToolReportsSection(sectionsContainer, person.id);
+    await renderTaggedPeopleSection(sectionsContainer, person.id);
+    await renderTransitivePeopleSection(sectionsContainer, person.id);
 }
 
 async function renderTaggedPeopleSection(container, personId) {

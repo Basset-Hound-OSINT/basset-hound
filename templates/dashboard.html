@@ -105,6 +105,7 @@
                     <div id="file-explorer-toolbar">
                         <input type="file" id="file-upload-input" multiple style="display:none;">
                         <button id="upload-files-btn" class="btn btn-sm btn-outline-primary">Upload Files</button>
+                        <button id="new-report-btn" class="btn btn-sm btn-outline-success" style="display:none;">New Report</button>
                     </div>
                     <table class="table table-sm" id="file-explorer-table">
                         <thead>
@@ -121,7 +122,11 @@
                     <div id="markdown-viewer" style="display:none;">
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <h6 id="markdown-filename"></h6>
-                            <button id="edit-markdown-btn" class="btn btn-sm btn-outline-secondary">Edit</button>
+                            <div>
+                                <button id="rename-markdown-btn" class="btn btn-sm btn-outline-warning me-2">Rename</button>
+                                <button id="edit-markdown-btn" class="btn btn-sm btn-outline-secondary">Edit</button>
+                                <button id="close-markdown-viewer-btn" class="btn btn-sm btn-outline-danger ms-2">&times;</button>
+                            </div>
                         </div>
                         <div id="markdown-content" class="markdown-body"></div>
                         <textarea id="markdown-editor" style="display:none; width:100%; height:300px;"></textarea>

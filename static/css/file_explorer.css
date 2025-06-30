@@ -1,56 +1,126 @@
+html, body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden; /* Prevent background scroll when overlay is open */
+}
+
 .file-explorer-overlay {
     position: fixed;
-    top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(0,0,0,0.5);
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
     z-index: 2000;
     display: flex;
     align-items: center;
     justify-content: center;
+    padding: 20px; /* Add padding to prevent modal from touching edges */
+    box-sizing: border-box;
 }
+
 .file-explorer-modal {
     background: #fff;
     border-radius: 8px;
     width: 80vw;
     height: 80vh;
+    max-width: 1200px; /* Prevent modal from being too wide on large screens */
+    max-height: 800px; /* Prevent modal from being too tall */
+    min-width: 600px; /* Ensure minimum width */
+    min-height: 400px; /* Ensure minimum height */
     display: flex;
     flex-direction: column;
-    box-shadow: 0 0 20px #0002;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.2);
+    position: relative; /* Remove absolute positioning */
+    margin: auto; /* Center the modal */
 }
+
 .file-explorer-header {
     padding: 1rem;
     border-bottom: 1px solid #eee;
     display: flex;
     justify-content: space-between;
     align-items: center;
+    flex-shrink: 0; /* Prevent header from shrinking */
 }
+
 .file-explorer-body {
     flex: 1;
     display: flex;
     overflow: hidden;
+    min-height: 0; /* Important for flex containers with overflow */
 }
+
 .file-explorer-sidebar {
     width: 220px;
     background: #f8f9fa;
     border-right: 1px solid #eee;
     overflow-y: auto;
     padding: 1rem;
+    flex-shrink: 0; /* Prevent sidebar from shrinking */
 }
+
 .file-explorer-main {
     flex: 1;
     padding: 1rem;
     overflow-y: auto;
+    min-width: 0; /* Allow flex item to shrink below content size */
 }
-#file-explorer-table th, #file-explorer-table td {
+
+#file-explorer-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+#file-explorer-table th, 
+#file-explorer-table td {
     vertical-align: middle;
+    padding: 8px 12px;
+    border-bottom: 1px solid #eee;
 }
+
+#file-explorer-table th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+    text-align: left;
+}
+
+#file-explorer-table tbody tr:hover {
+    background-color: #f8f9fa;
+}
+
 .tree-list {
     list-style: none;
     padding-left: 0;
+    margin: 0;
 }
+
+.tree-list li {
+    padding: 4px 0;
+}
+
 .tree-folder {
     cursor: pointer;
     color: #007bff;
+    padding: 4px 8px;
+    border-radius: 4px;
+    display: block;
+    text-decoration: none;
 }
+
+.tree-folder:hover {
+    background-color: #e9ecef;
+    color: #0056b3;
+    text-decoration: none;
+}
+
 .markdown-body {
     background: #f6f8fa;
     border: 1px solid #ddd;
@@ -58,4 +128,99 @@
     border-radius: 4px;
     min-height: 200px;
     font-family: monospace;
+    white-space: pre-wrap;
+    overflow-x: auto;
+}
+
+/* Close button styling */
+.file-explorer-close {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: #6c757d;
+    padding: 0;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+}
+
+.file-explorer-close:hover {
+    background-color: #f8f9fa;
+    color: #495057;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .file-explorer-overlay {
+        padding: 10px;
+    }
+    
+    .file-explorer-modal {
+        width: 95vw;
+        height: 90vh;
+        min-width: 320px;
+    }
+    
+    .file-explorer-body {
+        flex-direction: column;
+    }
+    
+    .file-explorer-sidebar {
+        width: 100%;
+        max-height: 200px;
+        border-right: none;
+        border-bottom: 1px solid #eee;
+    }
+    
+    .file-explorer-header {
+        padding: 0.75rem;
+    }
+    
+    .file-explorer-main {
+        padding: 0.75rem;
+    }
+}
+
+/* Additional utility classes */
+.text-center {
+    text-align: center;
+}
+
+.text-muted {
+    color: #6c757d;
+}
+
+.mb-3 {
+    margin-bottom: 1rem;
+}
+
+.btn {
+    display: inline-block;
+    padding: 0.375rem 0.75rem;
+    margin-bottom: 0;
+    font-size: 1rem;
+    font-weight: 400;
+    line-height: 1.5;
+    text-align: center;
+    text-decoration: none;
+    vertical-align: middle;
+    cursor: pointer;
+    border: 1px solid transparent;
+    border-radius: 0.25rem;
+    transition: all 0.15s ease-in-out;
+}
+
+.btn-secondary {
+    color: #fff;
+    background-color: #6c757d;
+    border-color: #6c757d;
+}
+
+.btn-secondary:hover {
+    background-color: #5a6268;
+    border-color: #545b62;
 }

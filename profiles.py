@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify, redirect, url_for, render_template, current_app, send_file, send_from_directory
+from flask import Blueprint, request, jsonify, redirect, url_for, render_template, current_app, send_file, send_from_directory, abort
 import os
 import hashlib
 from uuid import uuid4
@@ -22,7 +22,6 @@ def get_people():
         return jsonify([])
     people = neo4j_handler.get_all_people(current_project_safe_name)
     return jsonify(people)
-
 
 @profiles_bp.route('/get_person/<string:person_id>')
 def get_person(person_id):
@@ -352,6 +351,8 @@ def delete_person(person_id):
 
 @profiles_bp.route('/zip_user_files/<person_id>', methods=['POST'])
 def zip_user_files(person_id):
+    import io
+    import zipfile
     neo4j_handler = current_app.config['NEO4J_HANDLER']
     current_project_safe_name = current_app.config.get('CURRENT_PROJECT_SAFE_NAME')
     current_project_id = current_app.config.get('CURRENT_PROJECT_ID')
@@ -365,24 +366,33 @@ def zip_user_files(person_id):
     if not person:
         return "Person not found", 404
 
-    # Find all files for this person
-    files_dir = os.path.join("projects", current_project_id, "people", person_id, "files")
-    file_paths = []
-    if os.path.exists(files_dir):
-        for fname in os.listdir(files_dir):
-            fpath = os.path.join(files_dir, fname)
-            if os.path.isfile(fpath):
-                file_paths.append(fpath)
+    # Directories to include
+    person_root = os.path.join("projects", current_project_id, "people", person_id)
+    files_dir = os.path.join(person_root, "files")
+    reports_dir = os.path.join(person_root, "reports")
 
     # Create an in-memory zip
     zip_buffer = io.BytesIO()
-    with zipfile.ZipFile(zip_buffer, 'w') as zipf:
-        # Add the markdown report
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        # Add the markdown report at the root of the zip
         zipf.writestr(f"profile_report_{person_id}.md", markdown_content)
-        # Add all files
-        for fpath in file_paths:
-            arcname = os.path.basename(fpath)
-            zipf.write(fpath, arcname=arcname)
+
+        # Helper to add all files from a directory recursively
+        def add_dir_to_zip(base_dir, arc_prefix):
+            if not os.path.exists(base_dir):
+                return
+            for root, dirs, files in os.walk(base_dir):
+                for file in files:
+                    abs_path = os.path.join(root, file)
+                    rel_path = os.path.relpath(abs_path, base_dir)
+                    arcname = os.path.join(arc_prefix, rel_path)
+                    zipf.write(abs_path, arcname=arcname)
+
+        # Add files/ directory (if exists)
+        add_dir_to_zip(files_dir, "files")
+
+        # Add reports/ directory (if exists)
+        add_dir_to_zip(reports_dir, "reports")
 
     zip_buffer.seek(0)
     return send_file(
@@ -391,7 +401,6 @@ def zip_user_files(person_id):
         as_attachment=True,
         download_name=f"profile_{person_id}_report.zip"
     )
-# Update the serve_file route to correctly handle ID mismatches
 
 @profiles_bp.route('/profile_editor')
 def profile_editor():
@@ -509,3 +518,61 @@ def upload_person_file(person_id):
             })
 
     return jsonify({"success": True, "files": uploaded_files})
+
+@profiles_bp.route('/projects/<project_id>/people/<person_id>/reports/<path:filename>', methods=['GET'])
+def serve_report_file(project_id, person_id, filename):
+    reports_dir = os.path.abspath(os.path.join("projects", project_id, "people", person_id, "reports"))
+    file_path = os.path.abspath(os.path.join(reports_dir, filename))
+    if not file_path.startswith(reports_dir):
+        abort(403)
+    if not os.path.exists(file_path):
+        abort(404)
+    return send_from_directory(reports_dir, filename)
+
+@profiles_bp.route('/projects/<project_id>/people/<person_id>/reports/<path:filename>', methods=['PUT'])
+def update_report_file(project_id, person_id, filename):
+    reports_dir = os.path.abspath(os.path.join("projects", project_id, "people", person_id, "reports"))
+    file_path = os.path.abspath(os.path.join(reports_dir, filename))
+    if not file_path.startswith(reports_dir):
+        abort(403)
+    data = request.get_json()
+    content = data.get('content', '')
+    with open(file_path, 'w', encoding='utf-8') as f:
+        f.write(content)
+    return jsonify(success=True)
+
+@profiles_bp.route('/projects/<project_id>/people/<person_id>/reports', methods=['POST'])
+def create_report_file(project_id, person_id):
+    reports_dir = os.path.abspath(os.path.join("projects", project_id, "people", person_id, "reports"))
+    os.makedirs(reports_dir, exist_ok=True)
+    data = request.get_json()
+    filename = data.get('filename', '').strip()
+    if not filename or not filename.endswith('.md'):
+        return jsonify(error="Invalid filename"), 400
+    file_path = os.path.abspath(os.path.join(reports_dir, filename))
+    if not file_path.startswith(reports_dir):
+        abort(403)
+    if os.path.exists(file_path):
+        return jsonify(error="File already exists"), 400
+    with open(file_path, 'w', encoding='utf-8') as f:
+        f.write(data.get('content', ''))
+    return jsonify(success=True, filename=filename)
+
+@profiles_bp.route('/projects/<project_id>/people/<person_id>/reports/<path:filename>/rename', methods=['POST'])
+def rename_report_file(project_id, person_id, filename):
+    import os
+    reports_dir = os.path.abspath(os.path.join("projects", project_id, "people", person_id, "reports"))
+    old_path = os.path.abspath(os.path.join(reports_dir, filename))
+    data = request.get_json()
+    new_name = data.get('new_name', '').strip()
+    if not new_name or not new_name.endswith('.md') or not new_name.replace('.md', '').replace('_', '').replace('-', '').isalnum():
+        return jsonify(error="Invalid filename"), 400
+    new_path = os.path.abspath(os.path.join(reports_dir, new_name))
+    if not old_path.startswith(reports_dir) or not new_path.startswith(reports_dir):
+        abort(403)
+    if not os.path.exists(old_path):
+        return jsonify(error="Original file does not exist"), 404
+    if os.path.exists(new_path):
+        return jsonify(error="A file with the new name already exists"), 400
+    os.rename(old_path, new_path)
+    return jsonify(success=True, filename=new_name)
