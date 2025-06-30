@@ -2,8 +2,9 @@ import { getDisplayName, calculateBassetAge, renderFieldValue } from './utils.js
 import { editPerson, deletePerson } from './ui-form-handlers.js';
 import { openTagModal } from './tag-handler.js'; // Add this import
 import { generateReport } from './report-handler.js'; // Add this import
+import { openFileExplorer } from './file_explorer.js';
 
-export function renderPersonDetails(container, person) {
+export async function renderPersonDetails(container, person) {
     if (!person) {
         console.error("renderPersonDetails was called with undefined person!");
         container.innerHTML = '<div class="alert alert-danger">Error: Could not load person data.</div>';
@@ -149,6 +150,12 @@ export function renderPersonDetails(container, person) {
     reportBtn.addEventListener('click', () => generateReport(person.id));
     actionsCol.appendChild(reportBtn);
 
+    const filesBtn = document.createElement('button');
+    filesBtn.className = 'btn btn-secondary';
+    filesBtn.innerHTML = '<i class="fas fa-folder-open"></i> Files';
+    filesBtn.addEventListener('click', () => openFileExplorer(person.id));
+    actionsCol.appendChild(filesBtn);
+
     const editBtn = document.createElement('button');
     editBtn.className = 'btn btn-primary';
     editBtn.innerHTML = '<i class="fas fa-edit"></i> Edit';
@@ -180,6 +187,10 @@ export function renderPersonDetails(container, person) {
     // Profile sections
     if (person.profile) {
         for (const sectionId in person.profile) {
+
+            if (sectionId === "Tagged People") continue; // <-- Skip generic rendering for this section
+            if (sectionId === "Transitive Relationships") continue; // (if you have this as a section)
+
             const sectionData = person.profile[sectionId];
             const hasData = Object.values(sectionData).some(value => {
                 if (Array.isArray(value)) return value.length > 0;
@@ -390,4 +401,218 @@ export function renderPersonDetails(container, person) {
     }
     
     container.appendChild(sectionsContainer);
+    await renderTaggedPeopleSection(sectionsContainer, person.id);
+    await renderTransitivePeopleSection(sectionsContainer, person.id);
+    await renderAssociatedFilesSection(sectionsContainer, person.id);
+    await renderToolReportsSection(sectionsContainer, person.id);
+}
+
+async function renderTaggedPeopleSection(container, personId) {
+    // Create the card section
+    const section = document.createElement('div');
+    section.className = 'card mb-3';
+    section.innerHTML = `<div class="card-header"><h5><i class="fas fa-tags me-2"></i>Tagged People</h5></div>`;
+    const body = document.createElement('div');
+    body.className = 'card-body';
+
+    // Fetch the latest person data to get tags
+    const res = await fetch(`/get_person/${personId}`);
+    const person = await res.json();
+
+    // Find the tagged people field (adjust as needed for your schema)
+    const taggedSection = person.profile?.["Tagged People"];
+    const taggedIds = taggedSection?.tagged_people || [];
+
+    if (!Array.isArray(taggedIds) || taggedIds.length === 0) return; // Only render if there are tags
+
+    // Fetch all people to resolve names
+    const peopleRes = await fetch('/get_people');
+    const allPeople = await peopleRes.json();
+
+    // Build a map for quick lookup
+    const peopleMap = {};
+    allPeople.forEach(p => { peopleMap[p.id] = p; });
+
+    // Build the list
+    const ul = document.createElement('ul');
+    ul.className = 'list-group';
+    taggedIds.forEach(taggedId => {
+        const taggedPerson = peopleMap[taggedId];
+        const li = document.createElement('li');
+        li.className = 'list-group-item d-flex align-items-center';
+        if (taggedPerson) {
+            li.innerHTML = `<span class="text-muted small me-2">ID: ${taggedPerson.id}</span>
+                <a href="#" class="tagged-person-link" data-id="${taggedPerson.id}">${getDisplayName(taggedPerson)}</a>`;
+        } else {
+            li.innerHTML = `<span class="text-danger">Unknown Person (ID: ${taggedId})</span>`;
+        }
+        ul.appendChild(li);
+    });
+    body.appendChild(ul);
+    section.appendChild(body);
+    container.appendChild(section);
+
+    // Optional: Add click handler to view tagged person
+    ul.querySelectorAll('.tagged-person-link').forEach(link => {
+        link.addEventListener('click', e => {
+            e.preventDefault();
+            const id = link.getAttribute('data-id');
+            // You may want to call a function to show that person's details
+            // For example: renderPersonDetails(container, peopleMap[id]);
+        });
+    });
+}
+
+async function renderTransitivePeopleSection(container, personId) {
+    // Fetch all people and this person's tags
+    const peopleRes = await fetch('/get_people');
+    const allPeople = await peopleRes.json();
+
+    // Build a map for quick lookup
+    const peopleMap = {};
+    allPeople.forEach(p => { peopleMap[p.id] = p; });
+
+    // BFS to find transitive relationships and hops FROM this person
+    const visited = {};
+    const hops = {};
+    const queue = [];
+    visited[personId] = true;
+    hops[personId] = 0;
+    queue.push(personId);
+
+    while (queue.length > 0) {
+        const currentId = queue.shift();
+        const currentPerson = peopleMap[currentId];
+        const directTags = currentPerson?.profile?.["Tagged People"]?.tagged_people || [];
+        for (const tagId of directTags) {
+            if (!visited[tagId]) {
+                visited[tagId] = true;
+                hops[tagId] = hops[currentId] + 1;
+                queue.push(tagId);
+            }
+        }
+    }
+
+    // Remove direct tags and self; only keep those with hops > 1 (transitive)
+    let transitiveIds = Object.keys(hops)
+        .filter(id => id !== personId && hops[id] > 1);
+
+    // Now, for symmetry, check if this person is in anyone else's transitive relationships
+    allPeople.forEach(otherPerson => {
+        if (otherPerson.id === personId) return;
+        // BFS from otherPerson
+        const otherVisited = {};
+        const otherHops = {};
+        const otherQueue = [];
+        otherVisited[otherPerson.id] = true;
+        otherHops[otherPerson.id] = 0;
+        otherQueue.push(otherPerson.id);
+
+        while (otherQueue.length > 0) {
+            const currentId = otherQueue.shift();
+            const currentPerson = peopleMap[currentId];
+            const directTags = currentPerson?.profile?.["Tagged People"]?.tagged_people || [];
+            for (const tagId of directTags) {
+                if (!otherVisited[tagId]) {
+                    otherVisited[tagId] = true;
+                    otherHops[tagId] = otherHops[currentId] + 1;
+                    otherQueue.push(tagId);
+                }
+            }
+        }
+        // If this person is in otherPerson's transitive relationships (but not direct), add otherPerson
+        if (otherHops[personId] > 1 && !transitiveIds.includes(otherPerson.id)) {
+            transitiveIds.push(otherPerson.id);
+            hops[otherPerson.id] = otherHops[personId]; // Store the hop count from their perspective
+        }
+    });
+
+    if (!transitiveIds.length) return;
+
+    const section = document.createElement('div');
+    section.className = 'card mb-3';
+    section.innerHTML = `<div class="card-header"><h5><i class="fas fa-project-diagram me-2"></i>Transitive Relationships</h5></div>`;
+    const body = document.createElement('div');
+    body.className = 'card-body';
+
+    const ul = document.createElement('ul');
+    ul.className = 'list-group';
+    transitiveIds.forEach(id => {
+        const relatedPerson = peopleMap[id];
+        const li = document.createElement('li');
+        li.className = 'list-group-item d-flex align-items-center';
+        if (relatedPerson) {
+            li.innerHTML = `<span class="text-muted small me-2">ID: ${relatedPerson.id}</span>
+                <a href="#" class="tagged-person-link" data-id="${relatedPerson.id}">${getDisplayName(relatedPerson)}</a>
+                <span class="badge bg-info ms-2">${hops[id]} hops</span>`;
+        } else {
+            li.innerHTML = `<span class="text-danger">Unknown Person (ID: ${id})</span>`;
+        }
+        ul.appendChild(li);
+    });
+    body.appendChild(ul);
+    section.appendChild(body);
+    container.appendChild(section);
+
+    // Optional: Add click handler to view tagged person
+    ul.querySelectorAll('.tagged-person-link').forEach(link => {
+        link.addEventListener('click', e => {
+            e.preventDefault();
+            const id = link.getAttribute('data-id');
+            // You may want to call a function to show that person's details
+            // For example: renderPersonDetails(container, peopleMap[id]);
+        });
+    });
+}
+
+async function renderAssociatedFilesSection(container, personId) {
+    const res = await fetch(`/person/${personId}/explore?path=files`);
+    const data = await res.json();
+    const files = (data.entries || []).filter(e => e.type === 'file');
+    if (!files.length) return; // <-- Only render if files exist
+
+    const section = document.createElement('div');
+    section.className = 'card mb-3';
+    section.innerHTML = `<div class="card-header"><h5><i class="fas fa-paperclip me-2"></i>Associated Files</h5></div>`;
+    const body = document.createElement('div');
+    body.className = 'card-body';
+
+    const ul = document.createElement('ul');
+    ul.className = 'list-group';
+    files.forEach(file => {
+        const li = document.createElement('li');
+        li.className = 'list-group-item d-flex align-items-center';
+        li.innerHTML = `<a href="${file.url}" target="_blank">${file.name || file.path}</a>
+            <span class="text-muted small ms-2">${file.id ? 'ID: ' + file.id : ''}</span>`;
+        ul.appendChild(li);
+    });
+    body.appendChild(ul);
+    section.appendChild(body);
+    container.appendChild(section);
+}
+
+async function renderToolReportsSection(container, personId) {
+    const res = await fetch(`/person/${personId}/explore?path=reports`);
+    const data = await res.json();
+    const files = (data.entries || []).filter(e => e.type === 'file' && e.name.endsWith('.md'));
+    if (!files.length) return; // <-- Only render if reports exist
+
+    const section = document.createElement('div');
+    section.className = 'card mb-3';
+    section.innerHTML = `<div class="card-header"><h5><i class="fas fa-file-alt me-2"></i>Tool Reports</h5></div>`;
+    const body = document.createElement('div');
+    body.className = 'card-body';
+
+    const ul = document.createElement('ul');
+    ul.className = 'list-group';
+    files.forEach(file => {
+        const li = document.createElement('li');
+        li.className = 'list-group-item d-flex align-items-center';
+        li.innerHTML = `<a href="${file.url}" target="_blank">${file.name || file.path}</a>
+            <span class="text-muted small ms-2">${file.id ? 'ID: ' + file.id : ''}</span>`;
+        ul.appendChild(li);
+    });
+    body.appendChild(ul);
+    section.appendChild(body);
+    container.appendChild(section);
 }

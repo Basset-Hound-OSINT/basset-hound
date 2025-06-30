@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 import json
 from uuid import uuid4
 import re
+import time
 
 # Load environment variables from .env
 load_dotenv()
@@ -15,7 +16,23 @@ class Neo4jHandler:
         self.uri = os.getenv("NEO4J_URI", "bolt://localhost:7687")
         self.user = os.getenv("NEO4J_USER", "neo4j")
         self.password = os.getenv("NEO4J_PASSWORD", "neo4jbasset")
-        self.driver = GraphDatabase.driver(self.uri, auth=(self.user, self.password))
+        self.driver = None
+
+        # Wait for Neo4j to be available
+        wait_start = time.time()
+        while True:
+            try:
+                self.driver = GraphDatabase.driver(self.uri, auth=(self.user, self.password))
+                # Try a simple query to test connection
+                with self.driver.session() as session:
+                    session.run("RETURN 1")
+                break  # Success!
+            except Exception as e:
+                elapsed = int(time.time() - wait_start)
+                print(f"\rWaiting to connect to Neo4j ({self.uri})... {elapsed}s", end='', flush=True)
+                time.sleep(2)
+        print(f"\rConnected to Neo4j at {self.uri} after {int(time.time() - wait_start)}s.{' ' * 20}")
+
         self.ensure_constraints()
     
     def close(self):

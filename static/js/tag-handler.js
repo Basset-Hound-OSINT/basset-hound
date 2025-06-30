@@ -191,6 +191,7 @@ function setupTagModalEvents() {
 }
 
 // Render the list of tagged people with relationship indicators
+
 function renderTaggedPeopleList() {
     const container = document.getElementById('tagged-people-list');
     const countElement = document.getElementById('tagged-count');
@@ -276,6 +277,7 @@ function renderTaggedPeopleList() {
         container.appendChild(item);
     });
 }
+
 
 // Render search results with relationship indicators
 function renderTagSearchResults(results) {

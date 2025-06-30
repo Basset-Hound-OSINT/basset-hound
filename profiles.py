@@ -7,10 +7,9 @@ from collections import defaultdict
 import re
 import io
 import zipfile
-import yaml
-import json
 import zipfile
 import io
+
 
 profiles_bp = Blueprint('profiles', __name__)
 
@@ -398,3 +397,115 @@ def zip_user_files(person_id):
 def profile_editor():
     CONFIG = current_app.config['CONFIG']
     return render_template('profile_editor.html', config=CONFIG)
+
+@profiles_bp.route('/person/<person_id>/explore')
+def explore_person_files(person_id):
+    current_project_id = current_app.config.get('CURRENT_PROJECT_ID')
+    if not current_project_id:
+        return jsonify({"error": "No project selected"}), 404
+
+    rel_path = request.args.get('path', '/')
+    safe_rel_path = rel_path.strip('/')
+
+    person_root = os.path.join("projects", current_project_id, "people", person_id)
+    abs_path = os.path.join(person_root, safe_rel_path)
+
+    try:
+        # --- Ensure root and subfolders exist ---
+        abs_person_root = os.path.abspath(person_root)
+        if not os.path.exists(abs_person_root):
+            os.makedirs(os.path.join(abs_person_root, "files"), exist_ok=True)
+            os.makedirs(os.path.join(abs_person_root, "reports"), exist_ok=True)
+
+        abs_abs_path = os.path.abspath(abs_path)
+        if not abs_abs_path.startswith(abs_person_root):
+            return jsonify({"error": "Invalid path"}), 400
+
+        entries = []
+        tree = []
+
+        if os.path.exists(abs_abs_path):
+            for name in sorted(os.listdir(abs_abs_path)):
+                full_path = os.path.join(abs_abs_path, name)
+                stat = os.stat(full_path)
+                entry = {
+                    "name": name,
+                    "path": os.path.relpath(full_path, abs_person_root),
+                    "date": datetime.fromtimestamp(stat.st_mtime).strftime('%Y-%m-%d %H:%M'),
+                }
+                if os.path.isdir(full_path):
+                    entry["type"] = "folder"
+                else:
+                    entry["type"] = "file"
+                    entry["url"] = f"/projects/{current_project_id}/people/{person_id}/{entry['path']}".replace("\\", "/")
+                    entry["id"] = ""
+                entries.append(entry)
+
+        def build_tree(base_path, rel_path=''):
+            nodes = []
+            for name in sorted(os.listdir(base_path)):
+                full_path = os.path.join(base_path, name)
+                node_path = os.path.join(rel_path, name)
+                if os.path.isdir(full_path):
+                    nodes.append({
+                        "name": name,
+                        "type": "folder",
+                        "path": node_path.replace("\\", "/"),
+                        "open": node_path.strip('/') == safe_rel_path,
+                        "children": build_tree(full_path, node_path) if node_path.strip('/') == safe_rel_path else []
+                    })
+                else:
+                    nodes.append({
+                        "name": name,
+                        "type": "file",
+                        "path": node_path.replace("\\", "/"),
+                        "url": f"/projects/{current_project_id}/people/{person_id}/{node_path.replace('\\', '/')}"
+                    })
+            return nodes
+
+        tree = build_tree(abs_person_root)
+
+        return jsonify({
+            "entries": entries,
+            "tree": tree
+        })
+    except Exception as e:
+        print(f"Error in explore_person_files: {e}")
+        return jsonify({"error": str(e)}), 500
+    
+@profiles_bp.route('/person/<person_id>/upload', methods=['POST'])
+def upload_person_file(person_id):
+    current_project_id = current_app.config.get('CURRENT_PROJECT_ID')
+    if not current_project_id:
+        return jsonify({"error": "No project selected"}), 404
+
+    rel_path = request.args.get('path', '/')
+    safe_rel_path = rel_path.strip('/')
+
+    person_root = os.path.join("projects", current_project_id, "people", person_id)
+    files_root = os.path.join(person_root, "files")
+    target_dir = os.path.join(person_root, safe_rel_path)
+    abs_files_root = os.path.abspath(files_root)
+    abs_target_dir = os.path.abspath(target_dir)
+
+    # Only allow uploads to the files folder or its subfolders
+    if not abs_target_dir.startswith(abs_files_root):
+        return jsonify({"error": "Uploads only allowed in 'files' folder"}), 400
+
+    os.makedirs(abs_target_dir, exist_ok=True)
+
+    uploaded_files = []
+    for file in request.files.getlist('files'):
+        if file and file.filename:
+            # Generate unique file ID
+            file_id = str(hashlib.sha256(os.urandom(32)).hexdigest()[:12])
+            filename = f"{file_id}_{file.filename}"
+            file_path = os.path.join(abs_target_dir, filename)
+            file.save(file_path)
+            uploaded_files.append({
+                "id": file_id,
+                "name": file.filename,
+                "path": filename
+            })
+
+    return jsonify({"success": True, "files": uploaded_files})
