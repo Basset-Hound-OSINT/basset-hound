@@ -16,7 +16,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Request
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from ..dependencies import get_neo4j_handler, get_app_config, get_current_project
 
@@ -35,10 +35,9 @@ router = APIRouter(
 
 class EntityProfile(BaseModel):
     """Schema for entity profile data - flexible key-value structure."""
-
-    class Config:
-        extra = "allow"
-        json_schema_extra = {
+    model_config = ConfigDict(
+        extra="allow",
+        json_schema_extra={
             "example": {
                 "profile": {
                     "first_name": "John",
@@ -50,66 +49,64 @@ class EntityProfile(BaseModel):
                 }
             }
         }
+    )
 
 
 class EntityCreate(BaseModel):
     """Schema for creating a new entity."""
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "profile": {
+                "profile": {
+                    "first_name": "John",
+                    "last_name": "Doe"
+                }
+            }
+        }
+    })
+
     profile: Optional[dict[str, Any]] = Field(
         default_factory=dict,
         description="Profile data organized by sections and fields"
     )
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "profile": {
-                    "profile": {
-                        "first_name": "John",
-                        "last_name": "Doe"
-                    }
-                }
-            }
-        }
-
 
 class EntityResponse(BaseModel):
     """Schema for entity response data."""
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "id": "550e8400-e29b-41d4-a716-446655440000",
+            "created_at": "2024-01-15T10:30:00",
+            "profile": {
+                "profile": {
+                    "first_name": "John",
+                    "last_name": "Doe"
+                }
+            }
+        }
+    })
+
     id: str = Field(..., description="Unique entity identifier (UUID)")
     created_at: Optional[str] = Field(None, description="ISO 8601 creation timestamp")
     profile: dict[str, Any] = Field(default_factory=dict, description="Entity profile data")
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "id": "550e8400-e29b-41d4-a716-446655440000",
-                "created_at": "2024-01-15T10:30:00",
-                "profile": {
-                    "profile": {
-                        "first_name": "John",
-                        "last_name": "Doe"
-                    }
-                }
-            }
-        }
-
 
 class EntityUpdate(BaseModel):
     """Schema for updating an entity."""
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "profile": {
+                "profile": {
+                    "first_name": "Jane"
+                }
+            }
+        }
+    })
+
     profile: Optional[dict[str, Any]] = Field(
         None,
         description="Updated profile data (partial updates supported)"
     )
-
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "profile": {
-                    "profile": {
-                        "first_name": "Jane"
-                    }
-                }
-            }
-        }
 
 
 class EntityListResponse(BaseModel):

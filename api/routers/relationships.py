@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import Optional, List, Dict
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from ..dependencies import get_neo4j_handler, get_current_project
 from ..models.relationship import (
@@ -41,6 +41,28 @@ router = APIRouter(
 
 class TaggedPeopleUpdate(BaseModel):
     """Schema for updating tagged people on an entity."""
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "tagged_ids": [
+                "550e8400-e29b-41d4-a716-446655440001",
+                "550e8400-e29b-41d4-a716-446655440002"
+            ],
+            "transitive_relationships": [
+                "550e8400-e29b-41d4-a716-446655440003"
+            ],
+            "relationship_types": {
+                "550e8400-e29b-41d4-a716-446655440001": "WORKS_WITH",
+                "550e8400-e29b-41d4-a716-446655440002": "FRIEND"
+            },
+            "relationship_properties": {
+                "550e8400-e29b-41d4-a716-446655440001": {
+                    "confidence": "high",
+                    "source": "LinkedIn"
+                }
+            }
+        }
+    })
+
     tagged_ids: list[str] = Field(
         ...,
         description="List of entity IDs to tag/link to this entity"
@@ -57,29 +79,6 @@ class TaggedPeopleUpdate(BaseModel):
         default=None,
         description="Mapping of entity IDs to relationship properties"
     )
-
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "tagged_ids": [
-                    "550e8400-e29b-41d4-a716-446655440001",
-                    "550e8400-e29b-41d4-a716-446655440002"
-                ],
-                "transitive_relationships": [
-                    "550e8400-e29b-41d4-a716-446655440003"
-                ],
-                "relationship_types": {
-                    "550e8400-e29b-41d4-a716-446655440001": "WORKS_WITH",
-                    "550e8400-e29b-41d4-a716-446655440002": "FRIEND"
-                },
-                "relationship_properties": {
-                    "550e8400-e29b-41d4-a716-446655440001": {
-                        "confidence": "high",
-                        "source": "LinkedIn"
-                    }
-                }
-            }
-        }
 
 
 class TaggedPeopleResponse(BaseModel):

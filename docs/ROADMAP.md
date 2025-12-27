@@ -92,120 +92,77 @@ This differs from a traditional database because:
 
 ## Enhanced Data Configuration Schema
 
-### Proposed Comprehensive `data_config.yaml`
+### `data_config.yaml` Structure
 
-The current schema is good but limited. Here's a comprehensive expansion:
+The configuration schema supports dynamic entity types with flexible field definitions. Here's a condensed example showing all supported field types:
 
 ```yaml
-# data_config.yaml - Comprehensive Entity Configuration
+# data_config.yaml - Sample showing all field types
 version: "2.0"
-entity_type: Person  # Future: support multiple entity types
+entity_type: Person
 
-# =============================================================================
-# SECTION DEFINITIONS
-# =============================================================================
 sections:
-
-  # ---------------------------------------------------------------------------
-  # PROFILE PICTURE
-  # ---------------------------------------------------------------------------
-  - id: profile_picture
-    name: Profile Picture
-    icon: fa-user-circle
+  - id: sample_section
+    name: Sample Section (All Field Types)
+    icon: fa-cog
     fields:
-      - id: profile_photo
-        type: file
-        accept: image/*
-        description: Primary profile photograph
-
-  # ---------------------------------------------------------------------------
-  # CORE IDENTITY
-  # ---------------------------------------------------------------------------
-  - id: core_identity
-    name: Personal Information
-    icon: fa-id-card
-    fields:
+      # Simple field types
       - id: name
-        type: component
-        multiple: true
-        label: Full Name
-        components:
-          - id: first_name
-            type: string
-            required: true
-          - id: middle_name
-            type: string
-          - id: last_name
-            type: string
-          - id: suffix
-            type: string
-            placeholder: "Jr., Sr., III, etc."
-
-      - id: alias
         type: string
-        multiple: true
-        label: Known Aliases / Nicknames
+        label: Name
         searchable: true
+        identifier: true      # Can be used for entity linking
 
-      - id: date_of_birth
-        type: date
-        multiple: true
-        label: Date of Birth
-
-      - id: gender
-        type: select
-        options: ["Male", "Female", "Non-binary", "Other", "Unknown"]
-
-      - id: nationality
-        type: string
-        multiple: true
-        label: Nationality / Citizenship
-
-      - id: summary
-        type: comment
-        multiple: true
-        label: Notes / Summary
-
-  # ---------------------------------------------------------------------------
-  # CONTACT INFORMATION
-  # ---------------------------------------------------------------------------
-  - id: contact
-    name: Contact Information
-    icon: fa-address-book
-    fields:
       - id: email
         type: email
         multiple: true
         label: Email Addresses
-        searchable: true
-        identifier: true  # Can be used to link entities
+
+      - id: website
+        type: url
+        label: Website
+
+      - id: birth_date
+        type: date
+        label: Date of Birth
+
+      - id: age
+        type: number
+        label: Age
 
       - id: phone
-        type: component
+        type: phone
         multiple: true
-        label: Phone Numbers
-        components:
-          - id: number
-            type: phone
-          - id: type
-            type: select
-            options: ["Mobile", "Home", "Work", "Fax", "Other"]
-          - id: country_code
-            type: string
-            placeholder: "+1"
 
+      - id: notes
+        type: comment         # Textarea
+        label: Notes
+
+      - id: status
+        type: select
+        options: ["Active", "Inactive", "Unknown"]
+
+      - id: avatar
+        type: file
+        accept: image/*
+
+      - id: ip
+        type: ip_address
+        pattern: "^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$"
+
+      - id: secret
+        type: password
+        encrypted: true
+
+      # Component field (nested structure)
       - id: address
         type: component
         multiple: true
-        label: Physical Addresses
+        label: Addresses
         components:
           - id: street
             type: string
           - id: city
-            type: string
-          - id: state
-            type: string
-          - id: postal_code
             type: string
           - id: country
             type: string
@@ -213,726 +170,28 @@ sections:
             type: select
             options: ["Home", "Work", "Other"]
 
-  # ---------------------------------------------------------------------------
-  # SOCIAL MEDIA - MAJOR PLATFORMS
-  # ---------------------------------------------------------------------------
-  - id: social_major
-    name: Major Social Platforms
-    icon: fa-share-alt
-    fields:
-      - id: facebook
-        type: component
-        multiple: true
-        label: Facebook
-        platform_url: https://facebook.com/{username}
-        components:
-          - id: url
-            type: url
-          - id: username
-            type: string
-          - id: display_name
-            type: string
-          - id: user_id
-            type: string
-            label: Facebook User ID
-
-      - id: instagram
-        type: component
-        multiple: true
-        label: Instagram
-        platform_url: https://instagram.com/{username}
-        components:
-          - id: url
-            type: url
-          - id: username
-            type: string
-            identifier: true
-          - id: display_name
-            type: string
-
-      - id: twitter_x
-        type: component
-        multiple: true
-        label: Twitter / X
-        platform_url: https://x.com/{handle}
-        components:
-          - id: url
-            type: url
-          - id: handle
-            type: string
-            identifier: true
-          - id: display_name
-            type: string
-          - id: user_id
-            type: string
-
-      - id: tiktok
-        type: component
-        multiple: true
-        label: TikTok
-        platform_url: https://tiktok.com/@{username}
-        components:
-          - id: url
-            type: url
-          - id: username
-            type: string
-          - id: display_name
-            type: string
-
-      - id: youtube
-        type: component
-        multiple: true
-        label: YouTube
-        components:
-          - id: channel_url
-            type: url
-          - id: channel_name
-            type: string
-          - id: channel_id
-            type: string
-
-      - id: snapchat
-        type: component
-        multiple: true
-        label: Snapchat
-        components:
-          - id: username
-            type: string
-
-  # ---------------------------------------------------------------------------
-  # PROFESSIONAL NETWORKS
-  # ---------------------------------------------------------------------------
-  - id: professional
-    name: Professional Networks
-    icon: fa-briefcase
-    fields:
-      - id: linkedin
-        type: component
-        multiple: true
-        label: LinkedIn
-        platform_url: https://linkedin.com/in/{username}
-        components:
-          - id: url
-            type: url
-          - id: username
-            type: string
-          - id: headline
-            type: string
-          - id: company
-            type: string
-          - id: email
-            type: email
-            multiple: true
-
-      - id: github
-        type: component
-        multiple: true
-        label: GitHub
-        platform_url: https://github.com/{username}
-        components:
-          - id: url
-            type: url
-          - id: username
-            type: string
-            identifier: true
-          - id: email
-            type: email
-
-      - id: gitlab
-        type: component
-        multiple: true
-        label: GitLab
-        platform_url: https://gitlab.com/{username}
-        components:
-          - id: url
-            type: url
-          - id: username
-            type: string
-
-      - id: bitbucket
-        type: component
-        multiple: true
-        label: Bitbucket
-        components:
-          - id: url
-            type: url
-          - id: username
-            type: string
-
-      - id: stackoverflow
-        type: component
-        multiple: true
-        label: Stack Overflow
-        components:
-          - id: url
-            type: url
-          - id: user_id
-            type: string
-          - id: display_name
-            type: string
-
-      - id: behance
-        type: component
-        multiple: true
-        label: Behance
-        components:
-          - id: url
-            type: url
-          - id: username
-            type: string
-
-      - id: dribbble
-        type: component
-        multiple: true
-        label: Dribbble
-        components:
-          - id: url
-            type: url
-          - id: username
-            type: string
-
-  # ---------------------------------------------------------------------------
-  # FEDERATED / DECENTRALIZED SOCIAL
-  # ---------------------------------------------------------------------------
-  - id: federated_social
-    name: Federated / Decentralized
-    icon: fa-globe
-    fields:
-      - id: mastodon
-        type: component
-        multiple: true
-        label: Mastodon
-        components:
-          - id: full_handle
-            type: string
-            placeholder: "@user@instance.social"
-            identifier: true
-          - id: instance_url
-            type: url
-          - id: profile_url
-            type: url
-
-      - id: bluesky
-        type: component
-        multiple: true
-        label: Bluesky
-        platform_url: https://bsky.app/profile/{handle}
-        components:
-          - id: handle
-            type: string
-            placeholder: "user.bsky.social"
-            identifier: true
-          - id: did
-            type: string
-            label: Decentralized ID (DID)
-
-      - id: threads
-        type: component
-        multiple: true
-        label: Threads (Meta)
-        platform_url: https://threads.net/@{username}
-        components:
-          - id: url
-            type: url
-          - id: username
-            type: string
-
-      - id: nostr
-        type: component
-        multiple: true
-        label: Nostr
-        components:
-          - id: npub
-            type: string
-            label: Public Key (npub)
-            identifier: true
-          - id: nip05
-            type: string
-            label: NIP-05 Identifier
-
-      - id: lemmy
-        type: component
-        multiple: true
-        label: Lemmy
-        components:
-          - id: full_handle
-            type: string
-            placeholder: "@user@instance.ml"
-          - id: instance_url
-            type: url
-
-      - id: pixelfed
-        type: component
-        multiple: true
-        label: Pixelfed
-        components:
-          - id: full_handle
-            type: string
-          - id: instance_url
-            type: url
-
-      - id: peertube
-        type: component
-        multiple: true
-        label: PeerTube
-        components:
-          - id: channel_url
-            type: url
-          - id: username
-            type: string
-          - id: instance
-            type: string
-
-  # ---------------------------------------------------------------------------
-  # REDDIT & FORUMS
-  # ---------------------------------------------------------------------------
-  - id: forums
-    name: Forums & Communities
-    icon: fa-comments
-    fields:
-      - id: reddit
-        type: component
-        multiple: true
-        label: Reddit
-        platform_url: https://reddit.com/user/{username}
-        components:
-          - id: username
-            type: string
-            identifier: true
-          - id: url
-            type: url
-
-      - id: hackernews
-        type: component
-        multiple: true
-        label: Hacker News
-        platform_url: https://news.ycombinator.com/user?id={username}
-        components:
-          - id: username
-            type: string
-
-      - id: discord
-        type: component
-        multiple: true
-        label: Discord
-        components:
-          - id: username
-            type: string
-            placeholder: "username#0000 or new username"
-          - id: user_id
-            type: string
-            label: Discord User ID
-
-      - id: slack
-        type: component
-        multiple: true
-        label: Slack Workspaces
-        components:
-          - id: workspace
-            type: string
-          - id: display_name
-            type: string
-          - id: email
-            type: email
-
-      - id: telegram
-        type: component
-        multiple: true
-        label: Telegram
-        platform_url: https://t.me/{username}
-        components:
-          - id: username
-            type: string
-          - id: phone
-            type: phone
-
-      - id: keybase
-        type: component
-        multiple: true
-        label: Keybase
-        platform_url: https://keybase.io/{username}
-        components:
-          - id: username
-            type: string
-
-  # ---------------------------------------------------------------------------
-  # GAMING & ENTERTAINMENT
-  # ---------------------------------------------------------------------------
-  - id: gaming
-    name: Gaming & Entertainment
-    icon: fa-gamepad
-    fields:
-      - id: steam
-        type: component
-        multiple: true
-        label: Steam
-        components:
-          - id: profile_url
-            type: url
-          - id: username
-            type: string
-          - id: steam_id
-            type: string
-
-      - id: xbox
-        type: component
-        multiple: true
-        label: Xbox / Microsoft
-        components:
-          - id: gamertag
-            type: string
-
-      - id: playstation
-        type: component
-        multiple: true
-        label: PlayStation
-        components:
-          - id: psn_id
-            type: string
-
-      - id: nintendo
-        type: component
-        multiple: true
-        label: Nintendo
-        components:
-          - id: friend_code
-            type: string
-          - id: username
-            type: string
-
-      - id: twitch
-        type: component
-        multiple: true
-        label: Twitch
-        platform_url: https://twitch.tv/{username}
-        components:
-          - id: url
-            type: url
-          - id: username
-            type: string
-
-      - id: spotify
-        type: component
-        multiple: true
-        label: Spotify
-        components:
-          - id: profile_url
-            type: url
-          - id: username
-            type: string
-
-      - id: soundcloud
-        type: component
-        multiple: true
-        label: SoundCloud
-        components:
-          - id: url
-            type: url
-          - id: username
-            type: string
-
-  # ---------------------------------------------------------------------------
-  # DATING & PERSONAL
-  # ---------------------------------------------------------------------------
-  - id: dating
-    name: Dating & Personal
-    icon: fa-heart
-    fields:
-      - id: tinder
-        type: component
-        multiple: true
-        label: Tinder
-        components:
-          - id: profile_id
-            type: string
-
-      - id: bumble
-        type: component
-        multiple: true
-        label: Bumble
-        components:
-          - id: profile_id
-            type: string
-
-      - id: hinge
-        type: component
-        multiple: true
-        label: Hinge
-        components:
-          - id: profile_id
-            type: string
-
-      - id: okcupid
-        type: component
-        multiple: true
-        label: OkCupid
-        components:
-          - id: username
-            type: string
-          - id: url
-            type: url
-
-  # ---------------------------------------------------------------------------
-  # FINANCIAL & CRYPTO
-  # ---------------------------------------------------------------------------
-  - id: financial
-    name: Financial & Crypto
-    icon: fa-wallet
-    fields:
-      - id: venmo
-        type: component
-        multiple: true
-        label: Venmo
-        components:
-          - id: username
-            type: string
-
-      - id: paypal
-        type: component
-        multiple: true
-        label: PayPal
-        components:
-          - id: email
-            type: email
-          - id: paypal_me
-            type: url
-
-      - id: cashapp
-        type: component
-        multiple: true
-        label: Cash App
-        components:
-          - id: cashtag
-            type: string
-            placeholder: "$username"
-
-      - id: ethereum_address
-        type: string
-        multiple: true
-        label: Ethereum Addresses
-        identifier: true
-
-      - id: bitcoin_address
-        type: string
-        multiple: true
-        label: Bitcoin Addresses
-        identifier: true
-
-  # ---------------------------------------------------------------------------
-  # TECHNICAL IDENTIFIERS
-  # ---------------------------------------------------------------------------
-  - id: technical
-    name: Technical Identifiers
-    icon: fa-server
-    fields:
-      - id: ip_address
-        type: ip_address
-        multiple: true
-        label: IP Addresses
-        searchable: true
-        identifier: true
-
-      - id: mac_address
-        type: string
-        multiple: true
-        label: MAC Addresses
-        pattern: "^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$"
-
-      - id: domain
-        type: string
-        multiple: true
-        label: Owned Domains
-        identifier: true
-
-      - id: pgp_key
-        type: component
-        multiple: true
-        label: PGP / GPG Keys
-        components:
-          - id: fingerprint
-            type: string
-          - id: key_id
-            type: string
-          - id: key_server_url
-            type: url
-
-      - id: ssh_key
-        type: comment
-        multiple: true
-        label: SSH Public Keys
-
-      - id: user_agent
-        type: string
-        multiple: true
-        label: Known User Agents
-
-  # ---------------------------------------------------------------------------
-  # DEVICES & HARDWARE
-  # ---------------------------------------------------------------------------
-  - id: devices
-    name: Devices & Hardware
-    icon: fa-mobile-alt
-    fields:
-      - id: phone_device
-        type: component
-        multiple: true
-        label: Phone Devices
-        components:
-          - id: brand
-            type: string
-          - id: model
-            type: string
-          - id: imei
-            type: string
-          - id: phone_number
-            type: phone
-
-      - id: computer
-        type: component
-        multiple: true
-        label: Computers
-        components:
-          - id: type
-            type: select
-            options: ["Desktop", "Laptop", "Tablet", "Server"]
-          - id: os
-            type: string
-          - id: hostname
-            type: string
-
-  # ---------------------------------------------------------------------------
-  # EMPLOYMENT & EDUCATION
-  # ---------------------------------------------------------------------------
-  - id: employment
-    name: Employment & Education
-    icon: fa-graduation-cap
-    fields:
-      - id: employer
-        type: component
-        multiple: true
-        label: Employment History
-        components:
-          - id: company
-            type: string
-          - id: title
-            type: string
-          - id: start_date
-            type: date
-          - id: end_date
-            type: date
-          - id: work_email
-            type: email
-          - id: location
-            type: string
-
-      - id: education
-        type: component
-        multiple: true
-        label: Education
-        components:
-          - id: institution
-            type: string
-          - id: degree
-            type: string
-          - id: field
-            type: string
-          - id: graduation_year
-            type: number
-
-  # ---------------------------------------------------------------------------
-  # CREDENTIALS (SENSITIVE)
-  # ---------------------------------------------------------------------------
-  - id: credentials
-    name: Credentials
-    icon: fa-key
-    sensitive: true
-    fields:
-      - id: password
-        type: password
-        multiple: true
-        label: Known Passwords
-        encrypted: true
-
-      - id: password_hash
-        type: string
-        multiple: true
-        label: Password Hashes
-
-      - id: security_questions
-        type: component
-        multiple: true
-        label: Security Questions
-        components:
-          - id: question
-            type: string
-          - id: answer
-            type: password
-
-  # ---------------------------------------------------------------------------
-  # FILES & DOCUMENTS
-  # ---------------------------------------------------------------------------
-  - id: files
-    name: Files & Documents
-    icon: fa-folder-open
-    fields:
-      - id: document
-        type: file
-        multiple: true
-        label: Documents
-
-      - id: screenshot
-        type: file
-        multiple: true
-        label: Screenshots
-        accept: image/*
-
-      - id: evidence
-        type: component
-        multiple: true
-        label: Evidence Files
-        components:
-          - id: file
-            type: file
-          - id: description
-            type: comment
-          - id: source
-            type: string
-          - id: date_obtained
-            type: date
-
-# =============================================================================
-# FIELD TYPE DEFINITIONS (for reference and validation)
-# =============================================================================
+# Field type definitions
 field_types:
-  string:
-    html_input: text
-  email:
-    html_input: email
-    pattern: "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
-  url:
-    html_input: url
-    pattern: "^https?://"
-  date:
-    html_input: date
-  number:
-    html_input: number
-  phone:
-    html_input: tel
-  password:
-    html_input: password
-    encrypted: true
-  comment:
-    html_input: textarea
-  file:
-    html_input: file
-  select:
-    html_input: select
-  ip_address:
-    html_input: text
-    pattern: "^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$|^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$"
-  component:
-    html_input: fieldset
+  string:    { html_input: text }
+  email:     { html_input: email, pattern: "..." }
+  url:       { html_input: url }
+  date:      { html_input: date }
+  number:    { html_input: number }
+  phone:     { html_input: tel }
+  password:  { html_input: password, encrypted: true }
+  comment:   { html_input: textarea }
+  file:      { html_input: file }
+  select:    { html_input: select }
+  ip_address: { html_input: text, pattern: "..." }
+  component: { html_input: fieldset }
 ```
+
+**Key Features:**
+- `multiple: true` - Allow multiple values for a field
+- `identifier: true` - Use for entity matching/linking
+- `searchable: true` - Include in search indexing
+- `sensitive: true` - Mark section as containing sensitive data
+- `platform_url` - Template URL for social platforms
 
 ---
 
@@ -1513,11 +772,322 @@ tests/
 - `POST /auto-link/merge` - Merge entities
 - `GET /auto-link/identifier-fields` - List identifier fields
 
-### Next Steps (Phase 4+)
+### Phase 4: Performance & Scalability - ✅ COMPLETED (2025-12-27)
 
-1. **Caching** - Redis integration for query caching
-2. **Multi-Entity Types** - Organizations, locations, devices
-3. **Frontend Crypto Ticker Display** - Show detected coin ticker next to crypto input fields
-4. **Cross-Project Linking** - Link entities across different projects
-5. **Fuzzy Matching** - Similar names, typo tolerance for auto-linking
-6. **Timeline Analysis** - Relationship changes over time
+| Task | Status | Notes |
+|------|--------|-------|
+| Redis cache integration | ✅ Done | Full Redis support with automatic fallback to in-memory cache |
+| In-memory cache backend | ✅ Done | LRU eviction, TTL support, tag-based invalidation |
+| Entity caching | ✅ Done | Project-aware entity caching with smart invalidation |
+| Relationship caching | ✅ Done | Directional relationship caching (all/incoming/outgoing) |
+| Query result caching | ✅ Done | Hash-based query caching with configurable TTL |
+| Project-wide invalidation | ✅ Done | Cascade invalidation for all project data |
+| Cache statistics | ✅ Done | Hit/miss tracking, hit rate, uptime metrics |
+| Health check endpoint | ✅ Done | Cache health monitoring via API |
+| Comprehensive tests | ✅ Done | 346 tests passing (including 66 cache service tests) |
+
+#### Caching Features
+
+- **Dual Backend Support**: Redis (primary) with in-memory fallback
+- **TTL Configuration**: Separate TTLs for entities (600s), queries (60s), relationships (300s)
+- **Tag-Based Invalidation**: Group cache entries by project, entity, or custom tags
+- **LRU Eviction**: In-memory cache uses LRU with configurable max size
+- **Cache Statistics**: Track hits, misses, sets, deletes, invalidations
+- **Automatic Cleanup**: Background task for expired entry cleanup
+
+#### Configuration Options
+
+```python
+# api/config.py - Cache Settings
+cache_enabled: bool = True                    # Enable/disable caching
+redis_url: Optional[str] = None               # Redis connection URL
+cache_ttl: int = 300                          # Default TTL (5 min)
+cache_entity_ttl: int = 600                   # Entity TTL (10 min)
+cache_query_ttl: int = 60                     # Query TTL (1 min)
+cache_relationship_ttl: int = 300             # Relationship TTL (5 min)
+cache_max_memory_entries: int = 1000          # Max in-memory entries
+cache_prefer_redis: bool = True               # Prefer Redis over memory
+```
+
+#### Files Created
+
+```
+api/services/
+└── cache_service.py              # Full cache implementation (1391 lines)
+
+tests/
+└── test_cache_service.py         # 66 comprehensive cache tests
+```
+
+### Phase 5: Multi-Entity Type Support - ✅ COMPLETED (2025-12-27)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| EntityType enum | ✅ Done | 6 types: Person, Organization, Device, Location, Event, Document |
+| EntityTypeConfig model | ✅ Done | Per-type configuration with sections, icons, colors |
+| Cross-type relationships | ✅ Done | 17 relationship patterns between entity types |
+| Entity type registry | ✅ Done | Singleton registry for type management |
+| Default configurations | ✅ Done | Full config for all 6 entity types |
+| Field mappings | ✅ Done | Cross-type field mapping support |
+| Backwards compatibility | ✅ Done | Person remains default, existing data unaffected |
+| Comprehensive tests | ✅ Done | 48 entity type tests passing |
+
+#### Entity Types Implemented
+
+| Type | Icon | Description | Sections |
+|------|------|-------------|----------|
+| **Person** | fa-user | Individuals (default) | 35 sections (existing) |
+| **Organization** | fa-building | Companies, groups, agencies | org_identity, org_contact, org_structure |
+| **Device** | fa-mobile-alt | Phones, computers, IoT | device_identity, device_technical, device_network |
+| **Location** | fa-map-marker-alt | Addresses, venues, regions | location_identity, location_address, location_coordinates |
+| **Event** | fa-calendar-alt | Incidents, meetings, transactions | event_identity, event_timing, event_participants |
+| **Document** | fa-file-alt | Files, reports, evidence | document_identity, document_metadata, document_content |
+
+#### Cross-Type Relationships
+
+Person-Organization: EMPLOYED_BY, MEMBER_OF, FOUNDED, OWNS
+Person-Device: OWNS_DEVICE, USES
+Person-Location: LIVES_AT, WORKS_AT, VISITED
+Person-Event: PARTICIPATED_IN, ORGANIZED
+Person-Document: AUTHORED, MENTIONED_IN
+Organization-Location: LOCATED_AT, OPERATES_IN
+Organization-Organization: SUBSIDIARY_OF, PARTNER_WITH
+Device-Location: LOCATED_AT
+Event-Location: OCCURRED_AT
+
+#### Files Created
+
+```
+api/models/
+└── entity_types.py               # Entity type definitions (642 lines)
+
+tests/
+└── test_entity_types.py          # 48 entity type tests
+```
+
+### Phase 6: Cross-Project & Fuzzy Matching - ✅ COMPLETED (2025-12-27)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| Fix Pydantic deprecation warnings | ✅ Done | Migrated all models from `class Config` to `model_config = ConfigDict()` |
+| Cross-project linking service | ✅ Done | Link entities across different projects |
+| Cross-project API endpoints | ✅ Done | Full REST API for cross-project operations |
+| Fuzzy matching service | ✅ Done | Multiple matching strategies with phonetic support |
+| Fuzzy matching tests | ✅ Done | 52 comprehensive tests |
+| Cross-project tests | ✅ Done | Service and API endpoint tests |
+| All tests passing | ✅ Done | 439 tests passing, 0 warnings |
+
+#### Cross-Project Linking Features
+
+- **Link Types**: SAME_PERSON, RELATED, ALIAS, ASSOCIATE, FAMILY, ORGANIZATION
+- **Confidence Scoring**: 0.0 to 1.0 confidence for each link
+- **Bidirectional Links**: Links are stored as Neo4j relationships
+- **Automatic Match Finding**: Uses identifier matching to find potential links
+- **Metadata Support**: Custom metadata can be attached to links
+
+**API Endpoints:**
+- `POST /api/v1/cross-project/link` - Create a cross-project link
+- `DELETE /api/v1/cross-project/link` - Remove a cross-project link
+- `GET /api/v1/projects/{project_id}/entities/{entity_id}/cross-links` - Get entity's cross-project links
+- `GET /api/v1/cross-project/find-matches/{project_id}/{entity_id}` - Find potential matches
+- `GET /api/v1/projects/{project_id}/entities/{entity_id}/cross-links/all-linked` - Get all linked entities
+
+#### Fuzzy Matching Features
+
+- **Multiple Matching Strategies**:
+  - Levenshtein distance
+  - Jaro-Winkler similarity
+  - Token set ratio (handles word reordering)
+  - Token sort ratio
+  - Partial ratio
+
+- **Phonetic Matching**: Double Metaphone algorithm for sounds-alike matching
+- **Name Normalization**: Removes accents, special characters, normalizes whitespace
+- **Combined Similarity**: Weighted combination of multiple strategies
+- **Configurable Thresholds**: Set minimum similarity for matches
+
+**FuzzyMatcher Methods:**
+- `normalize_name(name)` - Normalize for comparison
+- `calculate_similarity(str1, str2, strategy)` - Get similarity score
+- `find_similar_names(name, candidates, threshold)` - Find similar from list
+- `match_entities_fuzzy(entities, field_path, threshold)` - Find similar entities
+- `phonetic_match(str1, str2)` - Check if strings sound alike
+
+#### Files Created
+
+```
+api/services/
+├── cross_project_linker.py       # Cross-project linking service
+└── fuzzy_matcher.py              # Fuzzy matching service with rapidfuzz
+
+api/routers/
+└── cross_project.py              # Cross-project API endpoints
+
+tests/
+├── test_cross_project_linker.py  # Cross-project linking tests
+└── test_fuzzy_matcher.py         # Fuzzy matching tests (52 tests)
+```
+
+#### Dependencies Added
+
+```
+rapidfuzz>=3.0.0                  # High-performance fuzzy matching
+```
+
+### Phase 7: Timeline, Auto-Linker Fuzzy, & Bulk Ops - ✅ COMPLETED (2025-12-27)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| Timeline Analysis service | ✅ Done | Track entity/relationship changes over time |
+| Timeline API endpoints | ✅ Done | Entity/project timelines, relationship history, activity analysis |
+| Fuzzy matching + Auto-Linker integration | ✅ Done | Combined identifier + fuzzy matching for entity linking |
+| Bulk operations service | ✅ Done | Batch import/export in JSON, CSV, JSONL formats |
+| Bulk operations API | ✅ Done | Import, export, validate endpoints |
+| Comprehensive tests | ✅ Done | 562 tests passing (123 new tests) |
+| ROADMAP.md cleanup | ✅ Done | Trimmed data_config.yaml from 850+ to 88 lines |
+
+#### Timeline Analysis Features
+
+- **Event Types**: CREATED, UPDATED, DELETED, RELATIONSHIP_ADDED/REMOVED/UPDATED, MERGED, TAGGED, FILE_ADDED, etc.
+- **Event Recording**: Auto-generated UUIDs, timestamps, optional actor tracking
+- **Timeline Queries**: Filter by date range, event types, with pagination
+- **Relationship History**: Track changes between specific entity pairs
+- **Activity Analysis**: Events per day, most active periods, type distribution
+
+**API Endpoints:**
+- `GET /api/v1/projects/{project}/timeline` - Project-wide timeline
+- `GET /api/v1/projects/{project}/entities/{id}/timeline` - Entity timeline
+- `GET /api/v1/projects/{project}/relationships/{id1}/{id2}/history` - Relationship history
+- `GET /api/v1/projects/{project}/entities/{id}/activity` - Activity stats
+- `POST /api/v1/projects/{project}/entities/{id}/timeline` - Record event
+
+#### Fuzzy Matching + Auto-Linker Integration
+
+- **Combined Matching**: Identifier matching + fuzzy name matching
+- **Configurable**: Enable/disable, threshold, fields to match
+- **Match Details**: Shows which values matched and similarity scores
+- **Strategies**: Levenshtein, Jaro-Winkler, token ratios, phonetic
+
+**New Auto-Linker Endpoints:**
+- `GET /api/v1/projects/{project}/auto-link/entities/{id}/fuzzy-matches` - Find fuzzy matches
+- `GET /api/v1/projects/{project}/auto-link/fuzzy-config` - Get fuzzy config
+
+#### Bulk Operations Features
+
+- **Import Formats**: JSON (list of entities), CSV with field mapping
+- **Export Formats**: JSON, CSV, JSONL (JSON Lines)
+- **Validation**: Pre-import validation with detailed error reporting
+- **Options**: Include relationships, filter by entity IDs, update vs skip existing
+
+**API Endpoints:**
+- `POST /api/v1/projects/{project}/bulk/import` - Import entities (JSON)
+- `POST /api/v1/projects/{project}/bulk/import/csv` - Import from CSV
+- `GET /api/v1/projects/{project}/bulk/export` - Export entities
+- `POST /api/v1/projects/{project}/bulk/export/csv` - Export specific fields to CSV
+- `POST /api/v1/projects/{project}/bulk/validate` - Validate before import
+
+#### Files Created
+
+```
+api/services/
+├── timeline_service.py           # Timeline tracking (EventType, TimelineEvent, TimelineService)
+└── bulk_operations.py            # Bulk import/export (BulkImportResult, BulkExportOptions)
+
+api/routers/
+├── timeline.py                   # Timeline API endpoints
+└── bulk.py                       # Bulk operations API endpoints
+
+api/services/auto_linker.py       # Enhanced with fuzzy matching integration
+
+tests/
+├── test_timeline_service.py      # 44 timeline tests
+├── test_auto_linker_fuzzy.py     # 32 fuzzy auto-linker tests
+└── test_bulk_operations.py       # 47 bulk operations tests
+```
+
+### Phase 8: Crypto Ticker, Search & Reports - ✅ COMPLETED (2025-12-27)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| Crypto Ticker Display API | ✅ Done | Detect crypto addresses and provide metadata, icons, explorer links |
+| Advanced Search Service | ✅ Done | Full-text search with fuzzy matching, highlighting, pagination |
+| Data Export Reports | ✅ Done | Generate PDF/HTML/Markdown reports with templates |
+| Comprehensive tests | ✅ Done | 737 tests passing (175 new tests) |
+
+#### Crypto Ticker Display Features
+
+- **30+ Cryptocurrencies**: BTC, ETH, LTC, BCH, DOGE, XMR, SOL, ADA, DOT, ATOM, and more
+- **Address Type Detection**: P2PKH, P2SH, Bech32, Taproot, EVM, etc.
+- **Block Explorer URLs**: Auto-generate links to blockchain explorers
+- **FontAwesome Icons**: UI-ready icon classes for each currency
+- **Batch Processing**: Look up multiple addresses in one request
+
+**API Endpoints:**
+- `GET /api/v1/crypto/ticker/{address}` - Single address lookup
+- `POST /api/v1/crypto/ticker/batch` - Batch lookup (max 100)
+- `GET /api/v1/crypto/currencies` - List supported currencies
+- `GET /api/v1/crypto/explorer-url/{address}` - Generate explorer URL
+
+#### Advanced Search Features
+
+- **Full-Text Search**: Neo4j Lucene-based indexing
+- **Fuzzy Matching**: Typo tolerance using existing FuzzyMatcher
+- **Highlighting**: `**matched text**` snippets in results
+- **Field-Specific**: Search only in specific fields
+- **Multi-Project**: Search across all projects or scope to one
+- **Pagination**: Limit and offset support
+
+**API Endpoints:**
+- `GET /api/v1/search` - Global search
+- `GET /api/v1/projects/{project}/search` - Project-scoped search
+- `GET /api/v1/search/fields` - Get searchable fields
+- `POST /api/v1/projects/{project}/search/reindex` - Rebuild index
+
+#### Report Export Features
+
+- **Formats**: PDF (via WeasyPrint), HTML, Markdown
+- **Templates**: default (modern), professional (formal), minimal (clean)
+- **Content Options**: Include graph, timeline, statistics
+- **Entity Reports**: Single entity or project summary
+- **Custom Sections**: Define custom report sections
+
+**API Endpoints:**
+- `POST /api/v1/projects/{project}/export/report` - Custom report
+- `GET /api/v1/projects/{project}/export/summary/{format}` - Project summary
+- `GET /api/v1/projects/{project}/entities/{id}/export/{format}` - Entity report
+- `GET /api/v1/export/templates` - List templates
+
+#### Files Created
+
+```
+api/services/
+├── crypto_ticker_service.py      # Crypto address metadata (30+ currencies)
+├── search_service.py             # Full-text search with fuzzy
+└── report_export_service.py      # PDF/HTML/MD report generation
+
+api/routers/
+├── crypto.py                     # Crypto ticker API endpoints
+├── search.py                     # Search API endpoints
+└── export.py                     # Report export endpoints
+
+tests/
+├── test_crypto_ticker_service.py # 63 crypto ticker tests
+├── test_search_service.py        # 50+ search tests
+└── test_report_export_service.py # 60 report export tests
+```
+
+#### Dependencies Added
+
+```
+markdown>=3.0.0                   # Markdown to HTML conversion
+# weasyprint>=60.0                # Optional PDF generation
+```
+
+### Next Steps (Phase 9+)
+
+1. **UI for Multi-Entity Types** - Frontend support for creating/viewing different entity types
+2. **Graph Visualization Enhancements** - Visual display of cross-project links, timeline view
+3. **Real-time Notifications** - WebSocket support for live updates
+4. **Report Scheduling** - Automated report generation
+5. **Custom Report Templates** - User-defined templates
+6. **Search Analytics** - Track popular queries, improve relevance

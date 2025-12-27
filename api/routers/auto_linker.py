@@ -8,10 +8,12 @@ and entity merging based on matching identifiers.
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from ..dependencies import get_neo4j_handler
-from ..services.auto_linker import get_auto_linker, AutoLinker
+from ..services.auto_linker import (
+    get_auto_linker, AutoLinker, FuzzyMatchConfig, FUZZY_MATCHING_AVAILABLE
+)
 
 
 router = APIRouter(
@@ -36,6 +38,24 @@ class MatchingIdentifier(BaseModel):
 
 class LinkSuggestionResponse(BaseModel):
     """Schema for a suggested link between entities."""
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "source_entity_id": "abc123",
+            "target_entity_id": "def456",
+            "target_entity_name": "John Doe",
+            "matching_identifiers": [
+                {
+                    "identifier_type": "email",
+                    "path": "contact.email",
+                    "value": "john@example.com",
+                    "weight": 3.0
+                }
+            ],
+            "confidence_score": 3.0,
+            "suggested_relationship_type": "SHARED_IDENTIFIER"
+        }
+    })
+
     source_entity_id: str = Field(..., description="Source entity ID")
     target_entity_id: str = Field(..., description="Target entity ID")
     target_entity_name: str = Field(..., description="Display name of target entity")
@@ -48,25 +68,6 @@ class LinkSuggestionResponse(BaseModel):
         "SHARED_IDENTIFIER",
         description="Suggested relationship type"
     )
-
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "source_entity_id": "abc123",
-                "target_entity_id": "def456",
-                "target_entity_name": "John Doe",
-                "matching_identifiers": [
-                    {
-                        "identifier_type": "email",
-                        "path": "contact.email",
-                        "value": "john@example.com",
-                        "weight": 3.0
-                    }
-                ],
-                "confidence_score": 3.0,
-                "suggested_relationship_type": "SHARED_IDENTIFIER"
-            }
-        }
 
 
 class DuplicatesResponse(BaseModel):
@@ -101,21 +102,20 @@ class SuggestLinksResponse(BaseModel):
 
 class MergeRequest(BaseModel):
     """Schema for entity merge request."""
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "primary_entity_id": "abc123",
+            "secondary_entity_id": "def456",
+            "delete_secondary": True
+        }
+    })
+
     primary_entity_id: str = Field(..., description="Entity ID to keep and merge into")
     secondary_entity_id: str = Field(..., description="Entity ID to merge from")
     delete_secondary: bool = Field(
         False,
         description="Whether to delete the secondary entity after merge"
     )
-
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "primary_entity_id": "abc123",
-                "secondary_entity_id": "def456",
-                "delete_secondary": True
-            }
-        }
 
 
 class MergeResponse(BaseModel):
@@ -163,6 +163,110 @@ class IdentifierFieldInfo(BaseModel):
     component_id: Optional[str] = Field(None, description="Component ID if applicable")
     field_type: str = Field(..., description="Field type")
     multiple: bool = Field(False, description="Whether field allows multiple values")
+
+
+class FuzzyMatchDetail(BaseModel):
+    """Schema for a single fuzzy match detail."""
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "field_path": "core.name",
+            "source_value": "John Doe",
+            "target_value": "Jon Doe",
+            "similarity": 0.92,
+            "match_type": "fuzzy"
+        }
+    })
+
+    field_path: str = Field(..., description="Path to the matched field")
+    source_value: str = Field(..., description="Value from source entity")
+    target_value: str = Field(..., description="Value from target entity")
+    similarity: float = Field(..., ge=0.0, le=1.0, description="Similarity score (0.0-1.0)")
+    match_type: str = Field(..., description="Type of match: exact, fuzzy, or phonetic")
+
+
+class FuzzyMatchSuggestion(BaseModel):
+    """Schema for a fuzzy match suggestion between entities."""
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "source_entity_id": "abc123",
+            "target_entity_id": "def456",
+            "target_entity_name": "Jon Doe",
+            "confidence_score": 0.92,
+            "suggested_relationship_type": "SIMILAR_NAME",
+            "fuzzy_matches": [
+                {
+                    "field_path": "core.name",
+                    "source_value": "John Doe",
+                    "target_value": "Jon Doe",
+                    "similarity": 0.92,
+                    "match_type": "fuzzy"
+                }
+            ]
+        }
+    })
+
+    source_entity_id: str = Field(..., description="Source entity ID")
+    target_entity_id: str = Field(..., description="Target entity ID")
+    target_entity_name: str = Field(..., description="Display name of target entity")
+    confidence_score: float = Field(..., description="Confidence score for the match")
+    suggested_relationship_type: str = Field(
+        ...,
+        description="Suggested relationship type (POTENTIAL_DUPLICATE, SIMILAR_NAME, POSSIBLE_MATCH)"
+    )
+    fuzzy_matches: List[FuzzyMatchDetail] = Field(
+        default_factory=list,
+        description="List of fuzzy match details"
+    )
+    matching_identifiers: List[MatchingIdentifier] = Field(
+        default_factory=list,
+        description="List of matching identifiers (if combined with identifier matching)"
+    )
+
+
+class FuzzyMatchesResponse(BaseModel):
+    """Schema for fuzzy matches response."""
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "entity_id": "abc123",
+            "project_id": "my_project",
+            "fuzzy_matching_enabled": True,
+            "threshold": 0.85,
+            "fields": ["core.name", "core.alias"],
+            "matches": [],
+            "count": 0
+        }
+    })
+
+    entity_id: str = Field(..., description="Source entity ID")
+    project_id: str = Field(..., description="Project identifier")
+    fuzzy_matching_enabled: bool = Field(..., description="Whether fuzzy matching is enabled")
+    threshold: float = Field(..., description="Similarity threshold used")
+    fields: List[str] = Field(..., description="Fields used for matching")
+    matches: List[FuzzyMatchSuggestion] = Field(
+        default_factory=list,
+        description="List of fuzzy match suggestions"
+    )
+    count: int = Field(0, description="Number of matches found")
+
+
+class FuzzyMatchConfigResponse(BaseModel):
+    """Schema for fuzzy matching configuration."""
+    fuzzy_matching_available: bool = Field(
+        ...,
+        description="Whether fuzzy matching is available (rapidfuzz installed)"
+    )
+    fuzzy_matching_enabled: bool = Field(
+        ...,
+        description="Whether fuzzy matching is enabled"
+    )
+    fuzzy_threshold: float = Field(
+        ...,
+        description="Default similarity threshold"
+    )
+    fuzzy_fields: List[str] = Field(
+        ...,
+        description="Default fields for fuzzy matching"
+    )
 
 
 # ----- Helper Functions -----
@@ -519,4 +623,164 @@ async def get_identifier_fields(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get identifier fields: {str(e)}"
+        )
+
+
+@router.get(
+    "/entities/{entity_id}/fuzzy-matches",
+    response_model=FuzzyMatchesResponse,
+    summary="Find fuzzy matches for an entity",
+    description="Find entities with similar names/usernames using fuzzy string matching.",
+    responses={
+        200: {"description": "Fuzzy matches found successfully"},
+        404: {"description": "Project or entity not found"},
+        503: {"description": "Fuzzy matching not available"},
+    }
+)
+async def find_fuzzy_matches(
+    project_safe_name: str,
+    entity_id: str,
+    threshold: float = Query(
+        0.85,
+        ge=0.0,
+        le=1.0,
+        description="Minimum similarity score (0.0-1.0) for matches"
+    ),
+    fields: Optional[str] = Query(
+        None,
+        description="Comma-separated list of field paths to match on (e.g., 'core.name,core.alias')"
+    ),
+    neo4j_handler=Depends(get_neo4j_handler)
+):
+    """
+    Find entities with similar names or usernames using fuzzy matching.
+
+    This endpoint uses fuzzy string matching algorithms (Jaro-Winkler,
+    Levenshtein, etc.) to find entities that have similar (but not identical)
+    field values. This is useful for finding potential duplicates even when
+    names are misspelled or formatted differently.
+
+    - **project_safe_name**: The URL-safe identifier for the project
+    - **entity_id**: The entity ID to find fuzzy matches for
+    - **threshold**: Minimum similarity score (0.0-1.0), default 0.85
+    - **fields**: Fields to match on (default: core.name, core.alias)
+    """
+    # Verify entity exists
+    entity = neo4j_handler.get_person(project_safe_name, entity_id)
+    if not entity:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Entity '{entity_id}' not found in project '{project_safe_name}'"
+        )
+
+    try:
+        linker = get_linker_with_handler(neo4j_handler)
+
+        # Parse fields if provided
+        field_list = None
+        if fields:
+            field_list = [f.strip() for f in fields.split(",") if f.strip()]
+
+        # Check if fuzzy matching is available
+        if not linker.is_fuzzy_matching_available():
+            return {
+                "entity_id": entity_id,
+                "project_id": project_safe_name,
+                "fuzzy_matching_enabled": False,
+                "threshold": threshold,
+                "fields": field_list or linker.fuzzy_config.fuzzy_fields,
+                "matches": [],
+                "count": 0
+            }
+
+        # Find fuzzy matches
+        suggestions = linker.find_fuzzy_matches(
+            project_safe_name,
+            entity_id,
+            threshold=threshold,
+            fields=field_list
+        )
+
+        # Convert to response format
+        matches = []
+        for suggestion in suggestions:
+            matches.append({
+                "source_entity_id": suggestion.source_entity_id,
+                "target_entity_id": suggestion.target_entity_id,
+                "target_entity_name": suggestion.target_entity_name,
+                "confidence_score": suggestion.confidence_score,
+                "suggested_relationship_type": suggestion.suggested_relationship_type,
+                "fuzzy_matches": suggestion.fuzzy_matches or [],
+                "matching_identifiers": [
+                    {
+                        "identifier_type": m.identifier_type,
+                        "path": m.path,
+                        "value": m.value,
+                        "weight": m.weight
+                    }
+                    for m in suggestion.matching_identifiers
+                ]
+            })
+
+        return {
+            "entity_id": entity_id,
+            "project_id": project_safe_name,
+            "fuzzy_matching_enabled": True,
+            "threshold": threshold,
+            "fields": field_list or linker.fuzzy_config.fuzzy_fields,
+            "matches": matches,
+            "count": len(matches)
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to find fuzzy matches: {str(e)}"
+        )
+
+
+@router.get(
+    "/fuzzy-config",
+    response_model=FuzzyMatchConfigResponse,
+    summary="Get fuzzy matching configuration",
+    description="Get the current fuzzy matching configuration and availability.",
+    responses={
+        200: {"description": "Configuration retrieved successfully"},
+        404: {"description": "Project not found"},
+    }
+)
+async def get_fuzzy_config(
+    project_safe_name: str,
+    neo4j_handler=Depends(get_neo4j_handler)
+):
+    """
+    Get the current fuzzy matching configuration.
+
+    Returns information about whether fuzzy matching is available,
+    enabled, and the default configuration values.
+
+    - **project_safe_name**: The URL-safe identifier for the project
+    """
+    # Verify project exists
+    project = neo4j_handler.get_project(project_safe_name)
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Project '{project_safe_name}' not found"
+        )
+
+    try:
+        linker = get_linker_with_handler(neo4j_handler)
+
+        return {
+            "fuzzy_matching_available": FUZZY_MATCHING_AVAILABLE,
+            "fuzzy_matching_enabled": linker.fuzzy_config.fuzzy_matching_enabled,
+            "fuzzy_threshold": linker.fuzzy_config.fuzzy_threshold,
+            "fuzzy_fields": linker.fuzzy_config.fuzzy_fields
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get fuzzy config: {str(e)}"
         )

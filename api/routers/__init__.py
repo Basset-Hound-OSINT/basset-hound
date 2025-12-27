@@ -11,6 +11,16 @@ This module provides RESTful API endpoints for managing:
 - Utils: Utility functions (crypto detection, validation, etc.)
 - Analysis: Graph analysis tools (paths, centrality, clusters)
 - Auto-Linker: Automatic entity linking and duplicate detection
+- Cross-Project: Cross-project entity linking
+- Bulk Operations: Batch import/export of entities
+- Timeline: Timeline analysis for tracking relationship changes over time
+- Crypto: Cryptocurrency ticker display and block explorer links
+- Export: Report generation and export in PDF, HTML, and Markdown formats
+- Search: Full-text search across entities
+- Analytics: Search analytics tracking and reporting
+- Templates: Custom report template management
+- Schedules: Scheduled report generation management
+- WebSocket: Real-time notifications via WebSocket connections
 """
 
 from fastapi import APIRouter
@@ -24,6 +34,16 @@ from .config import router as config_router
 from .utils import router as utils_router
 from .analysis import router as analysis_router
 from .auto_linker import router as auto_linker_router
+from .cross_project import router as cross_project_router, entity_router as cross_project_entity_router
+from .bulk import router as bulk_router
+from .timeline import router as timeline_router
+from .crypto import router as crypto_router
+from .export import router as export_router, entity_export_router, templates_router as export_templates_router
+from .search import router as search_router, project_search_router
+from .analytics import router as analytics_router, project_analytics_router
+from .templates import router as templates_router
+from .schedule import router as schedule_router
+from .websocket import router as websocket_router
 
 # Create main API router
 api_router = APIRouter()
@@ -41,6 +61,21 @@ api_router.include_router(config_router)
 api_router.include_router(utils_router)
 api_router.include_router(analysis_router)
 api_router.include_router(auto_linker_router)
+api_router.include_router(cross_project_router)
+api_router.include_router(cross_project_entity_router)
+api_router.include_router(bulk_router)
+api_router.include_router(timeline_router)
+api_router.include_router(crypto_router)
+api_router.include_router(export_router)
+api_router.include_router(entity_export_router)
+api_router.include_router(export_templates_router)
+api_router.include_router(search_router)
+api_router.include_router(project_search_router)
+api_router.include_router(analytics_router)
+api_router.include_router(project_analytics_router)
+api_router.include_router(templates_router)
+api_router.include_router(schedule_router)
+api_router.include_router(websocket_router)
 
 __all__ = [
     "api_router",
@@ -56,4 +91,19 @@ __all__ = [
     "utils_router",
     "analysis_router",
     "auto_linker_router",
+    "cross_project_router",
+    "cross_project_entity_router",
+    "bulk_router",
+    "timeline_router",
+    "crypto_router",
+    "export_router",
+    "entity_export_router",
+    "export_templates_router",
+    "search_router",
+    "project_search_router",
+    "analytics_router",
+    "project_analytics_router",
+    "templates_router",
+    "schedule_router",
+    "websocket_router",
 ]

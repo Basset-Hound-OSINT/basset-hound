@@ -12,7 +12,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Query
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from ..dependencies import get_neo4j_handler
 
@@ -31,24 +31,23 @@ router = APIRouter(
 
 class FileInfo(BaseModel):
     """Schema for file information."""
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "id": "a1b2c3d4e5f6",
+            "name": "profile_photo.jpg",
+            "path": "a1b2c3d4e5f6_profile_photo.jpg",
+            "section_id": "profile",
+            "field_id": "profile_picture",
+            "uploaded_at": "2024-01-15T10:30:00"
+        }
+    })
+
     id: str = Field(..., description="Unique file identifier")
     name: str = Field(..., description="Original filename")
     path: str = Field(..., description="Storage path/filename")
     section_id: Optional[str] = Field(None, description="Profile section ID")
     field_id: Optional[str] = Field(None, description="Profile field ID")
     uploaded_at: Optional[str] = Field(None, description="Upload timestamp")
-
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "id": "a1b2c3d4e5f6",
-                "name": "profile_photo.jpg",
-                "path": "a1b2c3d4e5f6_profile_photo.jpg",
-                "section_id": "profile",
-                "field_id": "profile_picture",
-                "uploaded_at": "2024-01-15T10:30:00"
-            }
-        }
 
 
 class FileUploadResponse(BaseModel):

@@ -4,6 +4,9 @@ Auto-Linker Service for Basset Hound OSINT Platform.
 This module provides automatic entity linking based on matching identifiers.
 It scans entity profiles for identifier fields (email, phone, usernames, crypto
 addresses, etc.) and suggests potential duplicates or related entities.
+
+Enhanced with fuzzy matching capabilities for finding similar (but not identical)
+entity names and usernames.
 """
 
 import json
@@ -19,6 +22,18 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from config_loader import load_config
+
+# Import fuzzy matcher
+try:
+    from .fuzzy_matcher import (
+        FuzzyMatcher, FuzzyMatch, MatchType, MatchStrategy,
+        get_fuzzy_matcher, RAPIDFUZZ_AVAILABLE
+    )
+    FUZZY_MATCHING_AVAILABLE = RAPIDFUZZ_AVAILABLE
+except ImportError:
+    FUZZY_MATCHING_AVAILABLE = False
+    FuzzyMatcher = None
+    FuzzyMatch = None
 
 
 @dataclass
@@ -39,10 +54,11 @@ class LinkSuggestion:
     matching_identifiers: List[IdentifierMatch]
     confidence_score: float
     suggested_relationship_type: str = "POTENTIAL_DUPLICATE"
+    fuzzy_matches: Optional[List[Dict[str, Any]]] = None
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
-        return {
+        result = {
             "source_entity_id": self.source_entity_id,
             "target_entity_id": self.target_entity_id,
             "target_entity_name": self.target_entity_name,
@@ -58,6 +74,17 @@ class LinkSuggestion:
             "confidence_score": self.confidence_score,
             "suggested_relationship_type": self.suggested_relationship_type
         }
+        if self.fuzzy_matches:
+            result["fuzzy_matches"] = self.fuzzy_matches
+        return result
+
+
+@dataclass
+class FuzzyMatchConfig:
+    """Configuration for fuzzy matching in auto-linking."""
+    fuzzy_matching_enabled: bool = True
+    fuzzy_threshold: float = 0.85
+    fuzzy_fields: List[str] = field(default_factory=lambda: ["core.name", "core.alias"])
 
 
 class AutoLinker:
@@ -104,17 +131,46 @@ class AutoLinker:
     DUPLICATE_THRESHOLD = 5.0  # Score above this suggests same person
     LINK_THRESHOLD = 2.0  # Score above this suggests relationship
 
-    def __init__(self, neo4j_handler=None):
+    def __init__(
+        self,
+        neo4j_handler=None,
+        fuzzy_config: Optional[FuzzyMatchConfig] = None
+    ):
         """
         Initialize the AutoLinker service.
 
         Args:
             neo4j_handler: Neo4j database handler instance
+            fuzzy_config: Configuration for fuzzy matching
         """
         self.neo4j_handler = neo4j_handler
         self.config = None
         self.identifier_paths = []
         self._load_identifier_paths()
+
+        # Initialize fuzzy matching configuration
+        self.fuzzy_config = fuzzy_config or FuzzyMatchConfig()
+        self._fuzzy_matcher: Optional[FuzzyMatcher] = None
+
+    @property
+    def fuzzy_matcher(self) -> Optional[FuzzyMatcher]:
+        """Get or create the FuzzyMatcher instance."""
+        if not FUZZY_MATCHING_AVAILABLE:
+            return None
+        if self._fuzzy_matcher is None and self.fuzzy_config.fuzzy_matching_enabled:
+            try:
+                self._fuzzy_matcher = get_fuzzy_matcher()
+            except Exception:
+                self._fuzzy_matcher = None
+        return self._fuzzy_matcher
+
+    def is_fuzzy_matching_available(self) -> bool:
+        """Check if fuzzy matching is available and enabled."""
+        return (
+            FUZZY_MATCHING_AVAILABLE and
+            self.fuzzy_config.fuzzy_matching_enabled and
+            self.fuzzy_matcher is not None
+        )
 
     def _load_identifier_paths(self) -> None:
         """Load identifier field paths from the data configuration."""
@@ -780,6 +836,289 @@ class AutoLinker:
             List of identifier field definitions
         """
         return self.identifier_paths.copy()
+
+    def _extract_field_values(
+        self,
+        entity: Dict[str, Any],
+        field_path: str
+    ) -> List[str]:
+        """
+        Extract field values from an entity for fuzzy matching.
+
+        Args:
+            entity: Entity dictionary with profile data
+            field_path: Dot-notation path (e.g., 'core.name', 'core.alias')
+
+        Returns:
+            List of string values found at the path
+        """
+        parts = field_path.split('.')
+        profile = entity.get("profile", {})
+        current = profile
+
+        for i, part in enumerate(parts):
+            if current is None:
+                return []
+
+            if isinstance(current, list):
+                # Handle list of objects - extract from each
+                values = []
+                remaining_path = '.'.join(parts[i:])
+                for item in current:
+                    if isinstance(item, dict):
+                        values.extend(self._extract_field_values(
+                            {"profile": item},
+                            remaining_path
+                        ))
+                return values
+
+            if isinstance(current, dict):
+                current = current.get(part)
+            else:
+                return []
+
+        # Convert final value to list of strings
+        if current is None:
+            return []
+
+        if isinstance(current, list):
+            # Handle list of name components or aliases
+            values = []
+            for item in current:
+                if isinstance(item, dict):
+                    # For name components, concatenate first, middle, last
+                    name_parts = []
+                    for key in ["first_name", "middle_name", "last_name"]:
+                        if item.get(key):
+                            name_parts.append(str(item[key]))
+                    if name_parts:
+                        values.append(" ".join(name_parts))
+                elif item:
+                    values.append(str(item))
+            return values
+        elif isinstance(current, dict):
+            # Single dict object
+            name_parts = []
+            for key in ["first_name", "middle_name", "last_name"]:
+                if current.get(key):
+                    name_parts.append(str(current[key]))
+            return [" ".join(name_parts)] if name_parts else []
+        elif current:
+            return [str(current)]
+        return []
+
+    def find_fuzzy_matches(
+        self,
+        project_safe_name: str,
+        entity_id: str,
+        threshold: Optional[float] = None,
+        fields: Optional[List[str]] = None
+    ) -> List[LinkSuggestion]:
+        """
+        Find entities with similar names/usernames using fuzzy matching.
+
+        This method uses the FuzzyMatcher service to find entities that have
+        similar (but not identical) field values, complementing the exact
+        identifier matching.
+
+        Args:
+            project_safe_name: The project safe name
+            entity_id: The entity ID to find fuzzy matches for
+            threshold: Minimum similarity score (0.0-1.0), defaults to config value
+            fields: List of field paths to match on, defaults to config value
+
+        Returns:
+            List of LinkSuggestion objects for entities with fuzzy matches
+        """
+        if not self.is_fuzzy_matching_available():
+            return []
+
+        if not self.neo4j_handler:
+            return []
+
+        # Use config defaults if not specified
+        if threshold is None:
+            threshold = self.fuzzy_config.fuzzy_threshold
+        if fields is None:
+            fields = self.fuzzy_config.fuzzy_fields
+
+        # Get the source entity
+        source_entity = self.neo4j_handler.get_person(project_safe_name, entity_id)
+        if not source_entity:
+            return []
+
+        # Extract source values for specified fields
+        source_values_by_field: Dict[str, List[str]] = {}
+        for field_path in fields:
+            values = self._extract_field_values(source_entity, field_path)
+            if values:
+                source_values_by_field[field_path] = values
+
+        if not source_values_by_field:
+            return []
+
+        # Get all entities in the project
+        all_entities = self.neo4j_handler.get_all_people(project_safe_name)
+
+        suggestions = []
+
+        for target_entity in all_entities:
+            target_id = target_entity.get("id")
+
+            # Skip self
+            if target_id == entity_id:
+                continue
+
+            # Extract target values and find fuzzy matches
+            fuzzy_matches_for_entity = []
+
+            for field_path, source_vals in source_values_by_field.items():
+                target_vals = self._extract_field_values(target_entity, field_path)
+
+                for source_val in source_vals:
+                    for target_val in target_vals:
+                        if not source_val or not target_val:
+                            continue
+
+                        # Calculate similarity
+                        similarity = self.fuzzy_matcher.calculate_similarity(
+                            source_val,
+                            target_val,
+                            normalize=True
+                        )
+
+                        if similarity >= threshold:
+                            # Determine match type
+                            if similarity >= 1.0:
+                                match_type = "exact"
+                            else:
+                                # Check for phonetic match
+                                is_phonetic, phonetic_score = self.fuzzy_matcher.phonetic_match(
+                                    source_val, target_val
+                                )
+                                if is_phonetic and phonetic_score > similarity:
+                                    similarity = phonetic_score
+                                    match_type = "phonetic"
+                                else:
+                                    match_type = "fuzzy"
+
+                            fuzzy_matches_for_entity.append({
+                                "field_path": field_path,
+                                "source_value": source_val,
+                                "target_value": target_val,
+                                "similarity": round(similarity, 4),
+                                "match_type": match_type
+                            })
+
+            if fuzzy_matches_for_entity:
+                # Calculate aggregate confidence score
+                # Use max similarity as base, add bonus for multiple matches
+                max_similarity = max(m["similarity"] for m in fuzzy_matches_for_entity)
+                match_count_bonus = min(len(fuzzy_matches_for_entity) - 1, 3) * 0.05
+                confidence = min(max_similarity + match_count_bonus, 1.0)
+
+                # Determine relationship type based on confidence
+                if confidence >= 0.95:
+                    rel_type = "POTENTIAL_DUPLICATE"
+                elif confidence >= 0.85:
+                    rel_type = "SIMILAR_NAME"
+                else:
+                    rel_type = "POSSIBLE_MATCH"
+
+                suggestions.append(LinkSuggestion(
+                    source_entity_id=entity_id,
+                    target_entity_id=target_id,
+                    target_entity_name=self._get_entity_display_name(target_entity),
+                    matching_identifiers=[],  # No identifier matches, only fuzzy
+                    confidence_score=confidence,
+                    suggested_relationship_type=rel_type,
+                    fuzzy_matches=fuzzy_matches_for_entity
+                ))
+
+        # Sort by confidence score (highest first)
+        suggestions.sort(key=lambda s: s.confidence_score, reverse=True)
+
+        return suggestions
+
+    def find_combined_matches(
+        self,
+        project_safe_name: str,
+        entity_id: str,
+        min_confidence: Optional[float] = None,
+        fuzzy_threshold: Optional[float] = None,
+        fuzzy_fields: Optional[List[str]] = None
+    ) -> List[LinkSuggestion]:
+        """
+        Find entities using both identifier and fuzzy matching.
+
+        Combines exact identifier matches with fuzzy name/username matches
+        for more comprehensive entity linking.
+
+        Args:
+            project_safe_name: The project safe name
+            entity_id: The entity ID to find matches for
+            min_confidence: Minimum confidence for identifier matches
+            fuzzy_threshold: Minimum similarity for fuzzy matches
+            fuzzy_fields: Fields to use for fuzzy matching
+
+        Returns:
+            List of LinkSuggestion objects combining both match types
+        """
+        if min_confidence is None:
+            min_confidence = self.LINK_THRESHOLD
+
+        # Get identifier-based matches
+        identifier_suggestions = self.find_matching_entities(
+            project_safe_name, entity_id, min_confidence=0
+        )
+
+        # Build a map of target_id to suggestion
+        suggestions_map: Dict[str, LinkSuggestion] = {}
+        for suggestion in identifier_suggestions:
+            suggestions_map[suggestion.target_entity_id] = suggestion
+
+        # Get fuzzy matches
+        if self.is_fuzzy_matching_available():
+            fuzzy_suggestions = self.find_fuzzy_matches(
+                project_safe_name, entity_id,
+                threshold=fuzzy_threshold,
+                fields=fuzzy_fields
+            )
+
+            # Merge fuzzy matches into existing suggestions or add new ones
+            for fuzzy_suggestion in fuzzy_suggestions:
+                target_id = fuzzy_suggestion.target_entity_id
+
+                if target_id in suggestions_map:
+                    # Combine with existing identifier match
+                    existing = suggestions_map[target_id]
+
+                    # Add fuzzy matches to existing suggestion
+                    existing.fuzzy_matches = fuzzy_suggestion.fuzzy_matches
+
+                    # Boost confidence score for combined matches
+                    fuzzy_boost = fuzzy_suggestion.confidence_score * 2.0
+                    existing.confidence_score += fuzzy_boost
+
+                    # Update relationship type if now high confidence
+                    if existing.confidence_score >= self.DUPLICATE_THRESHOLD:
+                        existing.suggested_relationship_type = "POTENTIAL_DUPLICATE"
+
+                else:
+                    # Add as new suggestion (fuzzy-only match)
+                    # Convert fuzzy confidence (0-1) to identifier-like scale
+                    fuzzy_suggestion.confidence_score *= 3.0
+                    if fuzzy_suggestion.confidence_score >= min_confidence:
+                        suggestions_map[target_id] = fuzzy_suggestion
+
+        # Filter by minimum confidence and return sorted list
+        results = [
+            s for s in suggestions_map.values()
+            if s.confidence_score >= min_confidence
+        ]
+        results.sort(key=lambda s: s.confidence_score, reverse=True)
+
+        return results
 
 
 # Singleton instance for use across the application

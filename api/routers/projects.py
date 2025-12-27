@@ -12,9 +12,9 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
-from ..dependencies import get_neo4j_handler, get_current_project, set_current_project
+from ..dependencies import get_neo4j_handler, get_current_project, set_current_project as set_current_project_state
 
 
 router = APIRouter(
@@ -31,6 +31,12 @@ router = APIRouter(
 
 class ProjectCreate(BaseModel):
     """Schema for creating a new project."""
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "name": "Operation Midnight"
+        }
+    })
+
     name: str = Field(
         ...,
         min_length=1,
@@ -39,30 +45,22 @@ class ProjectCreate(BaseModel):
         json_schema_extra={"example": "Operation Midnight"}
     )
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "name": "Operation Midnight"
-            }
-        }
-
 
 class ProjectResponse(BaseModel):
     """Schema for project response data."""
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "id": "550e8400-e29b-41d4-a716-446655440000",
+            "name": "Operation Midnight",
+            "safe_name": "operation_midnight",
+            "created_at": "2024-01-15T10:30:00"
+        }
+    })
+
     id: str = Field(..., description="Unique project identifier (UUID)")
     name: str = Field(..., description="Project display name")
     safe_name: str = Field(..., description="URL-safe project identifier")
     created_at: Optional[str] = Field(None, description="ISO 8601 creation timestamp")
-
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "id": "550e8400-e29b-41d4-a716-446655440000",
-                "name": "Operation Midnight",
-                "safe_name": "operation_midnight",
-                "created_at": "2024-01-15T10:30:00"
-            }
-        }
 
 
 class ProjectDetailResponse(ProjectResponse):
@@ -286,7 +284,7 @@ async def set_current_project(
         )
 
     # Set the current project in the global state
-    set_current_project(project)
+    set_current_project_state(project)
 
     return ProjectSetCurrentResponse(
         success=True,

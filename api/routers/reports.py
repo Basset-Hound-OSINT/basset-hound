@@ -12,7 +12,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import FileResponse, PlainTextResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from ..dependencies import get_neo4j_handler
 
@@ -31,6 +31,13 @@ router = APIRouter(
 
 class ReportCreate(BaseModel):
     """Schema for creating a new report."""
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "toolname": "sherlock",
+            "content": "# Sherlock Report\n\nFindings from username search..."
+        }
+    })
+
     toolname: str = Field(
         ...,
         description="Name of the OSINT tool that generated the report",
@@ -41,17 +48,16 @@ class ReportCreate(BaseModel):
         description="Markdown content of the report"
     )
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "toolname": "sherlock",
-                "content": "# Sherlock Report\n\nFindings from username search..."
-            }
-        }
-
 
 class ReportCreateFromFile(BaseModel):
     """Schema for creating a report with a specific filename."""
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "filename": "investigation_notes.md",
+            "content": "# Investigation Notes\n\n..."
+        }
+    })
+
     filename: str = Field(
         ...,
         description="Filename for the report (must end in .md)",
@@ -62,28 +68,19 @@ class ReportCreateFromFile(BaseModel):
         description="Markdown content of the report"
     )
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "filename": "investigation_notes.md",
-                "content": "# Investigation Notes\n\n..."
-            }
-        }
-
 
 class ReportUpdate(BaseModel):
     """Schema for updating a report."""
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "content": "# Updated Report\n\nNew findings..."
+        }
+    })
+
     content: str = Field(
         ...,
         description="Updated markdown content"
     )
-
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "content": "# Updated Report\n\nNew findings..."
-            }
-        }
 
 
 class ReportRename(BaseModel):
@@ -97,22 +94,21 @@ class ReportRename(BaseModel):
 
 class ReportInfo(BaseModel):
     """Schema for report information."""
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "name": "sherlock_20240115_abc12345.md",
+            "path": "sherlock_20240115_abc12345.md",
+            "tool": "sherlock",
+            "created_at": "2024-01-15T10:30:00",
+            "id": "abc12345"
+        }
+    })
+
     name: str = Field(..., description="Report filename")
     path: str = Field(..., description="Storage path")
     tool: Optional[str] = Field(None, description="Source OSINT tool")
     created_at: Optional[str] = Field(None, description="Creation timestamp")
     id: Optional[str] = Field(None, description="Unique report identifier")
-
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "name": "sherlock_20240115_abc12345.md",
-                "path": "sherlock_20240115_abc12345.md",
-                "tool": "sherlock",
-                "created_at": "2024-01-15T10:30:00",
-                "id": "abc12345"
-            }
-        }
 
 
 class ReportCreateResponse(BaseModel):

@@ -8,7 +8,7 @@ including path finding, centrality analysis, neighborhood exploration, and clust
 from typing import Optional, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from ..dependencies import get_neo4j_handler
 
@@ -33,23 +33,22 @@ class PathNode(BaseModel):
 
 class ShortestPathResponse(BaseModel):
     """Schema for shortest path response."""
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "found": True,
+            "path_length": 3,
+            "entity_count": 4,
+            "entity_ids": ["entity1", "entity2", "entity3", "entity4"],
+            "entities": []
+        }
+    })
+
     found: bool = Field(..., description="Whether a path was found")
     path_length: Optional[int] = Field(None, description="Number of hops in the path")
     entity_count: Optional[int] = Field(None, description="Number of entities in path")
     entity_ids: Optional[list[str]] = Field(None, description="Entity IDs in path order")
     entities: Optional[list[dict[str, Any]]] = Field(None, description="Full entity data")
     message: Optional[str] = Field(None, description="Additional message if no path found")
-
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "found": True,
-                "path_length": 3,
-                "entity_count": 4,
-                "entity_ids": ["entity1", "entity2", "entity3", "entity4"],
-                "entities": []
-            }
-        }
 
 
 class PathInfo(BaseModel):
@@ -69,6 +68,19 @@ class AllPathsResponse(BaseModel):
 
 class CentralityResponse(BaseModel):
     """Schema for entity centrality response."""
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "entity_id": "550e8400-e29b-41d4-a716-446655440000",
+            "degree_centrality": 5,
+            "outgoing_connections": 3,
+            "incoming_connections": 2,
+            "outgoing_to": ["entity2", "entity3", "entity4"],
+            "incoming_from": ["entity5", "entity6"],
+            "normalized_centrality": 0.25,
+            "total_entities_in_project": 10
+        }
+    })
+
     entity_id: str = Field(..., description="Entity ID")
     degree_centrality: int = Field(..., description="Total number of connections")
     outgoing_connections: int = Field(..., description="Number of entities this entity tagged")
@@ -77,20 +89,6 @@ class CentralityResponse(BaseModel):
     incoming_from: list[str] = Field(default_factory=list, description="IDs of entities that tagged this")
     normalized_centrality: float = Field(..., description="Normalized centrality score (0-1)")
     total_entities_in_project: int = Field(..., description="Total entities in project")
-
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "entity_id": "550e8400-e29b-41d4-a716-446655440000",
-                "degree_centrality": 5,
-                "outgoing_connections": 3,
-                "incoming_connections": 2,
-                "outgoing_to": ["entity2", "entity3", "entity4"],
-                "incoming_from": ["entity5", "entity6"],
-                "normalized_centrality": 0.25,
-                "total_entities_in_project": 10
-            }
-        }
 
 
 class EntityConnectionStats(BaseModel):
@@ -111,6 +109,23 @@ class MostConnectedResponse(BaseModel):
 
 class NeighborhoodResponse(BaseModel):
     """Schema for entity neighborhood response."""
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "center_entity_id": "entity1",
+            "max_depth": 2,
+            "total_entities": 5,
+            "neighborhood": {
+                "depth_0": [{"id": "entity1"}],
+                "depth_1": [{"id": "entity2"}, {"id": "entity3"}],
+                "depth_2": [{"id": "entity4"}, {"id": "entity5"}]
+            },
+            "edges": [
+                {"source": "entity1", "target": "entity2"},
+                {"source": "entity1", "target": "entity3"}
+            ]
+        }
+    })
+
     center_entity_id: str = Field(..., description="The center entity ID")
     max_depth: int = Field(..., description="Maximum depth searched")
     total_entities: int = Field(..., description="Total entities in neighborhood")
@@ -122,24 +137,6 @@ class NeighborhoodResponse(BaseModel):
         default_factory=list,
         description="Edges within the neighborhood"
     )
-
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "center_entity_id": "entity1",
-                "max_depth": 2,
-                "total_entities": 5,
-                "neighborhood": {
-                    "depth_0": [{"id": "entity1"}],
-                    "depth_1": [{"id": "entity2"}, {"id": "entity3"}],
-                    "depth_2": [{"id": "entity4"}, {"id": "entity5"}]
-                },
-                "edges": [
-                    {"source": "entity1", "target": "entity2"},
-                    {"source": "entity1", "target": "entity3"}
-                ]
-            }
-        }
 
 
 class ClusterInfo(BaseModel):
@@ -154,22 +151,21 @@ class ClusterInfo(BaseModel):
 
 class ClustersResponse(BaseModel):
     """Schema for clusters response."""
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "cluster_count": 3,
+            "isolated_count": 1,
+            "connected_clusters": 2,
+            "total_entities": 10,
+            "clusters": []
+        }
+    })
+
     cluster_count: int = Field(..., description="Total number of clusters")
     isolated_count: int = Field(..., description="Number of isolated entities")
     connected_clusters: int = Field(..., description="Number of clusters with 2+ entities")
     total_entities: int = Field(..., description="Total entities in project")
     clusters: list[ClusterInfo] = Field(default_factory=list, description="List of clusters")
-
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "cluster_count": 3,
-                "isolated_count": 1,
-                "connected_clusters": 2,
-                "total_entities": 10,
-                "clusters": []
-            }
-        }
 
 
 class ErrorResponse(BaseModel):
