@@ -1,4 +1,45 @@
-**venv/
-**projects/
-**__pycache__/
-**downloads/
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+env/
+.env
+*.egg-info/
+dist/
+build/
+
+# Node
+node_modules/
+package-lock.json
+npm-debug.log*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+*.log
+
+# Project specific
+downloads/
+screenshots/
+reports/
+*.db
+*.sqlite
+
+# Claude
+.claude/
+
+# Temporary
+tmp*.md
+*.tmp
+*.bak
