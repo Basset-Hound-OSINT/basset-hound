@@ -1,16 +1,43 @@
-sections:
-  - id: Profile Picture Section
-    name: Profile Picture
-    fields:
-      - id: profilepicturefile
-        type: file
+# =============================================================================
+# BASSET HOUND - ENHANCED DATA CONFIGURATION
+# =============================================================================
+# Version: 3.0
+# Description: Comprehensive OSINT entity configuration with 70+ social networks,
+#              technical identifiers, breach intelligence, public records,
+#              file evidence metadata, and extensible field types.
+# =============================================================================
 
+version: "3.0"
+entity_type: Person
+
+# =============================================================================
+# SECTION DEFINITIONS
+# =============================================================================
+sections:
+
+  # ---------------------------------------------------------------------------
+  # PROFILE PICTURE
+  # ---------------------------------------------------------------------------
+  - id: profile_picture
+    name: Profile Picture
+    icon: fa-user-circle
+    fields:
+      - id: profile_photo
+        type: file
+        accept: image/*
+        description: Primary profile photograph
+
+  # ---------------------------------------------------------------------------
+  # CORE IDENTITY
+  # ---------------------------------------------------------------------------
   - id: core
     name: Personal Information
+    icon: fa-id-card
     fields:
       - id: name
-        type: string
+        type: component
         multiple: true
+        label: Full Name
         components:
           - id: first_name
             type: string
@@ -18,64 +45,2736 @@ sections:
             type: string
           - id: last_name
             type: string
-      - id: summary
-        type: comment
+          - id: suffix
+            type: string
+            placeholder: "Jr., Sr., III, etc."
+
+      - id: alias
+        type: string
         multiple: true
-      #- id: basic_file
-      #  type: file
-      #  multiple: true
+        label: Known Aliases / Nicknames
+        searchable: true
+
       - id: date_of_birth
         type: date
         multiple: true
+        label: Date of Birth
+
+      - id: gender
+        type: string
+        label: Gender
+
+      - id: nationality
+        type: string
+        multiple: true
+        label: Nationality / Citizenship
+
+      - id: summary
+        type: comment
+        multiple: true
+        label: Notes / Summary
+
+  # ---------------------------------------------------------------------------
+  # CONTACT INFORMATION
+  # ---------------------------------------------------------------------------
+  - id: contact
+    name: Contact Information
+    icon: fa-address-book
+    fields:
       - id: email
         type: email
         multiple: true
-      #- id: commentated_file
-      #  type: component
-      #  multiple: true
-      #  components:
-      #    - id: filename
-      #      type: file
-      #      multiple: true
-      #    - id: comment
-      #      type: comment
-      #      multiple: true
+        label: Email Addresses
+        searchable: true
+        identifier: true
 
-  - id: social
-    name: Social Media
-    fields:
-      - id: linkedin
+      - id: phone
         type: component
         multiple: true
+        label: Phone Numbers
+        components:
+          - id: number
+            type: string
+          - id: type
+            type: string
+            placeholder: "Mobile, Home, Work"
+          - id: country_code
+            type: string
+            placeholder: "+1"
+
+      - id: address
+        type: component
+        multiple: true
+        label: Physical Addresses
+        components:
+          - id: street
+            type: string
+          - id: city
+            type: string
+          - id: state
+            type: string
+          - id: postal_code
+            type: string
+          - id: country
+            type: string
+          - id: type
+            type: string
+            placeholder: "Home, Work, Other"
+
+  # ---------------------------------------------------------------------------
+  # MAJOR SOCIAL PLATFORMS
+  # ---------------------------------------------------------------------------
+  - id: social_major
+    name: Major Social Platforms
+    icon: fa-share-alt
+    fields:
+      - id: facebook
+        type: component
+        multiple: true
+        label: Facebook
         components:
           - id: url
             type: url
           - id: username
+            type: string
+          - id: display_name
+            type: string
+          - id: user_id
+            type: string
+            label: Facebook User ID
+
+      - id: instagram
+        type: component
+        multiple: true
+        label: Instagram
+        components:
+          - id: url
+            type: url
+          - id: username
+            type: string
+            identifier: true
+          - id: display_name
+            type: string
+
+      - id: twitter
+        type: component
+        multiple: true
+        label: Twitter / X
+        components:
+          - id: url
+            type: url
+          - id: handle
+            type: string
+            identifier: true
+          - id: display_name
+            type: string
+          - id: user_id
+            type: string
+
+      - id: tiktok
+        type: component
+        multiple: true
+        label: TikTok
+        components:
+          - id: url
+            type: url
+          - id: username
+            type: string
+          - id: display_name
+            type: string
+
+      - id: youtube
+        type: component
+        multiple: true
+        label: YouTube
+        components:
+          - id: channel_url
+            type: url
+          - id: channel_name
+            type: string
+          - id: channel_id
+            type: string
+
+      - id: snapchat
+        type: component
+        multiple: true
+        label: Snapchat
+        components:
+          - id: username
+            type: string
+
+  # ---------------------------------------------------------------------------
+  # PROFESSIONAL NETWORKS
+  # ---------------------------------------------------------------------------
+  - id: professional
+    name: Professional Networks
+    icon: fa-briefcase
+    fields:
+      - id: linkedin
+        type: component
+        multiple: true
+        label: LinkedIn
+        components:
+          - id: url
+            type: url
+          - id: username
+            type: string
+          - id: headline
+            type: string
+          - id: company
             type: string
           - id: email
             type: email
             multiple: true
           - id: password
             type: password
-      - id: twitter
-        type: url
+
+      - id: github
+        type: component
         multiple: true
+        label: GitHub
         components:
           - id: url
             type: url
+          - id: username
+            type: string
+            identifier: true
+          - id: email
+            type: email
+
+      - id: gitlab
+        type: component
+        multiple: true
+        label: GitLab
+        components:
+          - id: url
+            type: url
+          - id: username
+            type: string
+
+      - id: bitbucket
+        type: component
+        multiple: true
+        label: Bitbucket
+        components:
+          - id: url
+            type: url
+          - id: username
+            type: string
+
+      - id: stackoverflow
+        type: component
+        multiple: true
+        label: Stack Overflow
+        components:
+          - id: url
+            type: url
+          - id: user_id
+            type: string
+          - id: display_name
+            type: string
+
+      - id: behance
+        type: component
+        multiple: true
+        label: Behance
+        components:
+          - id: url
+            type: url
+          - id: username
+            type: string
+
+      - id: dribbble
+        type: component
+        multiple: true
+        label: Dribbble
+        components:
+          - id: url
+            type: url
+          - id: username
+            type: string
+
+  # ---------------------------------------------------------------------------
+  # FEDERATED / DECENTRALIZED SOCIAL
+  # ---------------------------------------------------------------------------
+  - id: federated
+    name: Federated / Decentralized
+    icon: fa-globe
+    fields:
+      - id: mastodon
+        type: component
+        multiple: true
+        label: Mastodon
+        components:
+          - id: full_handle
+            type: string
+            placeholder: "@user@instance.social"
+            identifier: true
+          - id: instance_url
+            type: url
+          - id: profile_url
+            type: url
+
+      - id: bluesky
+        type: component
+        multiple: true
+        label: Bluesky
+        components:
           - id: handle
+            type: string
+            placeholder: "user.bsky.social"
+            identifier: true
+          - id: did
+            type: string
+            label: Decentralized ID (DID)
+
+      - id: threads
+        type: component
+        multiple: true
+        label: Threads (Meta)
+        components:
+          - id: url
+            type: url
+          - id: username
+            type: string
+
+      - id: nostr
+        type: component
+        multiple: true
+        label: Nostr
+        components:
+          - id: npub
+            type: string
+            label: Public Key (npub)
+            identifier: true
+          - id: nip05
+            type: string
+            label: NIP-05 Identifier
+
+      - id: lemmy
+        type: component
+        multiple: true
+        label: Lemmy
+        components:
+          - id: full_handle
+            type: string
+            placeholder: "@user@instance.ml"
+          - id: instance_url
+            type: url
+
+      - id: pixelfed
+        type: component
+        multiple: true
+        label: Pixelfed
+        components:
+          - id: full_handle
+            type: string
+          - id: instance_url
+            type: url
+
+      - id: peertube
+        type: component
+        multiple: true
+        label: PeerTube
+        components:
+          - id: channel_url
+            type: url
+          - id: username
+            type: string
+          - id: instance
+            type: string
+
+  # ---------------------------------------------------------------------------
+  # FORUMS & COMMUNITIES
+  # ---------------------------------------------------------------------------
+  - id: forums
+    name: Forums & Communities
+    icon: fa-comments
+    fields:
+      - id: reddit
+        type: component
+        multiple: true
+        label: Reddit
+        components:
+          - id: username
+            type: string
+            identifier: true
+          - id: url
+            type: url
+
+      - id: hackernews
+        type: component
+        multiple: true
+        label: Hacker News
+        components:
+          - id: username
+            type: string
+
+      - id: discord
+        type: component
+        multiple: true
+        label: Discord
+        components:
+          - id: username
+            type: string
+            placeholder: "username or legacy#0000"
+          - id: user_id
+            type: string
+            label: Discord User ID
+
+      - id: slack
+        type: component
+        multiple: true
+        label: Slack Workspaces
+        components:
+          - id: workspace
+            type: string
+          - id: display_name
             type: string
           - id: email
             type: email
-            multiple: true
-      - id: social files
-        type: file
+
+      - id: telegram
+        type: component
         multiple: true
+        label: Telegram
+        components:
+          - id: username
+            type: string
+          - id: phone
+            type: string
 
+      - id: signal
+        type: component
+        multiple: true
+        label: Signal
+        components:
+          - id: phone
+            type: string
 
-  - id: devices
-    name: Devices
+      - id: whatsapp
+        type: component
+        multiple: true
+        label: WhatsApp
+        components:
+          - id: phone
+            type: string
+
+      - id: keybase
+        type: component
+        multiple: true
+        label: Keybase
+        components:
+          - id: username
+            type: string
+
+      - id: matrix
+        type: component
+        multiple: true
+        label: Matrix
+        components:
+          - id: mxid
+            type: string
+            placeholder: "@user:matrix.org"
+
+  # ---------------------------------------------------------------------------
+  # GAMING & ENTERTAINMENT
+  # ---------------------------------------------------------------------------
+  - id: gaming
+    name: Gaming & Entertainment
+    icon: fa-gamepad
     fields:
-      - id: ip address
+      - id: steam
+        type: component
+        multiple: true
+        label: Steam
+        components:
+          - id: profile_url
+            type: url
+          - id: username
+            type: string
+          - id: steam_id
+            type: string
+
+      - id: xbox
+        type: component
+        multiple: true
+        label: Xbox / Microsoft
+        components:
+          - id: gamertag
+            type: string
+
+      - id: playstation
+        type: component
+        multiple: true
+        label: PlayStation
+        components:
+          - id: psn_id
+            type: string
+
+      - id: nintendo
+        type: component
+        multiple: true
+        label: Nintendo
+        components:
+          - id: friend_code
+            type: string
+          - id: username
+            type: string
+
+      - id: epic_games
+        type: component
+        multiple: true
+        label: Epic Games
+        components:
+          - id: username
+            type: string
+
+      - id: twitch
+        type: component
+        multiple: true
+        label: Twitch
+        components:
+          - id: url
+            type: url
+          - id: username
+            type: string
+
+      - id: kick
+        type: component
+        multiple: true
+        label: Kick
+        components:
+          - id: url
+            type: url
+          - id: username
+            type: string
+
+      - id: spotify
+        type: component
+        multiple: true
+        label: Spotify
+        components:
+          - id: profile_url
+            type: url
+          - id: username
+            type: string
+
+      - id: soundcloud
+        type: component
+        multiple: true
+        label: SoundCloud
+        components:
+          - id: url
+            type: url
+          - id: username
+            type: string
+
+      - id: bandcamp
+        type: component
+        multiple: true
+        label: Bandcamp
+        components:
+          - id: url
+            type: url
+          - id: username
+            type: string
+
+  # ---------------------------------------------------------------------------
+  # INTERNATIONAL & ALTERNATIVE PLATFORMS
+  # ---------------------------------------------------------------------------
+  - id: international
+    name: International & Alternative Platforms
+    icon: fa-globe-americas
+    fields:
+      - id: vkontakte
+        type: component
+        multiple: true
+        label: VKontakte (VK)
+        components:
+          - id: url
+            type: url
+          - id: user_id
+            type: string
+          - id: username
+            type: string
+
+      - id: weibo
+        type: component
+        multiple: true
+        label: Weibo
+        components:
+          - id: url
+            type: url
+          - id: user_id
+            type: string
+
+      - id: wechat
+        type: component
+        multiple: true
+        label: WeChat
+        components:
+          - id: wechat_id
+            type: string
+          - id: phone
+            type: string
+
+      - id: line
+        type: component
+        multiple: true
+        label: LINE
+        components:
+          - id: line_id
+            type: string
+
+      - id: kakaotalk
+        type: component
+        multiple: true
+        label: KakaoTalk
+        components:
+          - id: kakao_id
+            type: string
+
+      - id: qq
+        type: component
+        multiple: true
+        label: QQ
+        components:
+          - id: qq_number
+            type: string
+
+      - id: parler
+        type: component
+        multiple: true
+        label: Parler
+        components:
+          - id: username
+            type: string
+          - id: url
+            type: url
+
+      - id: gab
+        type: component
+        multiple: true
+        label: Gab
+        components:
+          - id: username
+            type: string
+          - id: url
+            type: url
+
+      - id: truth_social
+        type: component
+        multiple: true
+        label: Truth Social
+        components:
+          - id: username
+            type: string
+          - id: url
+            type: url
+
+      - id: rumble
+        type: component
+        multiple: true
+        label: Rumble
+        components:
+          - id: channel_url
+            type: url
+          - id: username
+            type: string
+
+      - id: odysee
+        type: component
+        multiple: true
+        label: Odysee / LBRY
+        components:
+          - id: channel_url
+            type: url
+          - id: username
+            type: string
+
+  # ---------------------------------------------------------------------------
+  # CONTENT CREATOR PLATFORMS
+  # ---------------------------------------------------------------------------
+  - id: creator
+    name: Content Creator Platforms
+    icon: fa-video
+    fields:
+      - id: onlyfans
+        type: component
+        multiple: true
+        label: OnlyFans
+        components:
+          - id: url
+            type: url
+          - id: username
+            type: string
+
+      - id: patreon
+        type: component
+        multiple: true
+        label: Patreon
+        components:
+          - id: url
+            type: url
+          - id: username
+            type: string
+
+      - id: substack
+        type: component
+        multiple: true
+        label: Substack
+        components:
+          - id: url
+            type: url
+          - id: username
+            type: string
+
+      - id: medium
+        type: component
+        multiple: true
+        label: Medium
+        components:
+          - id: url
+            type: url
+          - id: username
+            type: string
+
+      - id: pinterest
+        type: component
+        multiple: true
+        label: Pinterest
+        components:
+          - id: url
+            type: url
+          - id: username
+            type: string
+
+      - id: tumblr
+        type: component
+        multiple: true
+        label: Tumblr
+        components:
+          - id: url
+            type: url
+          - id: username
+            type: string
+
+      - id: flickr
+        type: component
+        multiple: true
+        label: Flickr
+        components:
+          - id: url
+            type: url
+          - id: username
+            type: string
+
+      - id: deviantart
+        type: component
+        multiple: true
+        label: DeviantArt
+        components:
+          - id: url
+            type: url
+          - id: username
+            type: string
+
+      - id: vimeo
+        type: component
+        multiple: true
+        label: Vimeo
+        components:
+          - id: url
+            type: url
+          - id: username
+            type: string
+
+      - id: dailymotion
+        type: component
+        multiple: true
+        label: Dailymotion
+        components:
+          - id: url
+            type: url
+          - id: username
+            type: string
+
+      - id: linktree
+        type: component
+        multiple: true
+        label: Linktree
+        components:
+          - id: url
+            type: url
+          - id: username
+            type: string
+
+  # ---------------------------------------------------------------------------
+  # DATING & PERSONAL
+  # ---------------------------------------------------------------------------
+  - id: dating
+    name: Dating & Personal
+    icon: fa-heart
+    fields:
+      - id: tinder
+        type: component
+        multiple: true
+        label: Tinder
+        components:
+          - id: profile_id
+            type: string
+
+      - id: bumble
+        type: component
+        multiple: true
+        label: Bumble
+        components:
+          - id: profile_id
+            type: string
+
+      - id: hinge
+        type: component
+        multiple: true
+        label: Hinge
+        components:
+          - id: profile_id
+            type: string
+
+      - id: okcupid
+        type: component
+        multiple: true
+        label: OkCupid
+        components:
+          - id: username
+            type: string
+          - id: url
+            type: url
+
+      - id: pof
+        type: component
+        multiple: true
+        label: Plenty of Fish
+        components:
+          - id: username
+            type: string
+
+  # ---------------------------------------------------------------------------
+  # E-COMMERCE & REVIEWS
+  # ---------------------------------------------------------------------------
+  - id: ecommerce
+    name: E-Commerce & Reviews
+    icon: fa-shopping-cart
+    fields:
+      - id: amazon
+        type: component
+        multiple: true
+        label: Amazon
+        components:
+          - id: profile_url
+            type: url
+          - id: reviewer_id
+            type: string
+
+      - id: ebay
+        type: component
+        multiple: true
+        label: eBay
+        components:
+          - id: username
+            type: string
+          - id: url
+            type: url
+
+      - id: etsy
+        type: component
+        multiple: true
+        label: Etsy
+        components:
+          - id: shop_url
+            type: url
+          - id: username
+            type: string
+
+      - id: yelp
+        type: component
+        multiple: true
+        label: Yelp
+        components:
+          - id: profile_url
+            type: url
+          - id: user_id
+            type: string
+
+      - id: tripadvisor
+        type: component
+        multiple: true
+        label: TripAdvisor
+        components:
+          - id: profile_url
+            type: url
+
+  # ---------------------------------------------------------------------------
+  # FINANCIAL & CRYPTO
+  # ---------------------------------------------------------------------------
+  - id: financial
+    name: Financial & Crypto
+    icon: fa-wallet
+    fields:
+      - id: venmo
+        type: component
+        multiple: true
+        label: Venmo
+        components:
+          - id: username
+            type: string
+
+      - id: paypal
+        type: component
+        multiple: true
+        label: PayPal
+        components:
+          - id: email
+            type: email
+          - id: paypal_me
+            type: url
+
+      - id: cashapp
+        type: component
+        multiple: true
+        label: Cash App
+        components:
+          - id: cashtag
+            type: string
+            placeholder: "$username"
+
+      - id: zelle
+        type: component
+        multiple: true
+        label: Zelle
+        components:
+          - id: email
+            type: email
+          - id: phone
+            type: string
+
+      - id: crypto_address
+        type: crypto_address
+        multiple: true
+        label: Cryptocurrency Addresses
+        identifier: true
+        auto_detect: true
+        description: >
+          Paste any cryptocurrency address - the coin type will be
+          automatically detected (BTC, ETH, LTC, XRP, SOL, ADA, etc.)
+        components:
+          - id: address
+            type: string
+            label: Wallet Address
+            required: true
+          - id: detected_coin
+            type: string
+            label: Detected Coin
+            readonly: true
+            auto_populated: true
+          - id: detected_network
+            type: string
+            label: Network
+            readonly: true
+            auto_populated: true
+          - id: coin_override
+            type: string
+            label: Manual Override (optional)
+            placeholder: "Override if auto-detection is wrong"
+          - id: label
+            type: string
+            label: Label/Description
+            placeholder: "e.g., Main wallet, Exchange deposit"
+          - id: explorer_url
+            type: url
+            label: Block Explorer URL
+            readonly: true
+            auto_populated: true
+          - id: notes
+            type: comment
+            label: Notes
+
+  # ---------------------------------------------------------------------------
+  # TECHNICAL IDENTIFIERS
+  # ---------------------------------------------------------------------------
+  - id: technical
+    name: Technical Identifiers
+    icon: fa-server
+    fields:
+      - id: ip_address
         type: ip_address
         multiple: true
+        label: IP Addresses
+        searchable: true
+        identifier: true
+
+      - id: mac_address
+        type: string
+        multiple: true
+        label: MAC Addresses
+
+      - id: domain
+        type: string
+        multiple: true
+        label: Owned Domains
+        identifier: true
+
+      - id: website
+        type: url
+        multiple: true
+        label: Personal Websites
+
+      - id: pgp_key
+        type: component
+        multiple: true
+        label: PGP / GPG Keys
+        components:
+          - id: fingerprint
+            type: string
+          - id: key_id
+            type: string
+          - id: key_server_url
+            type: url
+
+      - id: ssh_key
+        type: comment
+        multiple: true
+        label: SSH Public Keys
+
+      - id: user_agent
+        type: string
+        multiple: true
+        label: Known User Agents
+
+  # ---------------------------------------------------------------------------
+  # DEVICES & HARDWARE
+  # ---------------------------------------------------------------------------
+  - id: devices
+    name: Devices & Hardware
+    icon: fa-mobile-alt
+    fields:
+      - id: phone_device
+        type: component
+        multiple: true
+        label: Phone Devices
+        components:
+          - id: brand
+            type: string
+          - id: model
+            type: string
+          - id: imei
+            type: string
+          - id: phone_number
+            type: string
+
+      - id: computer
+        type: component
+        multiple: true
+        label: Computers
+        components:
+          - id: type
+            type: string
+            placeholder: "Desktop, Laptop, Tablet, Server"
+          - id: os
+            type: string
+          - id: hostname
+            type: string
+
+      - id: vehicle
+        type: component
+        multiple: true
+        label: Vehicles
+        components:
+          - id: make
+            type: string
+          - id: model
+            type: string
+          - id: year
+            type: string
+          - id: license_plate
+            type: string
+          - id: vin
+            type: string
+
+  # ---------------------------------------------------------------------------
+  # EMPLOYMENT & EDUCATION
+  # ---------------------------------------------------------------------------
+  - id: employment
+    name: Employment & Education
+    icon: fa-graduation-cap
+    fields:
+      - id: employer
+        type: component
+        multiple: true
+        label: Employment History
+        components:
+          - id: company
+            type: string
+          - id: title
+            type: string
+          - id: start_date
+            type: date
+          - id: end_date
+            type: date
+          - id: work_email
+            type: email
+          - id: location
+            type: string
+
+      - id: education
+        type: component
+        multiple: true
+        label: Education
+        components:
+          - id: institution
+            type: string
+          - id: degree
+            type: string
+          - id: field
+            type: string
+          - id: graduation_year
+            type: string
+
+      - id: certification
+        type: component
+        multiple: true
+        label: Certifications
+        components:
+          - id: name
+            type: string
+          - id: issuer
+            type: string
+          - id: date
+            type: date
+          - id: credential_id
+            type: string
+
+  # ---------------------------------------------------------------------------
+  # CREDENTIALS (SENSITIVE)
+  # ---------------------------------------------------------------------------
+  - id: credentials
+    name: Credentials
+    icon: fa-key
+    sensitive: true
+    fields:
+      - id: password
+        type: password
+        multiple: true
+        label: Known Passwords
+
+      - id: password_hash
+        type: string
+        multiple: true
+        label: Password Hashes
+
+      - id: security_questions
+        type: component
+        multiple: true
+        label: Security Questions
+        components:
+          - id: question
+            type: string
+          - id: answer
+            type: password
+
+      - id: breach_data
+        type: component
+        multiple: true
+        label: Breach Data
+        components:
+          - id: source
+            type: string
+          - id: date
+            type: date
+          - id: data_types
+            type: string
+          - id: notes
+            type: comment
+
+  # ---------------------------------------------------------------------------
+  # FILES & DOCUMENTS
+  # ---------------------------------------------------------------------------
+  - id: files
+    name: Files & Documents
+    icon: fa-folder-open
+    fields:
+      - id: document
+        type: file
+        multiple: true
+        label: Documents
+
+      - id: screenshot
+        type: file
+        multiple: true
+        label: Screenshots
+
+      - id: evidence
+        type: component
+        multiple: true
+        label: Evidence Files
+        components:
+          - id: file
+            type: file
+          - id: description
+            type: comment
+          - id: source
+            type: string
+          - id: date_obtained
+            type: date
+
+  # ---------------------------------------------------------------------------
+  # FILE EVIDENCE METADATA
+  # ---------------------------------------------------------------------------
+  - id: file_metadata
+    name: File Evidence Metadata
+    icon: fa-file-image
+    description: Detailed metadata extracted from files and media
+    fields:
+      - id: image_metadata
+        type: component
+        multiple: true
+        label: Image EXIF/Metadata
+        components:
+          - id: file_reference
+            type: string
+            label: File Name/Reference
+          - id: gps_latitude
+            type: string
+          - id: gps_longitude
+            type: string
+          - id: gps_altitude
+            type: string
+          - id: camera_make
+            type: string
+          - id: camera_model
+            type: string
+          - id: date_taken
+            type: string
+          - id: software_used
+            type: string
+          - id: author
+            type: string
+          - id: copyright
+            type: string
+          - id: notes
+            type: comment
+
+      - id: video_metadata
+        type: component
+        multiple: true
+        label: Video Metadata
+        components:
+          - id: file_reference
+            type: string
+          - id: duration
+            type: string
+          - id: resolution
+            type: string
+          - id: codec
+            type: string
+          - id: frame_rate
+            type: string
+          - id: creation_date
+            type: string
+          - id: gps_location
+            type: string
+          - id: notes
+            type: comment
+
+      - id: document_metadata
+        type: component
+        multiple: true
+        label: Document Metadata
+        components:
+          - id: file_reference
+            type: string
+          - id: author
+            type: string
+          - id: last_modified_by
+            type: string
+          - id: creation_date
+            type: string
+          - id: modification_date
+            type: string
+          - id: software
+            type: string
+          - id: revision_count
+            type: string
+          - id: file_path_exposed
+            type: string
+            label: Exposed File Paths
+          - id: notes
+            type: comment
+
+      - id: audio_metadata
+        type: component
+        multiple: true
+        label: Audio Metadata
+        components:
+          - id: file_reference
+            type: string
+          - id: duration
+            type: string
+          - id: bitrate
+            type: string
+          - id: sample_rate
+            type: string
+          - id: artist
+            type: string
+          - id: album
+            type: string
+          - id: language_detected
+            type: string
+          - id: notes
+            type: comment
+
+  # ---------------------------------------------------------------------------
+  # PUBLIC RECORDS & LEGAL
+  # ---------------------------------------------------------------------------
+  - id: public_records
+    name: Public Records & Legal
+    icon: fa-gavel
+    fields:
+      - id: court_records
+        type: component
+        multiple: true
+        label: Court Records
+        components:
+          - id: case_number
+            type: string
+          - id: court_name
+            type: string
+          - id: case_type
+            type: string
+            placeholder: "Civil, Criminal, Family, etc."
+          - id: filing_date
+            type: date
+          - id: status
+            type: string
+          - id: parties
+            type: string
+          - id: summary
+            type: comment
+          - id: source_url
+            type: url
+
+      - id: criminal_records
+        type: component
+        multiple: true
+        label: Criminal Records
+        components:
+          - id: offense
+            type: string
+          - id: jurisdiction
+            type: string
+          - id: date
+            type: date
+          - id: disposition
+            type: string
+          - id: sentence
+            type: string
+          - id: source
+            type: string
+          - id: notes
+            type: comment
+
+      - id: property_records
+        type: component
+        multiple: true
+        label: Property Records
+        components:
+          - id: address
+            type: string
+          - id: property_type
+            type: string
+          - id: owner_name
+            type: string
+          - id: purchase_date
+            type: date
+          - id: purchase_price
+            type: string
+          - id: tax_assessment
+            type: string
+          - id: source_url
+            type: url
+
+      - id: business_records
+        type: component
+        multiple: true
+        label: Business Registrations
+        components:
+          - id: business_name
+            type: string
+          - id: entity_type
+            type: string
+            placeholder: "LLC, Corporation, Partnership"
+          - id: registration_number
+            type: string
+          - id: state
+            type: string
+          - id: registration_date
+            type: date
+          - id: status
+            type: string
+          - id: registered_agent
+            type: string
+          - id: officer_names
+            type: string
+          - id: source_url
+            type: url
+
+      - id: professional_licenses
+        type: component
+        multiple: true
+        label: Professional Licenses
+        components:
+          - id: license_type
+            type: string
+          - id: license_number
+            type: string
+          - id: issuing_authority
+            type: string
+          - id: issue_date
+            type: date
+          - id: expiration_date
+            type: date
+          - id: status
+            type: string
+          - id: source_url
+            type: url
+
+      - id: voter_registration
+        type: component
+        multiple: true
+        label: Voter Registration
+        components:
+          - id: registered_name
+            type: string
+          - id: party_affiliation
+            type: string
+          - id: registration_date
+            type: date
+          - id: county
+            type: string
+          - id: state
+            type: string
+          - id: voter_id
+            type: string
+
+  # ---------------------------------------------------------------------------
+  # BREACH INTELLIGENCE
+  # ---------------------------------------------------------------------------
+  - id: breach_intelligence
+    name: Breach Intelligence
+    icon: fa-shield-alt
+    sensitive: true
+    fields:
+      - id: breach_exposure
+        type: component
+        multiple: true
+        label: Breach Exposures
+        components:
+          - id: breach_name
+            type: string
+            label: Breach Source (e.g., LinkedIn 2021)
+          - id: exposure_date
+            type: date
+          - id: data_types_exposed
+            type: string
+            placeholder: "email, password, hash, ssn, etc."
+          - id: email_exposed
+            type: email
+          - id: password_exposed
+            type: password
+          - id: hash_value
+            type: string
+          - id: hash_type
+            type: string
+            placeholder: "MD5, SHA1, bcrypt, etc."
+          - id: verification_source
+            type: string
+            placeholder: "HIBP, Dehashed, etc."
+          - id: notes
+            type: comment
+
+      - id: infostealer_logs
+        type: component
+        multiple: true
+        label: Infostealer Malware Logs
+        components:
+          - id: malware_family
+            type: string
+            placeholder: "RedLine, Raccoon, Vidar, etc."
+          - id: date_discovered
+            type: date
+          - id: source_platform
+            type: string
+          - id: credentials_found
+            type: string
+          - id: browser_data
+            type: string
+          - id: machine_info
+            type: string
+          - id: notes
+            type: comment
+
+      - id: paste_exposures
+        type: component
+        multiple: true
+        label: Paste Site Exposures
+        components:
+          - id: paste_url
+            type: url
+          - id: paste_site
+            type: string
+            placeholder: "Pastebin, Ghostbin, etc."
+          - id: date_found
+            type: date
+          - id: content_type
+            type: string
+          - id: data_exposed
+            type: string
+          - id: notes
+            type: comment
+
+  # ---------------------------------------------------------------------------
+  # DARK WEB / THREAT PRESENCE
+  # ---------------------------------------------------------------------------
+  - id: threat_presence
+    name: Dark Web & Threat Intelligence
+    icon: fa-user-secret
+    sensitive: true
+    fields:
+      - id: darkweb_activity
+        type: component
+        multiple: true
+        label: Dark Web Activity
+        components:
+          - id: alias_used
+            type: string
+          - id: platform
+            type: string
+            placeholder: "Forum name, marketplace, etc."
+          - id: onion_url
+            type: string
+          - id: activity_type
+            type: string
+          - id: first_seen
+            type: date
+          - id: last_seen
+            type: date
+          - id: reputation_score
+            type: string
+          - id: notes
+            type: comment
+
+      - id: threat_indicators
+        type: component
+        multiple: true
+        label: Threat Indicators
+        components:
+          - id: indicator_type
+            type: string
+            placeholder: "IP, domain, hash, email"
+          - id: indicator_value
+            type: string
+          - id: threat_type
+            type: string
+            placeholder: "Malware, C2, Phishing, etc."
+          - id: severity
+            type: string
+            placeholder: "Critical, High, Medium, Low"
+          - id: source
+            type: string
+          - id: first_seen
+            type: date
+          - id: last_seen
+            type: date
+          - id: notes
+            type: comment
+
+      - id: ransomware_mentions
+        type: component
+        multiple: true
+        label: Ransomware Mentions
+        components:
+          - id: ransomware_group
+            type: string
+          - id: victim_name
+            type: string
+          - id: claim_date
+            type: date
+          - id: data_leaked
+            type: string
+          - id: source_url
+            type: string
+          - id: notes
+            type: comment
+
+  # ---------------------------------------------------------------------------
+  # IOT & INFRASTRUCTURE
+  # ---------------------------------------------------------------------------
+  - id: infrastructure
+    name: IoT & Infrastructure
+    icon: fa-network-wired
+    fields:
+      - id: exposed_services
+        type: component
+        multiple: true
+        label: Exposed Services
+        components:
+          - id: ip_address
+            type: string
+          - id: port
+            type: string
+          - id: service_name
+            type: string
+          - id: version
+            type: string
+          - id: banner
+            type: string
+          - id: geolocation
+            type: string
+          - id: isp
+            type: string
+          - id: discovery_source
+            type: string
+            placeholder: "Shodan, Censys, etc."
+          - id: notes
+            type: comment
+
+      - id: exposed_cameras
+        type: component
+        multiple: true
+        label: Exposed Cameras/IoT
+        components:
+          - id: ip_address
+            type: string
+          - id: device_type
+            type: string
+          - id: manufacturer
+            type: string
+          - id: model
+            type: string
+          - id: geolocation
+            type: string
+          - id: default_credentials
+            type: string
+          - id: stream_url
+            type: url
+          - id: notes
+            type: comment
+
+      - id: cloud_assets
+        type: component
+        multiple: true
+        label: Cloud Assets
+        components:
+          - id: provider
+            type: string
+            placeholder: "AWS, Azure, GCP, etc."
+          - id: asset_type
+            type: string
+            placeholder: "S3 bucket, Blob storage, etc."
+          - id: url
+            type: url
+          - id: exposure_type
+            type: string
+          - id: data_found
+            type: string
+          - id: notes
+            type: comment
+
+      - id: ssl_certificates
+        type: component
+        multiple: true
+        label: SSL/TLS Certificates
+        components:
+          - id: domain
+            type: string
+          - id: issuer
+            type: string
+          - id: subject
+            type: string
+          - id: valid_from
+            type: date
+          - id: valid_to
+            type: date
+          - id: fingerprint
+            type: string
+          - id: san_entries
+            type: string
+            label: Subject Alternative Names
+
+  # ---------------------------------------------------------------------------
+  # TRANSPORTATION IDENTIFIERS
+  # ---------------------------------------------------------------------------
+  - id: transportation
+    name: Transportation Identifiers
+    icon: fa-plane
+    fields:
+      - id: flight_records
+        type: component
+        multiple: true
+        label: Flight Records
+        components:
+          - id: airline
+            type: string
+          - id: flight_number
+            type: string
+          - id: departure_airport
+            type: string
+          - id: arrival_airport
+            type: string
+          - id: date
+            type: date
+          - id: booking_reference
+            type: string
+          - id: notes
+            type: comment
+
+      - id: aircraft_ownership
+        type: component
+        multiple: true
+        label: Aircraft Ownership
+        components:
+          - id: registration_number
+            type: string
+            label: Tail Number
+          - id: icao_hex
+            type: string
+          - id: aircraft_type
+            type: string
+          - id: owner_name
+            type: string
+          - id: registration_country
+            type: string
+
+      - id: vessel_records
+        type: component
+        multiple: true
+        label: Maritime/Vessel Records
+        components:
+          - id: vessel_name
+            type: string
+          - id: imo_number
+            type: string
+          - id: mmsi
+            type: string
+          - id: call_sign
+            type: string
+          - id: flag_country
+            type: string
+          - id: vessel_type
+            type: string
+          - id: owner
+            type: string
+          - id: notes
+            type: comment
+
+  # ---------------------------------------------------------------------------
+  # RADIO & COMMUNICATIONS
+  # ---------------------------------------------------------------------------
+  - id: radio_comms
+    name: Radio & Communications
+    icon: fa-broadcast-tower
+    fields:
+      - id: amateur_radio
+        type: component
+        multiple: true
+        label: Amateur Radio (HAM)
+        components:
+          - id: callsign
+            type: string
+            identifier: true
+          - id: license_class
+            type: string
+          - id: name
+            type: string
+          - id: address
+            type: string
+          - id: grid_square
+            type: string
+          - id: expiration_date
+            type: date
+
+      - id: radio_ids
+        type: component
+        multiple: true
+        label: Radio IDs (DMR/P25)
+        components:
+          - id: radio_id
+            type: string
+          - id: callsign
+            type: string
+          - id: name
+            type: string
+          - id: city
+            type: string
+          - id: state
+            type: string
+          - id: country
+            type: string
+
+  # ---------------------------------------------------------------------------
+  # GOVERNMENT IDS & DOCUMENTS
+  # ---------------------------------------------------------------------------
+  - id: government_ids
+    name: Government IDs & Documents
+    icon: fa-id-badge
+    sensitive: true
+    fields:
+      - id: ssn
+        type: password
+        multiple: true
+        label: Social Security Number
+
+      - id: drivers_license
+        type: component
+        multiple: true
+        label: Driver's License
+        components:
+          - id: number
+            type: string
+          - id: state
+            type: string
+          - id: issue_date
+            type: date
+          - id: expiration_date
+            type: date
+
+      - id: passport
+        type: component
+        multiple: true
+        label: Passport
+        components:
+          - id: number
+            type: string
+          - id: country
+            type: string
+          - id: issue_date
+            type: date
+          - id: expiration_date
+            type: date
+
+      - id: tax_id
+        type: component
+        multiple: true
+        label: Tax ID / EIN
+        components:
+          - id: number
+            type: string
+          - id: type
+            type: string
+            placeholder: "SSN, EIN, ITIN"
+          - id: country
+            type: string
+
+  # ---------------------------------------------------------------------------
+  # RELATIONSHIPS & ASSOCIATIONS
+  # ---------------------------------------------------------------------------
+  - id: relationships
+    name: Relationships & Associations
+    icon: fa-users
+    fields:
+      - id: family_members
+        type: component
+        multiple: true
+        label: Family Members
+        components:
+          - id: name
+            type: string
+          - id: relationship
+            type: string
+            placeholder: "Spouse, Child, Parent, Sibling"
+          - id: linked_entity_id
+            type: string
+            label: Linked Basset Hound Entity ID
+          - id: notes
+            type: comment
+
+      - id: known_associates
+        type: component
+        multiple: true
+        label: Known Associates
+        components:
+          - id: name
+            type: string
+          - id: association_type
+            type: string
+            placeholder: "Business partner, Friend, etc."
+          - id: linked_entity_id
+            type: string
+          - id: first_seen
+            type: date
+          - id: notes
+            type: comment
+
+      - id: organization_memberships
+        type: component
+        multiple: true
+        label: Organization Memberships
+        components:
+          - id: organization_name
+            type: string
+          - id: role
+            type: string
+          - id: start_date
+            type: date
+          - id: end_date
+            type: date
+          - id: notes
+            type: comment
+
+  # ---------------------------------------------------------------------------
+  # TAGGED PEOPLE
+  # ---------------------------------------------------------------------------
+  - id: Tagged People
+    name: Tagged People
+    icon: fa-user-tag
+    fields:
+      - id: tagged_people
+        type: tagged_people
+        label: Tagged People
+        multiple: true
+
+      - id: transitive_relationships
+        type: transitive_relationships
+        label: Transitive Relationships
+        multiple: true
+
+# =============================================================================
+# FIELD TYPE DEFINITIONS
+# =============================================================================
+field_types:
+  string:
+    html_input: text
+  email:
+    html_input: email
+  url:
+    html_input: url
+  date:
+    html_input: date
+  number:
+    html_input: number
+  password:
+    html_input: password
+  comment:
+    html_input: textarea
+  file:
+    html_input: file
+  ip_address:
+    html_input: text
+  component:
+    html_input: fieldset
+  tagged_people:
+    html_input: select
+    special: true
+  transitive_relationships:
+    html_input: readonly
+    special: true
+  crypto_address:
+    html_input: text
+    special: true
+    auto_detect: true
+    description: >
+      Cryptocurrency address with automatic coin detection.
+      Supports BTC, ETH, LTC, XRP, SOL, ADA, DOGE, XMR, TRX, and 20+ others.
+    validation:
+      min_length: 10
+      max_length: 150
+    detection_endpoint: /api/v1/utils/detect-crypto
+
+# =============================================================================
+# ENTITY TYPE DEFINITIONS (Phase 5 - Multi-Entity Support)
+# =============================================================================
+# Defines the available entity types and their configurations.
+# Each entity type has its own schema with relevant sections and fields.
+# The default entity type is "person" for backwards compatibility.
+# =============================================================================
+
+entity_types:
+  # ---------------------------------------------------------------------------
+  # PERSON (Default - backwards compatible)
+  # ---------------------------------------------------------------------------
+  person:
+    display_name: Person
+    description: Individual people being investigated or tracked
+    icon: fa-user
+    color: "#3498db"
+    primary_name_section: core
+    primary_name_field: name
+    # Person uses all sections defined above in the main 'sections' block
+    # No need to list them here - Person is the default entity type
+
+  # ---------------------------------------------------------------------------
+  # ORGANIZATION
+  # ---------------------------------------------------------------------------
+  organization:
+    display_name: Organization
+    description: Companies, groups, agencies, and other organizational entities
+    icon: fa-building
+    color: "#2ecc71"
+    primary_name_section: org_identity
+    primary_name_field: name
+    sections:
+      # Organization Identity
+      - id: org_identity
+        name: Organization Identity
+        icon: fa-building
+        fields:
+          - id: name
+            type: string
+            label: Organization Name
+            required: true
+            searchable: true
+
+          - id: legal_name
+            type: string
+            label: Legal/Registered Name
+            searchable: true
+
+          - id: alias
+            type: string
+            multiple: true
+            label: Also Known As / Trade Names
+            searchable: true
+
+          - id: org_type
+            type: string
+            label: Organization Type
+            placeholder: "Corporation, LLC, Non-profit, Government, etc."
+
+          - id: industry
+            type: string
+            multiple: true
+            label: Industry/Sector
+
+          - id: description
+            type: comment
+            label: Description
+
+          - id: logo
+            type: file
+            accept: image/*
+            label: Logo/Brand Image
+
+      # Organization Contact
+      - id: org_contact
+        name: Contact Information
+        icon: fa-address-book
+        fields:
+          - id: email
+            type: email
+            multiple: true
+            label: Email Addresses
+            searchable: true
+            identifier: true
+
+          - id: phone
+            type: component
+            multiple: true
+            label: Phone Numbers
+            components:
+              - id: number
+                type: string
+              - id: type
+                type: string
+                placeholder: "Main, Support, Sales"
+              - id: country_code
+                type: string
+                placeholder: "+1"
+
+          - id: headquarters
+            type: component
+            label: Headquarters Address
+            components:
+              - id: street
+                type: string
+              - id: city
+                type: string
+              - id: state
+                type: string
+              - id: postal_code
+                type: string
+              - id: country
+                type: string
+
+          - id: other_locations
+            type: component
+            multiple: true
+            label: Other Locations
+            components:
+              - id: name
+                type: string
+                label: Location Name
+              - id: street
+                type: string
+              - id: city
+                type: string
+              - id: state
+                type: string
+              - id: postal_code
+                type: string
+              - id: country
+                type: string
+              - id: type
+                type: string
+                placeholder: "Office, Factory, Warehouse"
+
+      # Organization Structure
+      - id: org_structure
+        name: Structure & Leadership
+        icon: fa-sitemap
+        fields:
+          - id: parent_organization
+            type: string
+            label: Parent Organization
+            description: Name or ID of parent company
+
+          - id: subsidiaries
+            type: string
+            multiple: true
+            label: Subsidiaries
+
+          - id: leadership
+            type: component
+            multiple: true
+            label: Key Personnel
+            components:
+              - id: name
+                type: string
+              - id: title
+                type: string
+              - id: linked_person_id
+                type: string
+                label: Linked Person Entity ID
+              - id: start_date
+                type: date
+              - id: notes
+                type: comment
+
+          - id: employee_count
+            type: string
+            label: Employee Count
+            placeholder: "Approximate or range (e.g., 100-500)"
+
+          - id: founded_date
+            type: date
+            label: Founded Date
+
+          - id: founded_by
+            type: string
+            multiple: true
+            label: Founded By
+
+      # Organization Registration
+      - id: org_registration
+        name: Registration & Legal
+        icon: fa-gavel
+        fields:
+          - id: registration_number
+            type: string
+            label: Registration/Company Number
+            identifier: true
+
+          - id: tax_id
+            type: string
+            label: Tax ID / EIN
+            identifier: true
+
+          - id: jurisdiction
+            type: string
+            label: Jurisdiction of Registration
+
+          - id: registration_date
+            type: date
+            label: Registration Date
+
+          - id: status
+            type: string
+            label: Status
+            placeholder: "Active, Dissolved, Suspended"
+
+          - id: registered_agent
+            type: component
+            label: Registered Agent
+            components:
+              - id: name
+                type: string
+              - id: address
+                type: string
+
+          - id: licenses
+            type: component
+            multiple: true
+            label: Business Licenses
+            components:
+              - id: license_type
+                type: string
+              - id: license_number
+                type: string
+              - id: issuing_authority
+                type: string
+              - id: issue_date
+                type: date
+              - id: expiration_date
+                type: date
+              - id: status
+                type: string
+
+      # Organization Online Presence
+      - id: org_online_presence
+        name: Online Presence
+        icon: fa-globe
+        fields:
+          - id: website
+            type: url
+            multiple: true
+            label: Websites
+            identifier: true
+
+          - id: linkedin
+            type: component
+            label: LinkedIn
+            components:
+              - id: url
+                type: url
+              - id: company_id
+                type: string
+
+          - id: twitter
+            type: component
+            label: Twitter / X
+            components:
+              - id: url
+                type: url
+              - id: handle
+                type: string
+
+          - id: facebook
+            type: component
+            label: Facebook
+            components:
+              - id: url
+                type: url
+              - id: page_id
+                type: string
+
+          - id: other_social
+            type: component
+            multiple: true
+            label: Other Social Profiles
+            components:
+              - id: platform
+                type: string
+              - id: url
+                type: url
+              - id: username
+                type: string
+
+          - id: domain_names
+            type: string
+            multiple: true
+            label: Owned Domains
+            identifier: true
+
+      # Organization Financial
+      - id: org_financial
+        name: Financial Information
+        icon: fa-chart-line
+        fields:
+          - id: revenue
+            type: string
+            label: Annual Revenue
+            placeholder: "Approximate or range"
+
+          - id: funding
+            type: component
+            multiple: true
+            label: Funding Rounds
+            components:
+              - id: round_type
+                type: string
+                placeholder: "Seed, Series A, IPO, etc."
+              - id: amount
+                type: string
+              - id: date
+                type: date
+              - id: investors
+                type: string
+
+          - id: stock_symbol
+            type: string
+            label: Stock Symbol
+
+          - id: stock_exchange
+            type: string
+            label: Stock Exchange
+
+          - id: crypto_wallets
+            type: crypto_address
+            multiple: true
+            label: Cryptocurrency Wallets
+            identifier: true
+            auto_detect: true
+
+  # ---------------------------------------------------------------------------
+  # LOCATION
+  # ---------------------------------------------------------------------------
+  location:
+    display_name: Location
+    description: Physical addresses, venues, regions, and geographic points
+    icon: fa-map-marker-alt
+    color: "#9b59b6"
+    primary_name_section: location_identity
+    primary_name_field: name
+    sections:
+      # Location Identity
+      - id: location_identity
+        name: Location Identity
+        icon: fa-map-marker-alt
+        fields:
+          - id: name
+            type: string
+            label: Location Name
+            required: true
+            searchable: true
+
+          - id: alias
+            type: string
+            multiple: true
+            label: Also Known As
+            searchable: true
+
+          - id: location_type
+            type: string
+            label: Location Type
+            placeholder: "Residence, Business, Venue, Region, POI"
+
+          - id: description
+            type: comment
+            label: Description
+
+          - id: photo
+            type: file
+            accept: image/*
+            multiple: true
+            label: Photos
+
+      # Location Address
+      - id: location_address
+        name: Address Details
+        icon: fa-address-card
+        fields:
+          - id: street_address
+            type: string
+            label: Street Address
+            searchable: true
+
+          - id: street_address_2
+            type: string
+            label: Street Address Line 2
+
+          - id: city
+            type: string
+            label: City
+            searchable: true
+
+          - id: state
+            type: string
+            label: State/Province/Region
+            searchable: true
+
+          - id: postal_code
+            type: string
+            label: Postal/ZIP Code
+            searchable: true
+
+          - id: country
+            type: string
+            label: Country
+            searchable: true
+
+          - id: formatted_address
+            type: string
+            label: Formatted Address
+            description: Full address as a single string
+
+      # Location Coordinates
+      - id: location_coordinates
+        name: Geographic Coordinates
+        icon: fa-globe
+        fields:
+          - id: latitude
+            type: string
+            label: Latitude
+            placeholder: "e.g., 40.7128"
+
+          - id: longitude
+            type: string
+            label: Longitude
+            placeholder: "e.g., -74.0060"
+
+          - id: altitude
+            type: string
+            label: Altitude (meters)
+
+          - id: accuracy
+            type: string
+            label: Coordinate Accuracy
+
+          - id: plus_code
+            type: string
+            label: Plus Code (Open Location Code)
+            identifier: true
+
+          - id: what3words
+            type: string
+            label: what3words Address
+            identifier: true
+
+          - id: geohash
+            type: string
+            label: Geohash
+
+      # Location Metadata
+      - id: location_metadata
+        name: Additional Information
+        icon: fa-info-circle
+        fields:
+          - id: timezone
+            type: string
+            label: Timezone
+
+          - id: property_type
+            type: string
+            label: Property Type
+            placeholder: "Residential, Commercial, Industrial"
+
+          - id: ownership
+            type: component
+            label: Ownership Information
+            components:
+              - id: owner_name
+                type: string
+              - id: owner_type
+                type: string
+                placeholder: "Individual, Corporation, Government"
+              - id: linked_entity_id
+                type: string
+                label: Linked Entity ID
+
+          - id: associated_phone
+            type: string
+            multiple: true
+            label: Associated Phone Numbers
+
+          - id: associated_business
+            type: string
+            multiple: true
+            label: Associated Businesses
+
+          - id: first_seen
+            type: date
+            label: First Seen Date
+
+          - id: last_verified
+            type: date
+            label: Last Verified Date
+
+          - id: source
+            type: string
+            multiple: true
+            label: Data Sources
+
+          - id: notes
+            type: comment
+            multiple: true
+            label: Notes
+
+  # ---------------------------------------------------------------------------
+  # DEVICE (Placeholder - fields to be expanded)
+  # ---------------------------------------------------------------------------
+  device:
+    display_name: Device
+    description: Phones, computers, IoT devices, and other hardware
+    icon: fa-mobile-alt
+    color: "#e74c3c"
+    primary_name_section: device_identity
+    primary_name_field: name
+    sections:
+      - id: device_identity
+        name: Device Identity
+        icon: fa-mobile-alt
+        fields:
+          - id: name
+            type: string
+            label: Device Name
+            searchable: true
+
+          - id: device_type
+            type: string
+            label: Device Type
+            placeholder: "Phone, Computer, Tablet, IoT, Server"
+
+          - id: manufacturer
+            type: string
+            label: Manufacturer
+
+          - id: model
+            type: string
+            label: Model
+
+          - id: serial_number
+            type: string
+            label: Serial Number
+            identifier: true
+
+          - id: imei
+            type: string
+            label: IMEI
+            identifier: true
+
+          - id: mac_address
+            type: string
+            multiple: true
+            label: MAC Addresses
+            identifier: true
+
+          - id: notes
+            type: comment
+            label: Notes
+
+  # ---------------------------------------------------------------------------
+  # EVENT (Placeholder - fields to be expanded)
+  # ---------------------------------------------------------------------------
+  event:
+    display_name: Event
+    description: Incidents, meetings, transactions, and other time-bound occurrences
+    icon: fa-calendar-alt
+    color: "#f39c12"
+    primary_name_section: event_identity
+    primary_name_field: name
+    sections:
+      - id: event_identity
+        name: Event Details
+        icon: fa-calendar-alt
+        fields:
+          - id: name
+            type: string
+            label: Event Name
+            required: true
+            searchable: true
+
+          - id: event_type
+            type: string
+            label: Event Type
+            placeholder: "Meeting, Incident, Transaction, Conference"
+
+          - id: description
+            type: comment
+            label: Description
+
+          - id: start_date
+            type: date
+            label: Start Date/Time
+
+          - id: end_date
+            type: date
+            label: End Date/Time
+
+          - id: location
+            type: string
+            label: Location
+
+          - id: participants
+            type: string
+            multiple: true
+            label: Participants
+
+          - id: notes
+            type: comment
+            multiple: true
+            label: Notes
+
+  # ---------------------------------------------------------------------------
+  # DOCUMENT (Placeholder - fields to be expanded)
+  # ---------------------------------------------------------------------------
+  document:
+    display_name: Document
+    description: Files, reports, evidence, and other document artifacts
+    icon: fa-file-alt
+    color: "#1abc9c"
+    primary_name_section: document_identity
+    primary_name_field: title
+    sections:
+      - id: document_identity
+        name: Document Information
+        icon: fa-file-alt
+        fields:
+          - id: title
+            type: string
+            label: Document Title
+            required: true
+            searchable: true
+
+          - id: document_type
+            type: string
+            label: Document Type
+            placeholder: "Report, Evidence, Contract, Email"
+
+          - id: description
+            type: comment
+            label: Description
+
+          - id: author
+            type: string
+            multiple: true
+            label: Author(s)
+
+          - id: date_created
+            type: date
+            label: Date Created
+
+          - id: date_modified
+            type: date
+            label: Date Modified
+
+          - id: file
+            type: file
+            label: File
+
+          - id: notes
+            type: comment
+            multiple: true
+            label: Notes
+
+# =============================================================================
+# CROSS-TYPE RELATIONSHIP DEFINITIONS
+# =============================================================================
+# Defines relationships that can exist between different entity types.
+# These extend the basic RelationshipType enum for cross-entity connections.
+# =============================================================================
+
+cross_type_relationships:
+  # Person <-> Organization
+  - source_type: person
+    target_type: organization
+    relationship_name: EMPLOYED_BY
+    inverse_name: EMPLOYS
+    description: Person is/was employed by organization
+
+  - source_type: person
+    target_type: organization
+    relationship_name: MEMBER_OF
+    inverse_name: HAS_MEMBER
+    description: Person is a member of organization
+
+  - source_type: person
+    target_type: organization
+    relationship_name: FOUNDED
+    inverse_name: FOUNDED_BY
+    description: Person founded the organization
+
+  - source_type: person
+    target_type: organization
+    relationship_name: OWNS
+    inverse_name: OWNED_BY
+    description: Person owns the organization
+
+  # Person <-> Location
+  - source_type: person
+    target_type: location
+    relationship_name: LIVES_AT
+    inverse_name: RESIDENCE_OF
+    description: Person lives at location
+
+  - source_type: person
+    target_type: location
+    relationship_name: WORKS_AT
+    inverse_name: WORKPLACE_OF
+    description: Person works at location
+
+  - source_type: person
+    target_type: location
+    relationship_name: VISITED
+    inverse_name: VISITED_BY
+    description: Person visited location
+
+  # Person <-> Device
+  - source_type: person
+    target_type: device
+    relationship_name: OWNS_DEVICE
+    inverse_name: DEVICE_OWNED_BY
+    description: Person owns the device
+
+  - source_type: person
+    target_type: device
+    relationship_name: USES
+    inverse_name: USED_BY
+    description: Person uses the device
+
+  # Organization <-> Location
+  - source_type: organization
+    target_type: location
+    relationship_name: LOCATED_AT
+    inverse_name: LOCATION_OF
+    description: Organization is located at address
+
+  - source_type: organization
+    target_type: location
+    relationship_name: OPERATES_IN
+    inverse_name: OPERATING_AREA_OF
+    description: Organization operates in region
+
+  # Organization <-> Organization
+  - source_type: organization
+    target_type: organization
+    relationship_name: SUBSIDIARY_OF
+    inverse_name: PARENT_OF
+    description: Organization is a subsidiary of another
+
+  - source_type: organization
+    target_type: organization
+    relationship_name: PARTNER_WITH
+    inverse_name: PARTNER_WITH
+    description: Organizations are partners
+    is_symmetric: true
+
+# =============================================================================
+# SECTION STATISTICS
+# =============================================================================
+# Total Sections: 25+ (Person) + 6 (Organization) + 4 (Location) + placeholders
+# Entity Types: 6 (Person, Organization, Location, Device, Event, Document)
+# Cross-Type Relationships: 13 defined
+#
+# Categories:
+#   - Identity & Contact: 3 sections
+#   - Social Platforms: 6 sections (70+ platforms)
+#   - Professional: 2 sections
+#   - Technical: 4 sections (infrastructure, devices, IoT)
+#   - Records & Legal: 2 sections
+#   - Intelligence: 3 sections (breach, threat, dark web)
+#   - Transportation: 2 sections
+#   - Relationships: 2 sections
+#   - Files & Evidence: 1 section
+#
+# Key Features:
+#   - Multi-entity type support (Person, Organization, Location, Device, Event, Document)
+#   - Cross-type relationship definitions
+#   - Comprehensive social media coverage (major, international, federated)
+#   - Breach intelligence tracking (HIBP, infostealers, paste sites)
+#   - Dark web presence monitoring
+#   - IoT and exposed service tracking
+#   - Public records (court, property, business, licenses)
+#   - File metadata extraction (EXIF, document properties)
+#   - Transportation identifiers (aircraft, maritime, flight records)
+#   - Radio communications (HAM, DMR/P25)
+#   - Government ID tracking (SSN, passport, driver's license)
+#   - Relationship mapping with linked entities

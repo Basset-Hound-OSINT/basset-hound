@@ -1,0 +1,81 @@
+sections:
+  - id: Profile Picture Section
+    name: Profile Picture
+    fields:
+      - id: profilepicturefile
+        type: file
+
+  - id: core
+    name: Personal Information
+    fields:
+      - id: name
+        type: string
+        multiple: true
+        components:
+          - id: first_name
+            type: string
+          - id: middle_name
+            type: string
+          - id: last_name
+            type: string
+      - id: summary
+        type: comment
+        multiple: true
+      #- id: basic_file
+      #  type: file
+      #  multiple: true
+      - id: date_of_birth
+        type: date
+        multiple: true
+      - id: email
+        type: email
+        multiple: true
+      #- id: commentated_file
+      #  type: component
+      #  multiple: true
+      #  components:
+      #    - id: filename
+      #      type: file
+      #      multiple: true
+      #    - id: comment
+      #      type: comment
+      #      multiple: true
+
+  - id: social
+    name: Social Media
+    fields:
+      - id: linkedin
+        type: component
+        multiple: true
+        components:
+          - id: url
+            type: url
+          - id: username
+            type: string
+          - id: email
+            type: email
+            multiple: true
+          - id: password
+            type: password
+      - id: twitter
+        type: url
+        multiple: true
+        components:
+          - id: url
+            type: url
+          - id: handle
+            type: string
+          - id: email
+            type: email
+            multiple: true
+      - id: social files
+        type: file
+        multiple: true
+
+
+  - id: devices
+    name: Devices
+    fields:
+      - id: ip address
+        type: ip_address
+        multiple: true
