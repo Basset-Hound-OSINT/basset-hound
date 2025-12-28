@@ -2,36 +2,26 @@
 WebSocket Router for Basset Hound
 
 This module provides WebSocket endpoints for real-time notifications.
+Designed for local-first, single-user operation - no authentication required.
 
 Endpoints:
-- ws /api/v1/ws - Main WebSocket endpoint for general connections (authentication required)
-- ws /api/v1/ws/public - Public WebSocket endpoint (no authentication required)
-- ws /api/v1/ws/projects/{project_id} - Project-scoped WebSocket endpoint (authentication required)
+- ws /api/v1/ws - Main WebSocket endpoint for general connections
+- ws /api/v1/ws/projects/{project_id} - Project-scoped WebSocket endpoint
 
 Phase 4: Real-time Communication Layer
-Phase 14: Enterprise Features - WebSocket Authentication
 """
 
 import json
 import logging
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, Path, status
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, Path
 
 from api.services.websocket_service import (
     ConnectionManager,
-    NotificationService,
     NotificationType,
     WebSocketMessage,
     get_connection_manager,
-    get_notification_service,
-)
-from api.middleware.auth import (
-    WebSocketAuthenticator,
-    WebSocketAuthResult,
-    authenticate_websocket,
-    default_authenticator,
-    optional_authenticator,
 )
 
 logger = logging.getLogger(__name__)
@@ -114,60 +104,16 @@ async def handle_client_message(
         )
 
 
-async def _connect_with_auth(
-    websocket: WebSocket,
-    manager: ConnectionManager,
-    auth_result: WebSocketAuthResult,
-    client_id: Optional[str] = None,
-    metadata: Optional[Dict[str, Any]] = None,
-):
-    """
-    Helper to create an authenticated connection.
-
-    Args:
-        websocket: The WebSocket connection
-        manager: The connection manager
-        auth_result: The authentication result
-        client_id: Optional custom client ID
-        metadata: Optional additional metadata
-
-    Returns:
-        The WebSocket connection object
-    """
-    connection_metadata = metadata or {}
-    connection_metadata.update(auth_result.to_connection_metadata())
-
-    return await manager.connect(
-        websocket,
-        connection_id=client_id,
-        metadata=connection_metadata,
-        authenticated=auth_result.authenticated,
-        user_id=auth_result.user.user_id if auth_result.user else None,
-        username=auth_result.user.username if auth_result.user else None,
-        auth_method=auth_result.auth_method.value,
-        scopes=auth_result.user.scopes if auth_result.user else [],
-    )
-
-
 @router.websocket("")
 async def websocket_endpoint(
     websocket: WebSocket,
     client_id: Optional[str] = Query(default=None, description="Optional client identifier"),
-    token: Optional[str] = Query(default=None, description="JWT token for authentication"),
-    api_key: Optional[str] = Query(default=None, description="API key for authentication"),
 ):
     """
-    Main WebSocket endpoint for authenticated connections.
-
-    This endpoint requires authentication via either JWT token or API key.
-    Authentication can be provided via:
-    - Query parameter: ?token=<jwt> or ?api_key=<key>
-    - Headers: Authorization: Bearer <jwt> or X-API-Key: <key>
+    Main WebSocket endpoint for real-time notifications.
 
     Query Parameters:
         client_id: Optional custom client identifier
-        token: Optional JWT token for authentication
-        api_key: Optional API key for authentication
 
     Message Protocol:
         - Send {"type": "ping"} to receive a pong response
@@ -176,89 +122,19 @@ async def websocket_endpoint(
 
     Connection Response:
         On successful connection, receives:
-        {"type": "connected", "data": {"connection_id": "...", "authenticated": true, ...}, ...}
-
-    Authentication Failure:
-        Connection is closed with code 1008 (Policy Violation) and error message
+        {"type": "connected", "data": {"connection_id": "..."}, ...}
     """
     manager = get_connection_manager()
 
-    # Authenticate the connection
-    auth_result = await default_authenticator.authenticate(websocket)
-
-    if not auth_result.authenticated:
-        logger.warning(f"WebSocket authentication failed: {auth_result.error}")
-        await websocket.close(
-            code=status.WS_1008_POLICY_VIOLATION,
-            reason=auth_result.error or "Authentication failed"
-        )
-        return
-
-    # Connect with authentication info
-    connection = await _connect_with_auth(
+    connection = await manager.connect(
         websocket,
-        manager,
-        auth_result,
-        client_id=client_id,
+        connection_id=client_id,
         metadata={"source": "general"}
     )
     connection_id = connection.connection_id
 
     try:
         while True:
-            # Wait for messages from client
-            message_text = await websocket.receive_text()
-            await handle_client_message(websocket, connection_id, message_text, manager)
-
-    except WebSocketDisconnect:
-        logger.info(f"WebSocket client disconnected: {connection_id}")
-    except Exception as e:
-        logger.error(f"WebSocket error for {connection_id}: {e}")
-    finally:
-        await manager.disconnect(connection_id)
-
-
-@router.websocket("/public")
-async def websocket_public_endpoint(
-    websocket: WebSocket,
-    client_id: Optional[str] = Query(default=None, description="Optional client identifier"),
-):
-    """
-    Public WebSocket endpoint (no authentication required).
-
-    This endpoint accepts WebSocket connections without requiring authentication.
-    Authentication is still attempted if credentials are provided, but not required.
-
-    Query Parameters:
-        client_id: Optional custom client identifier
-
-    Message Protocol:
-        - Send {"type": "ping"} to receive a pong response
-        - Send {"type": "subscribe", "project_id": "..."} to subscribe to project events
-        - Send {"type": "unsubscribe", "project_id": "..."} to unsubscribe from project events
-
-    Connection Response:
-        On successful connection, receives:
-        {"type": "connected", "data": {"connection_id": "...", "authenticated": false, ...}, ...}
-    """
-    manager = get_connection_manager()
-
-    # Attempt optional authentication
-    auth_result = await optional_authenticator.authenticate(websocket)
-
-    # Connect (authentication not required for public endpoint)
-    connection = await _connect_with_auth(
-        websocket,
-        manager,
-        auth_result,
-        client_id=client_id,
-        metadata={"source": "public"}
-    )
-    connection_id = connection.connection_id
-
-    try:
-        while True:
-            # Wait for messages from client
             message_text = await websocket.receive_text()
             await handle_client_message(websocket, connection_id, message_text, manager)
 
@@ -275,22 +151,17 @@ async def websocket_project_endpoint(
     websocket: WebSocket,
     project_id: str = Path(..., description="Project ID to subscribe to"),
     client_id: Optional[str] = Query(default=None, description="Optional client identifier"),
-    token: Optional[str] = Query(default=None, description="JWT token for authentication"),
-    api_key: Optional[str] = Query(default=None, description="API key for authentication"),
 ):
     """
-    Project-scoped WebSocket endpoint (authentication required).
+    Project-scoped WebSocket endpoint.
 
-    This endpoint requires authentication and automatically subscribes
-    the connection to the specified project's events.
+    Automatically subscribes the connection to the specified project's events.
 
     Path Parameters:
         project_id: The project ID to automatically subscribe to
 
     Query Parameters:
         client_id: Optional custom client identifier
-        token: Optional JWT token for authentication
-        api_key: Optional API key for authentication
 
     Message Protocol:
         - Send {"type": "ping"} to receive a pong response
@@ -299,32 +170,15 @@ async def websocket_project_endpoint(
 
     Connection Response:
         On successful connection, receives:
-        {"type": "connected", "data": {"connection_id": "...", "authenticated": true, ...}, ...}
+        {"type": "connected", "data": {"connection_id": "..."}, ...}
         Followed by:
         {"type": "subscribed", "project_id": "...", "data": {"project_id": "..."}, ...}
-
-    Authentication Failure:
-        Connection is closed with code 1008 (Policy Violation) and error message
     """
     manager = get_connection_manager()
 
-    # Authenticate the connection
-    auth_result = await default_authenticator.authenticate(websocket)
-
-    if not auth_result.authenticated:
-        logger.warning(f"WebSocket authentication failed for project {project_id}: {auth_result.error}")
-        await websocket.close(
-            code=status.WS_1008_POLICY_VIOLATION,
-            reason=auth_result.error or "Authentication failed"
-        )
-        return
-
-    # Connect with authentication info
-    connection = await _connect_with_auth(
+    connection = await manager.connect(
         websocket,
-        manager,
-        auth_result,
-        client_id=client_id,
+        connection_id=client_id,
         metadata={"source": "project", "initial_project": project_id}
     )
     connection_id = connection.connection_id
@@ -334,7 +188,6 @@ async def websocket_project_endpoint(
 
     try:
         while True:
-            # Wait for messages from client
             message_text = await websocket.receive_text()
             await handle_client_message(websocket, connection_id, message_text, manager)
 
@@ -346,7 +199,7 @@ async def websocket_project_endpoint(
         await manager.disconnect(connection_id)
 
 
-# HTTP endpoints for WebSocket management (useful for debugging/admin)
+# HTTP endpoints for WebSocket management (useful for debugging)
 
 @router.get("/stats", tags=["WebSocket"])
 async def get_websocket_stats() -> Dict[str, Any]:
@@ -360,12 +213,7 @@ async def get_websocket_stats() -> Dict[str, Any]:
         Dictionary with WebSocket statistics
     """
     manager = get_connection_manager()
-    stats = manager.get_stats()
-
-    # Add authentication statistics
-    stats["authenticated_connections"] = len(manager.get_authenticated_connection_ids())
-
-    return stats
+    return manager.get_stats()
 
 
 @router.get("/connections", tags=["WebSocket"])
@@ -373,9 +221,8 @@ async def list_connections() -> Dict[str, Any]:
     """
     List all active WebSocket connections.
 
-    Returns a list of connection IDs and their metadata,
-    including authentication information.
-    For debugging and administrative purposes.
+    Returns a list of connection IDs and their metadata.
+    For debugging purposes.
 
     Returns:
         Dictionary with list of connections
@@ -392,15 +239,10 @@ async def list_connections() -> Dict[str, Any]:
                 "last_activity": connection.last_activity,
                 "subscriptions": list(connection.project_subscriptions),
                 "metadata": connection.metadata,
-                "authenticated": connection.authenticated,
-                "user_id": connection.user_id,
-                "username": connection.username,
-                "auth_method": connection.auth_method,
             })
 
     return {
         "count": len(connections),
-        "authenticated_count": sum(1 for c in connections if c["authenticated"]),
         "connections": connections,
     }
 
@@ -416,59 +258,13 @@ async def list_project_subscribers(
         project_id: The project ID to check
 
     Returns:
-        Dictionary with list of subscriber connection IDs and their auth status
+        Dictionary with list of subscriber connection IDs
     """
     manager = get_connection_manager()
     subscriber_ids = manager.get_project_subscriber_ids(project_id)
 
-    subscribers = []
-    for conn_id in subscriber_ids:
-        conn = manager.get_connection(conn_id)
-        if conn:
-            subscribers.append({
-                "connection_id": conn_id,
-                "authenticated": conn.authenticated,
-                "user_id": conn.user_id,
-                "username": conn.username,
-            })
-
     return {
         "project_id": project_id,
-        "subscriber_count": len(subscribers),
-        "subscribers": subscribers,
-    }
-
-
-@router.get("/users/{user_id}/connections", tags=["WebSocket"])
-async def list_user_connections(
-    user_id: str = Path(..., description="User ID")
-) -> Dict[str, Any]:
-    """
-    List all connections for a specific user.
-
-    Args:
-        user_id: The user ID to check
-
-    Returns:
-        Dictionary with list of connection IDs for the user
-    """
-    manager = get_connection_manager()
-    connection_ids = manager.get_connections_by_user_id(user_id)
-
-    connections = []
-    for conn_id in connection_ids:
-        conn = manager.get_connection(conn_id)
-        if conn:
-            connections.append({
-                "connection_id": conn_id,
-                "connected_at": conn.connected_at,
-                "last_activity": conn.last_activity,
-                "subscriptions": list(conn.project_subscriptions),
-                "auth_method": conn.auth_method,
-            })
-
-    return {
-        "user_id": user_id,
-        "connection_count": len(connections),
-        "connections": connections,
+        "subscriber_count": len(subscriber_ids),
+        "subscribers": subscriber_ids,
     }

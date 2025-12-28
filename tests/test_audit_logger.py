@@ -9,7 +9,7 @@ Comprehensive test coverage for:
 - Query methods (by entity, project, action, date range)
 - Listener functionality
 - Singleton pattern
-- Router endpoint tests
+- Changes tracking
 """
 
 import asyncio
@@ -46,9 +46,7 @@ class TestAuditLogEntry:
         assert entry.entity_type == EntityType.ENTITY
         assert entry.entity_id == ""
         assert entry.project_id is None
-        assert entry.user_id is None
         assert entry.changes is None
-        assert entry.ip_address is None
         assert entry.metadata is None
 
     def test_entry_creation_with_values(self):
@@ -60,9 +58,7 @@ class TestAuditLogEntry:
             entity_type=EntityType.ENTITY,
             entity_id="entity-123",
             project_id="project-456",
-            user_id="user-789",
             changes={"name": "John Doe"},
-            ip_address="192.168.1.1",
             metadata={"source": "api"},
         )
 
@@ -72,9 +68,7 @@ class TestAuditLogEntry:
         assert entry.entity_type == EntityType.ENTITY
         assert entry.entity_id == "entity-123"
         assert entry.project_id == "project-456"
-        assert entry.user_id == "user-789"
         assert entry.changes == {"name": "John Doe"}
-        assert entry.ip_address == "192.168.1.1"
         assert entry.metadata == {"source": "api"}
 
     def test_entry_to_dict(self):
@@ -107,9 +101,7 @@ class TestAuditLogEntry:
             "entity_type": "RELATIONSHIP",
             "entity_id": "entity-123",
             "project_id": "project-456",
-            "user_id": "user-789",
             "changes": {"deleted": True},
-            "ip_address": "10.0.0.1",
             "metadata": {"reason": "cleanup"},
         }
 
@@ -121,9 +113,7 @@ class TestAuditLogEntry:
         assert entry.entity_type == EntityType.RELATIONSHIP
         assert entry.entity_id == "entity-123"
         assert entry.project_id == "project-456"
-        assert entry.user_id == "user-789"
         assert entry.changes == {"deleted": True}
-        assert entry.ip_address == "10.0.0.1"
         assert entry.metadata == {"reason": "cleanup"}
 
     def test_entry_from_dict_with_missing_fields(self):
@@ -149,9 +139,7 @@ class TestAuditLogEntry:
             entity_type=EntityType.ENTITY,
             entity_id="entity-123",
             project_id="project-456",
-            user_id="user-789",
             changes={"target": "entity-999"},
-            ip_address="192.168.1.1",
             metadata={"extra": "data"},
         )
 
@@ -164,9 +152,7 @@ class TestAuditLogEntry:
         assert restored.entity_type == original.entity_type
         assert restored.entity_id == original.entity_id
         assert restored.project_id == original.project_id
-        assert restored.user_id == original.user_id
         assert restored.changes == original.changes
-        assert restored.ip_address == original.ip_address
         assert restored.metadata == original.metadata
 
 
@@ -448,8 +434,6 @@ class TestAuditLogger:
             entity_id="entity-123",
             project_id="project-456",
             changes={"name": "John Doe"},
-            user_id="user-789",
-            ip_address="192.168.1.1",
         )
 
         assert entry is not None
@@ -457,8 +441,7 @@ class TestAuditLogger:
         assert entry.entity_type == EntityType.ENTITY
         assert entry.entity_id == "entity-123"
         assert entry.project_id == "project-456"
-        assert entry.user_id == "user-789"
-        assert entry.ip_address == "192.168.1.1"
+        assert entry.changes == {"name": "John Doe"}
 
     @pytest.mark.asyncio
     async def test_log_update(self, logger):
@@ -479,7 +462,6 @@ class TestAuditLogger:
         entry = await logger.log_delete(
             entity_type=EntityType.PROJECT,
             entity_id="project-123",
-            user_id="admin",
         )
 
         assert entry is not None
@@ -520,7 +502,6 @@ class TestAuditLogger:
         entry = await logger.log_view(
             entity_type=EntityType.ENTITY,
             entity_id="entity-123",
-            user_id="user-456",
         )
 
         assert entry is not None
@@ -894,30 +875,20 @@ class TestAuditLoggerSingleton:
         set_audit_logger(None)
 
 
-# ==================== Edge Cases ====================
+# ==================== Changes Tracking Tests ====================
 
 
-class TestEdgeCases:
-    """Tests for edge cases and error handling."""
+class TestChangesTracking:
+    """Tests for tracking changes in audit entries."""
 
-    @pytest.mark.asyncio
-    async def test_empty_entity_id(self):
-        """Test logging with empty entity ID."""
-        logger = AuditLogger(enabled=True)
-
-        entry = await logger.log_create(
-            entity_type=EntityType.ENTITY,
-            entity_id="",
-        )
-
-        assert entry is not None
-        assert entry.entity_id == ""
+    @pytest.fixture
+    def logger(self):
+        """Create a fresh audit logger."""
+        return AuditLogger(enabled=True)
 
     @pytest.mark.asyncio
-    async def test_none_changes(self):
+    async def test_none_changes(self, logger):
         """Test logging without changes."""
-        logger = AuditLogger(enabled=True)
-
         entry = await logger.log_update(
             entity_type=EntityType.ENTITY,
             entity_id="entity-123",
@@ -928,10 +899,20 @@ class TestEdgeCases:
         assert entry.changes is None
 
     @pytest.mark.asyncio
-    async def test_complex_changes(self):
-        """Test logging with complex nested changes."""
-        logger = AuditLogger(enabled=True)
+    async def test_simple_changes(self, logger):
+        """Test logging with simple changes."""
+        entry = await logger.log_update(
+            entity_type=EntityType.ENTITY,
+            entity_id="entity-123",
+            changes={"name": "New Name"},
+        )
 
+        assert entry is not None
+        assert entry.changes == {"name": "New Name"}
+
+    @pytest.mark.asyncio
+    async def test_complex_changes(self, logger):
+        """Test logging with complex nested changes."""
         complex_changes = {
             "profile": {
                 "personal": {
@@ -954,6 +935,50 @@ class TestEdgeCases:
 
         assert entry is not None
         assert entry.changes == complex_changes
+
+    @pytest.mark.asyncio
+    async def test_changes_with_before_after(self, logger):
+        """Test logging changes with before/after pattern."""
+        changes = {
+            "name": {
+                "before": "Old Name",
+                "after": "New Name",
+            },
+            "status": {
+                "before": "active",
+                "after": "inactive",
+            }
+        }
+
+        entry = await logger.log_update(
+            entity_type=EntityType.ENTITY,
+            entity_id="entity-123",
+            changes=changes,
+        )
+
+        assert entry is not None
+        assert entry.changes["name"]["before"] == "Old Name"
+        assert entry.changes["name"]["after"] == "New Name"
+
+
+# ==================== Edge Cases ====================
+
+
+class TestEdgeCases:
+    """Tests for edge cases and error handling."""
+
+    @pytest.mark.asyncio
+    async def test_empty_entity_id(self):
+        """Test logging with empty entity ID."""
+        logger = AuditLogger(enabled=True)
+
+        entry = await logger.log_create(
+            entity_type=EntityType.ENTITY,
+            entity_id="",
+        )
+
+        assert entry is not None
+        assert entry.entity_id == ""
 
     @pytest.mark.asyncio
     async def test_concurrent_logging(self):
@@ -1016,7 +1041,6 @@ class TestAuditLoggerIntegration:
             entity_id=entity_id,
             project_id=project_id,
             changes={"name": "John Doe"},
-            user_id="admin",
         )
         assert create_entry is not None
 
@@ -1025,7 +1049,6 @@ class TestAuditLoggerIntegration:
             entity_type=EntityType.ENTITY,
             entity_id=entity_id,
             project_id=project_id,
-            user_id="viewer",
         )
         assert view_entry is not None
 
@@ -1035,7 +1058,6 @@ class TestAuditLoggerIntegration:
             entity_id=entity_id,
             project_id=project_id,
             changes={"name": "Jane Doe"},
-            user_id="admin",
         )
         assert update_entry is not None
 
@@ -1046,7 +1068,6 @@ class TestAuditLoggerIntegration:
             project_id=project_id,
             target_entity_id="other-entity",
             relationship_type="KNOWS",
-            user_id="admin",
         )
         assert link_entry is not None
 
@@ -1057,7 +1078,6 @@ class TestAuditLoggerIntegration:
             project_id=project_id,
             target_entity_id="other-entity",
             relationship_type="KNOWS",
-            user_id="admin",
         )
         assert unlink_entry is not None
 
@@ -1066,7 +1086,6 @@ class TestAuditLoggerIntegration:
             entity_type=EntityType.ENTITY,
             entity_id=entity_id,
             project_id=project_id,
-            user_id="admin",
         )
         assert delete_entry is not None
 
@@ -1090,7 +1109,6 @@ class TestAuditLoggerIntegration:
             entity_type=EntityType.PROJECT,
             entity_id=project_id,
             changes={"name": "Investigation Alpha"},
-            user_id="admin",
         )
 
         # Add entities to project
@@ -1099,7 +1117,6 @@ class TestAuditLoggerIntegration:
                 entity_type=EntityType.ENTITY,
                 entity_id=f"entity-{i}",
                 project_id=project_id,
-                user_id="analyst",
             )
 
         # Create relationships
@@ -1107,7 +1124,6 @@ class TestAuditLoggerIntegration:
             entity_type=EntityType.RELATIONSHIP,
             entity_id="rel-001",
             project_id=project_id,
-            user_id="analyst",
         )
 
         # Upload file
@@ -1116,7 +1132,6 @@ class TestAuditLoggerIntegration:
             entity_id="file-001",
             project_id=project_id,
             changes={"filename": "evidence.pdf"},
-            user_id="analyst",
         )
 
         # Get full project audit trail

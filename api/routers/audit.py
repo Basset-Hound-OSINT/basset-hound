@@ -1,14 +1,15 @@
 """
 Audit Log Router for Basset Hound.
 
-Provides endpoints for querying audit logs for entities and projects.
-Part of Phase 14: Enterprise Features.
+Provides endpoints for querying change logs for debugging and audit purposes.
+Designed for local-first, single-user applications - focuses on tracking
+WHAT changed rather than WHO changed it.
 
 Endpoints:
-- GET /projects/{project_id}/audit - Get audit logs for a project
-- GET /entities/{entity_id}/audit - Get audit logs for an entity
-- GET /audit - Get all audit logs (admin, with pagination)
-- GET /audit/stats - Get audit log statistics
+- GET /projects/{project_id}/audit - Get change logs for a project
+- GET /entities/{entity_id}/audit - Get change logs for an entity
+- GET /audit - Get all change logs with filtering and pagination
+- GET /audit/stats - Get change log statistics
 """
 
 from datetime import datetime
@@ -30,7 +31,7 @@ from ..services.audit_logger import (
 
 
 class AuditLogResponse(BaseModel):
-    """Schema for a single audit log entry response."""
+    """Schema for a single change log entry response."""
     model_config = ConfigDict(json_schema_extra={
         "example": {
             "id": "550e8400-e29b-41d4-a716-446655440000",
@@ -39,27 +40,23 @@ class AuditLogResponse(BaseModel):
             "entity_type": "ENTITY",
             "entity_id": "entity-123",
             "project_id": "project-456",
-            "user_id": "user-789",
             "changes": {"profile": {"name": "John Doe"}},
-            "ip_address": "192.168.1.1",
             "metadata": None
         }
     })
 
-    id: str = Field(..., description="Unique identifier for the audit log entry")
+    id: str = Field(..., description="Unique identifier for the change log entry")
     timestamp: str = Field(..., description="ISO 8601 timestamp when the action occurred")
     action: str = Field(..., description="The type of action (CREATE, UPDATE, DELETE, LINK, UNLINK, VIEW)")
     entity_type: str = Field(..., description="The type of entity affected")
     entity_id: str = Field(..., description="The unique identifier of the affected entity")
     project_id: Optional[str] = Field(None, description="The project context")
-    user_id: Optional[str] = Field(None, description="The user who performed the action")
-    changes: Optional[Dict[str, Any]] = Field(None, description="JSON representation of what changed")
-    ip_address: Optional[str] = Field(None, description="IP address of the request origin")
+    changes: Optional[Dict[str, Any]] = Field(None, description="Dictionary representation of what changed")
     metadata: Optional[Dict[str, Any]] = Field(None, description="Additional context information")
 
 
 class AuditLogListResponse(BaseModel):
-    """Schema for a list of audit log entries."""
+    """Schema for a list of change log entries."""
     model_config = ConfigDict(json_schema_extra={
         "example": {
             "logs": [],
@@ -69,14 +66,14 @@ class AuditLogListResponse(BaseModel):
         }
     })
 
-    logs: List[AuditLogResponse] = Field(default_factory=list, description="List of audit log entries")
+    logs: List[AuditLogResponse] = Field(default_factory=list, description="List of change log entries")
     total: int = Field(0, description="Total number of matching entries")
     limit: int = Field(100, description="Maximum entries returned")
     offset: int = Field(0, description="Number of entries skipped")
 
 
 class AuditStatsResponse(BaseModel):
-    """Schema for audit log statistics."""
+    """Schema for change log statistics."""
     model_config = ConfigDict(json_schema_extra={
         "example": {
             "total_entries": 1000,
@@ -86,16 +83,16 @@ class AuditStatsResponse(BaseModel):
         }
     })
 
-    total_entries: int = Field(0, description="Total number of audit log entries")
+    total_entries: int = Field(0, description="Total number of change log entries")
     max_entries: int = Field(10000, description="Maximum entries allowed")
     action_counts: Dict[str, int] = Field(default_factory=dict, description="Count of entries by action type")
     entity_type_counts: Dict[str, int] = Field(default_factory=dict, description="Count of entries by entity type")
 
 
 class AuditHealthResponse(BaseModel):
-    """Schema for audit logger health check response."""
+    """Schema for change logger health check response."""
     status: str = Field(..., description="Health status (healthy/unhealthy)")
-    enabled: Optional[bool] = Field(None, description="Whether audit logging is enabled")
+    enabled: Optional[bool] = Field(None, description="Whether change logging is enabled")
     backend_type: Optional[str] = Field(None, description="Type of backend in use")
     has_entries: Optional[bool] = Field(None, description="Whether there are any entries")
     error: Optional[str] = Field(None, description="Error message if unhealthy")
@@ -147,16 +144,15 @@ entity_audit_router = APIRouter(
 @router.get(
     "",
     response_model=AuditLogListResponse,
-    summary="Get all audit logs",
-    description="Retrieve all audit logs with optional filtering and pagination. Admin endpoint.",
+    summary="Get all change logs",
+    description="Retrieve all change logs with optional filtering and pagination.",
     responses={
-        200: {"description": "Audit logs retrieved successfully"},
+        200: {"description": "Change logs retrieved successfully"},
     }
 )
 async def get_all_audit_logs(
     action: Optional[str] = Query(None, description="Filter by action type (CREATE, UPDATE, DELETE, LINK, UNLINK, VIEW)"),
     entity_type: Optional[str] = Query(None, description="Filter by entity type (PROJECT, ENTITY, RELATIONSHIP, etc.)"),
-    user_id: Optional[str] = Query(None, description="Filter by user ID"),
     start_date: Optional[str] = Query(None, description="Filter by start date (ISO 8601 format)"),
     end_date: Optional[str] = Query(None, description="Filter by end date (ISO 8601 format)"),
     limit: int = Query(100, ge=1, le=1000, description="Maximum number of results"),
@@ -164,14 +160,13 @@ async def get_all_audit_logs(
     audit_service: AuditLogger = Depends(get_audit_service),
 ):
     """
-    Get all audit logs.
+    Get all change logs.
 
-    This is an admin endpoint that returns all audit logs with optional filtering.
-    Use query parameters to filter by action, entity type, user, and date range.
+    Returns all change logs with optional filtering. Useful for debugging
+    and understanding data history in this local-first application.
 
     - **action**: Filter by action type
     - **entity_type**: Filter by entity type
-    - **user_id**: Filter by user ID
     - **start_date**: Filter from this date (ISO 8601)
     - **end_date**: Filter until this date (ISO 8601)
     - **limit**: Maximum number of results (1-1000)
@@ -226,7 +221,6 @@ async def get_all_audit_logs(
         logs = await audit_service.get_logs(
             action=parsed_action,
             entity_type=parsed_entity_type,
-            user_id=user_id,
             start_date=parsed_start_date,
             end_date=parsed_end_date,
             limit=limit,
@@ -255,8 +249,8 @@ async def get_all_audit_logs(
 @router.get(
     "/stats",
     response_model=AuditStatsResponse,
-    summary="Get audit log statistics",
-    description="Retrieve statistics about audit logs including counts by action and entity type.",
+    summary="Get change log statistics",
+    description="Retrieve statistics about change logs including counts by action and entity type.",
     responses={
         200: {"description": "Statistics retrieved successfully"},
     }
@@ -265,9 +259,9 @@ async def get_audit_stats(
     audit_service: AuditLogger = Depends(get_audit_service),
 ):
     """
-    Get audit log statistics.
+    Get change log statistics.
 
-    Returns aggregate statistics about the audit logs including:
+    Returns aggregate statistics about the change logs including:
     - Total number of entries
     - Maximum entries allowed
     - Count of entries by action type
@@ -293,8 +287,8 @@ async def get_audit_stats(
 @router.get(
     "/health",
     response_model=AuditHealthResponse,
-    summary="Health check for audit logger",
-    description="Check the health status of the audit logging service.",
+    summary="Health check for change logger",
+    description="Check the health status of the change logging service.",
     responses={
         200: {"description": "Health check completed"},
     }
@@ -303,9 +297,9 @@ async def audit_health_check(
     audit_service: AuditLogger = Depends(get_audit_service),
 ):
     """
-    Perform a health check on the audit logger.
+    Perform a health check on the change logger.
 
-    Returns the current health status of the audit logging service
+    Returns the current health status of the change logging service
     including whether it's enabled and the backend type.
     """
     try:
@@ -325,10 +319,10 @@ async def audit_health_check(
 @project_audit_router.get(
     "",
     response_model=AuditLogListResponse,
-    summary="Get audit logs for a project",
-    description="Retrieve all audit logs associated with a specific project.",
+    summary="Get change logs for a project",
+    description="Retrieve all change logs associated with a specific project.",
     responses={
-        200: {"description": "Project audit logs retrieved successfully"},
+        200: {"description": "Project change logs retrieved successfully"},
     }
 )
 async def get_project_audit_logs(
@@ -342,9 +336,9 @@ async def get_project_audit_logs(
     audit_service: AuditLogger = Depends(get_audit_service),
 ):
     """
-    Get audit logs for a specific project.
+    Get change logs for a specific project.
 
-    Returns all audit log entries associated with the given project ID.
+    Returns all change log entries associated with the given project ID.
 
     - **project_id**: The project ID to filter by
     - **action**: Optional filter by action type
@@ -432,10 +426,10 @@ async def get_project_audit_logs(
 @entity_audit_router.get(
     "",
     response_model=AuditLogListResponse,
-    summary="Get audit logs for an entity",
-    description="Retrieve all audit logs associated with a specific entity.",
+    summary="Get change logs for an entity",
+    description="Retrieve all change logs associated with a specific entity.",
     responses={
-        200: {"description": "Entity audit logs retrieved successfully"},
+        200: {"description": "Entity change logs retrieved successfully"},
     }
 )
 async def get_entity_audit_logs(
@@ -448,9 +442,9 @@ async def get_entity_audit_logs(
     audit_service: AuditLogger = Depends(get_audit_service),
 ):
     """
-    Get audit logs for a specific entity.
+    Get change logs for a specific entity.
 
-    Returns all audit log entries associated with the given entity ID.
+    Returns all change log entries associated with the given entity ID.
 
     - **entity_id**: The entity ID to filter by
     - **action**: Optional filter by action type

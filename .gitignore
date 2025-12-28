@@ -40,6 +40,5 @@ reports/
 .claude/
 
 # Temporary
-tmp*.md
 *.tmp
 *.bak

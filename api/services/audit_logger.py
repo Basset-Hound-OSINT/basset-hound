@@ -1,18 +1,20 @@
 """
 Audit Logging Service for Basset Hound
 
-This module provides comprehensive audit logging for entity and project modifications.
-It is part of Phase 14: Enterprise Features.
+A lightweight change tracking system designed for local-first, single-user applications.
+Focuses on recording WHAT changed for debugging and audit purposes, rather than
+WHO changed it (since there's only one user).
 
 Features:
 - Log CREATE, UPDATE, DELETE, LINK, UNLINK, VIEW actions
-- Store timestamp, action, entity_type, entity_id, project_id, user_id, changes, ip_address
+- Store timestamp, action, entity_type, entity_id, project_id, changes
 - In-memory storage with optional persistence interface
 - Query methods for filtering logs by entity, project, action, and date range
 - Thread-safe operations
 - Singleton pattern for global access
 
-Phase 14: Enterprise Features - Audit Logging
+This is intentionally simple - it's meant for debugging and understanding
+data history, not enterprise compliance or multi-user attribution.
 """
 
 import asyncio
@@ -55,6 +57,9 @@ class AuditLogEntry:
     """
     Represents a single audit log entry.
 
+    This is a simple record of what changed in the application, designed for
+    local-first single-user debugging and change tracking.
+
     Attributes:
         id: Unique identifier for the log entry
         timestamp: ISO 8601 timestamp when the action occurred
@@ -62,9 +67,7 @@ class AuditLogEntry:
         entity_type: The type of entity affected
         entity_id: The unique identifier of the affected entity
         project_id: The project context (optional for global actions)
-        user_id: The user who performed the action (optional)
-        changes: JSON representation of what changed
-        ip_address: IP address of the request origin (optional)
+        changes: Dictionary representation of what changed
         metadata: Additional context information
     """
     id: str = field(default_factory=lambda: str(uuid4()))
@@ -73,9 +76,7 @@ class AuditLogEntry:
     entity_type: EntityType = EntityType.ENTITY
     entity_id: str = ""
     project_id: Optional[str] = None
-    user_id: Optional[str] = None
     changes: Optional[Dict[str, Any]] = None
-    ip_address: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None
 
     def to_dict(self) -> Dict[str, Any]:
@@ -87,9 +88,7 @@ class AuditLogEntry:
             "entity_type": self.entity_type.value if isinstance(self.entity_type, EntityType) else self.entity_type,
             "entity_id": self.entity_id,
             "project_id": self.project_id,
-            "user_id": self.user_id,
             "changes": self.changes,
-            "ip_address": self.ip_address,
             "metadata": self.metadata,
         }
         return result
@@ -114,9 +113,7 @@ class AuditLogEntry:
             entity_type=entity_type,
             entity_id=data.get("entity_id", ""),
             project_id=data.get("project_id"),
-            user_id=data.get("user_id"),
             changes=data.get("changes"),
-            ip_address=data.get("ip_address"),
             metadata=data.get("metadata"),
         )
 
@@ -199,7 +196,6 @@ class InMemoryAuditBackend(AuditPersistenceBackend):
         project_id: Optional[str] = None,
         action: Optional[AuditAction] = None,
         entity_type: Optional[EntityType] = None,
-        user_id: Optional[str] = None,
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
         limit: int = 100,
@@ -218,8 +214,6 @@ class InMemoryAuditBackend(AuditPersistenceBackend):
                 if action and entry.action != action:
                     continue
                 if entity_type and entry.entity_type != entity_type:
-                    continue
-                if user_id and entry.user_id != user_id:
                     continue
 
                 # Date filtering
@@ -271,10 +265,11 @@ class InMemoryAuditBackend(AuditPersistenceBackend):
 
 class AuditLogger:
     """
-    Main audit logging service.
+    Simple change tracking service for local-first applications.
 
-    Provides methods for logging various entity and project modifications
-    with support for custom persistence backends.
+    Tracks what changed and when, without user attribution (since this is
+    designed for single-user local applications). Useful for debugging,
+    understanding data history, and basic audit trails.
 
     Example usage:
         audit = get_audit_logger()
@@ -283,8 +278,6 @@ class AuditLogger:
             entity_id="entity-123",
             project_id="project-456",
             changes={"profile": {"name": "John Doe"}},
-            user_id="user-789",
-            ip_address="192.168.1.1"
         )
     """
 
@@ -381,22 +374,18 @@ class AuditLogger:
         entity_type: EntityType,
         entity_id: str,
         project_id: Optional[str] = None,
-        user_id: Optional[str] = None,
         changes: Optional[Dict[str, Any]] = None,
-        ip_address: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> Optional[AuditLogEntry]:
         """
-        Log an audit event.
+        Log a change event.
 
         Args:
             action: The type of action being performed.
             entity_type: The type of entity being affected.
             entity_id: The unique identifier of the entity.
             project_id: The project context (optional).
-            user_id: The user performing the action (optional).
             changes: Dictionary of changes made (optional).
-            ip_address: The origin IP address (optional).
             metadata: Additional context (optional).
 
         Returns:
@@ -407,9 +396,7 @@ class AuditLogger:
             entity_type=entity_type,
             entity_id=entity_id,
             project_id=project_id,
-            user_id=user_id,
             changes=changes,
-            ip_address=ip_address,
             metadata=metadata,
         )
 
@@ -423,8 +410,6 @@ class AuditLogger:
         entity_id: str,
         project_id: Optional[str] = None,
         changes: Optional[Dict[str, Any]] = None,
-        user_id: Optional[str] = None,
-        ip_address: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> Optional[AuditLogEntry]:
         """Log a CREATE action."""
@@ -434,8 +419,6 @@ class AuditLogger:
             entity_id=entity_id,
             project_id=project_id,
             changes=changes,
-            user_id=user_id,
-            ip_address=ip_address,
             metadata=metadata,
         )
 
@@ -445,8 +428,6 @@ class AuditLogger:
         entity_id: str,
         project_id: Optional[str] = None,
         changes: Optional[Dict[str, Any]] = None,
-        user_id: Optional[str] = None,
-        ip_address: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> Optional[AuditLogEntry]:
         """Log an UPDATE action."""
@@ -456,8 +437,6 @@ class AuditLogger:
             entity_id=entity_id,
             project_id=project_id,
             changes=changes,
-            user_id=user_id,
-            ip_address=ip_address,
             metadata=metadata,
         )
 
@@ -467,8 +446,6 @@ class AuditLogger:
         entity_id: str,
         project_id: Optional[str] = None,
         changes: Optional[Dict[str, Any]] = None,
-        user_id: Optional[str] = None,
-        ip_address: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> Optional[AuditLogEntry]:
         """Log a DELETE action."""
@@ -478,8 +455,6 @@ class AuditLogger:
             entity_id=entity_id,
             project_id=project_id,
             changes=changes,
-            user_id=user_id,
-            ip_address=ip_address,
             metadata=metadata,
         )
 
@@ -490,8 +465,6 @@ class AuditLogger:
         project_id: Optional[str] = None,
         target_entity_id: Optional[str] = None,
         relationship_type: Optional[str] = None,
-        user_id: Optional[str] = None,
-        ip_address: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> Optional[AuditLogEntry]:
         """Log a LINK action (creating a relationship)."""
@@ -505,8 +478,6 @@ class AuditLogger:
             entity_id=entity_id,
             project_id=project_id,
             changes=changes,
-            user_id=user_id,
-            ip_address=ip_address,
             metadata=metadata,
         )
 
@@ -517,8 +488,6 @@ class AuditLogger:
         project_id: Optional[str] = None,
         target_entity_id: Optional[str] = None,
         relationship_type: Optional[str] = None,
-        user_id: Optional[str] = None,
-        ip_address: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> Optional[AuditLogEntry]:
         """Log an UNLINK action (removing a relationship)."""
@@ -532,8 +501,6 @@ class AuditLogger:
             entity_id=entity_id,
             project_id=project_id,
             changes=changes,
-            user_id=user_id,
-            ip_address=ip_address,
             metadata=metadata,
         )
 
@@ -542,8 +509,6 @@ class AuditLogger:
         entity_type: EntityType,
         entity_id: str,
         project_id: Optional[str] = None,
-        user_id: Optional[str] = None,
-        ip_address: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> Optional[AuditLogEntry]:
         """Log a VIEW action."""
@@ -552,8 +517,6 @@ class AuditLogger:
             entity_type=entity_type,
             entity_id=entity_id,
             project_id=project_id,
-            user_id=user_id,
-            ip_address=ip_address,
             metadata=metadata,
         )
 
@@ -663,21 +626,19 @@ class AuditLogger:
         project_id: Optional[str] = None,
         action: Optional[AuditAction] = None,
         entity_type: Optional[EntityType] = None,
-        user_id: Optional[str] = None,
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
         limit: int = 100,
         offset: int = 0,
     ) -> List[AuditLogEntry]:
         """
-        Get audit logs with flexible filtering.
+        Get change logs with flexible filtering.
 
         Args:
             entity_id: Filter by entity ID.
             project_id: Filter by project ID.
             action: Filter by action type.
             entity_type: Filter by entity type.
-            user_id: Filter by user ID.
             start_date: Filter by start date.
             end_date: Filter by end date.
             limit: Maximum number of results.
@@ -691,7 +652,6 @@ class AuditLogger:
             project_id=project_id,
             action=action,
             entity_type=entity_type,
-            user_id=user_id,
             start_date=start_date,
             end_date=end_date,
             limit=limit,
@@ -787,12 +747,15 @@ def get_audit_logger(
     max_entries: int = 10000,
 ) -> AuditLogger:
     """
-    Get or create the audit logger singleton.
+    Get or create the change logger singleton.
+
+    For local-first applications, this provides simple change tracking
+    without the complexity of user attribution.
 
     Args:
         backend: Optional persistence backend.
-        enabled: Whether audit logging is enabled.
-        log_views: Whether to log VIEW actions.
+        enabled: Whether change logging is enabled.
+        log_views: Whether to log VIEW actions (can be noisy).
         max_entries: Maximum entries for in-memory backend.
 
     Returns:
@@ -829,15 +792,16 @@ async def initialize_audit_logger(
     max_entries: int = 10000,
 ) -> AuditLogger:
     """
-    Initialize and return the audit logger.
+    Initialize and return the change logger.
 
     This is a convenience function that gets the singleton and
-    performs any necessary initialization.
+    performs any necessary initialization. Designed for local-first
+    single-user applications.
 
     Args:
         backend: Optional persistence backend.
-        enabled: Whether audit logging is enabled.
-        log_views: Whether to log VIEW actions.
+        enabled: Whether change logging is enabled.
+        log_views: Whether to log VIEW actions (can be noisy).
         max_entries: Maximum entries for in-memory backend.
 
     Returns:

@@ -25,7 +25,7 @@ This module provides RESTful API endpoints for managing:
 - Marketplace: Template marketplace for sharing and downloading community templates
 - ML Analytics: Machine learning-based query suggestions and insights
 - Jobs: Background job execution and management
-- Audit: Audit logging for entity and project modifications (Phase 14: Enterprise Features)
+- Audit: Change tracking for debugging and audit purposes
 """
 
 from fastapi import APIRouter

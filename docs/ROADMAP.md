@@ -1385,40 +1385,51 @@ See [13-PHASE13-INFRASTRUCTURE.md](docs/findings/13-PHASE13-INFRASTRUCTURE.md) f
 
 ---
 
-### Phase 14: Enterprise Features (COMPLETED)
+### Phase 14: Local-First Simplification (COMPLETED)
 
 **Date:** 2024-12-28
-**Tests:** 1738 passed (108 new tests)
+**Tests:** 1692 passed
+**Philosophy:** Local-first, single-user application for security researchers
 
-#### Audit Logging Service
-- Comprehensive audit logging for all data modifications
+#### Change Tracking Service
+- Lightweight change tracking for debugging and audit purposes
 - Log CREATE, UPDATE, DELETE, LINK, UNLINK, VIEW actions
-- Track entity_type, entity_id, project_id, user_id, changes, ip_address
+- Track entity_type, entity_id, project_id, changes, timestamps
 - In-memory storage with pluggable backend interface
 - Query methods for filtering by entity, project, action, date range
-- Thread-safe operations with event listener support
+- No user attribution (single-user application)
 
-#### WebSocket Authentication
-- JWT token authentication (Bearer header or query parameter)
-- API key authentication (X-API-Key header or query parameter)
-- Configurable authentication modes (required, optional, disabled)
-- Scope-based authorization with wildcard support
-- Connection manager integration for tracking authenticated users
+#### Simplified WebSocket Service
+- Removed authentication complexity (not needed for local use)
+- Clean connection management
+- Project-scoped subscriptions
+- Real-time notifications without auth overhead
 
-#### Auth Middleware
-- FastAPI middleware for request authentication
-- Token extraction utilities
-- Error handling with proper WebSocket close codes
+#### Code Cleanup
+- Removed api/middleware/auth.py (WebSocket authentication)
+- Removed 53 auth-related tests (no longer needed)
+- Simplified audit logger (removed user_id, ip_address tracking)
+- Reduced WebSocket service from 904 to 787 lines
+- Reduced WebSocket router from 475 to 271 lines
 
-See [14-PHASE14-ENTERPRISE-FEATURES.md](docs/findings/14-PHASE14-ENTERPRISE-FEATURES.md) for full details.
+---
+
+## Design Philosophy
+
+Basset Hound is a **local-first, single-user tool** for security researchers:
+
+1. **No Authentication Required** - Run locally on your own machine
+2. **No Multi-User Support** - One researcher, one instance
+3. **Open Source** - Self-hosted, full control over your data
+4. **API/MCP Integration** - External tools can leverage the API without auth barriers
+5. **Simple by Design** - Focus on OSINT data management, not enterprise features
 
 ---
 
 ### Next Steps (Phase 15+)
 
-#### Phase 15: Advanced Enterprise Features
+#### Phase 15: Enhanced Visualization & Analysis
 1. **UI for Multi-Entity Types** - Frontend support for creating/viewing different entity types
 2. **Graph Visualization Enhancements** - Visual display of cross-project links, timeline view
-3. **Multi-tenant Support** - Isolate data between different users/organizations
-4. **Role-Based Access Control (RBAC)** - Fine-grained permission management
-5. **SSO Integration** - SAML/OIDC support for enterprise identity providers
+3. **Advanced Reporting** - More export formats, custom templates
+4. **Data Import Connectors** - Import from common OSINT tools and formats
