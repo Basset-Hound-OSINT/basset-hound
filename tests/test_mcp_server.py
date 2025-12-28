@@ -47,13 +47,15 @@ class TestMCPServerTools:
 
     def test_mcp_server_imports(self):
         """Test that MCP server module can be imported."""
-        # This tests syntax and basic imports
+        # This tests syntax and basic imports of the basset_mcp module
         try:
-            import mcp.server
-            assert hasattr(mcp.server, 'mcp')
+            # Import the local Basset Hound MCP server
+            # Note: This requires the mcp package (fastmcp) to be installed
+            from basset_mcp import mcp as basset_mcp_server
+            assert basset_mcp_server is not None
         except ImportError as e:
-            # MCP package might not be installed in test environment
-            pytest.skip(f"MCP package not available: {e}")
+            # MCP package (fastmcp) might not be installed in test environment
+            pytest.skip(f"MCP/FastMCP package not available: {e}")
 
     def test_entity_search_logic(self, mock_neo4j):
         """Test entity search logic."""
@@ -166,14 +168,15 @@ class TestMCPServerConfiguration:
         ]
 
         try:
-            from mcp.server import mcp
+            # Import the local Basset Hound MCP server
+            from basset_mcp import mcp as basset_mcp_server
 
             # The FastMCP server should have these tools registered
             # This is a basic check - full integration tests would verify behavior
-            assert mcp is not None
+            assert basset_mcp_server is not None
 
         except ImportError:
-            pytest.skip("MCP package not available")
+            pytest.skip("MCP/FastMCP package not available")
 
     def test_mcp_neo4j_integration_config(self):
         """Test that Neo4j configuration is properly loaded."""

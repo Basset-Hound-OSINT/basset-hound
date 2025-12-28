@@ -9,8 +9,10 @@ Features:
 - Multiple notification types for different events
 - Broadcasting to all connections or specific project subscribers
 - Personal (direct) messaging to specific connections
+- WebSocket authentication support (API key and JWT)
 
 Phase 4: Real-time Communication Layer
+Phase 14: Enterprise Features - WebSocket Authentication
 """
 
 import asyncio
@@ -136,6 +138,11 @@ class WebSocketConnection:
         connected_at: Timestamp when the connection was established
         last_activity: Timestamp of last activity on this connection
         metadata: Optional metadata about the connection (user info, etc.)
+        authenticated: Whether the connection is authenticated
+        user_id: The authenticated user ID (if authenticated)
+        username: The authenticated username (if authenticated)
+        auth_method: The authentication method used
+        scopes: The permission scopes for the authenticated user
     """
     connection_id: str
     websocket: WebSocket
@@ -143,6 +150,11 @@ class WebSocketConnection:
     connected_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     last_activity: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     metadata: Dict[str, Any] = field(default_factory=dict)
+    authenticated: bool = False
+    user_id: Optional[str] = None
+    username: Optional[str] = None
+    auth_method: Optional[str] = None
+    scopes: List[str] = field(default_factory=list)
 
     def update_activity(self) -> None:
         """Update the last activity timestamp."""
@@ -175,6 +187,54 @@ class WebSocketConnection:
     def is_subscribed_to(self, project_id: str) -> bool:
         """Check if subscribed to a project."""
         return project_id in self.project_subscriptions
+
+    def has_scope(self, scope: str) -> bool:
+        """
+        Check if the connection has a specific permission scope.
+
+        Args:
+            scope: The scope to check for
+
+        Returns:
+            True if the connection has the scope or wildcard scope
+        """
+        return scope in self.scopes or "*" in self.scopes
+
+    def has_any_scope(self, scopes: List[str]) -> bool:
+        """
+        Check if the connection has any of the specified scopes.
+
+        Args:
+            scopes: List of scopes to check
+
+        Returns:
+            True if any scope is present
+        """
+        return any(self.has_scope(s) for s in scopes)
+
+    def is_authenticated(self) -> bool:
+        """
+        Check if the connection is authenticated.
+
+        Returns:
+            True if authenticated
+        """
+        return self.authenticated and self.user_id is not None
+
+    def get_auth_info(self) -> Dict[str, Any]:
+        """
+        Get authentication information for this connection.
+
+        Returns:
+            Dictionary containing authentication details
+        """
+        return {
+            "authenticated": self.authenticated,
+            "user_id": self.user_id,
+            "username": self.username,
+            "auth_method": self.auth_method,
+            "scopes": self.scopes,
+        }
 
 
 class ConnectionManager:
@@ -228,11 +288,53 @@ class ConnectionManager:
         """Get all connection IDs subscribed to a project."""
         return list(self._project_subscribers.get(project_id, set()))
 
+    def get_authenticated_connection_ids(self) -> List[str]:
+        """Get all authenticated connection IDs."""
+        return [
+            conn_id for conn_id, conn in self._connections.items()
+            if conn.authenticated
+        ]
+
+    def get_connections_by_user_id(self, user_id: str) -> List[str]:
+        """
+        Get all connection IDs for a specific user.
+
+        Args:
+            user_id: The user ID to search for
+
+        Returns:
+            List of connection IDs belonging to the user
+        """
+        return [
+            conn_id for conn_id, conn in self._connections.items()
+            if conn.user_id == user_id
+        ]
+
+    def get_connections_with_scope(self, scope: str) -> List[str]:
+        """
+        Get all connection IDs that have a specific permission scope.
+
+        Args:
+            scope: The scope to check for
+
+        Returns:
+            List of connection IDs with the specified scope
+        """
+        return [
+            conn_id for conn_id, conn in self._connections.items()
+            if conn.has_scope(scope)
+        ]
+
     async def connect(
         self,
         websocket: WebSocket,
         connection_id: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
+        authenticated: bool = False,
+        user_id: Optional[str] = None,
+        username: Optional[str] = None,
+        auth_method: Optional[str] = None,
+        scopes: Optional[List[str]] = None,
     ) -> WebSocketConnection:
         """
         Accept a WebSocket connection and register it.
@@ -241,6 +343,11 @@ class ConnectionManager:
             websocket: The FastAPI WebSocket instance
             connection_id: Optional custom connection ID (generated if not provided)
             metadata: Optional metadata to attach to the connection
+            authenticated: Whether the connection is authenticated
+            user_id: The authenticated user ID
+            username: The authenticated username
+            auth_method: The authentication method used (jwt, api_key, etc.)
+            scopes: Permission scopes for the authenticated user
 
         Returns:
             The created WebSocketConnection
@@ -254,20 +361,31 @@ class ConnectionManager:
             connection_id=connection_id,
             websocket=websocket,
             metadata=metadata or {},
+            authenticated=authenticated,
+            user_id=user_id,
+            username=username,
+            auth_method=auth_method,
+            scopes=scopes or [],
         )
 
         async with self._lock:
             self._connections[connection_id] = connection
             self._total_connections += 1
 
-        logger.info(f"WebSocket connection established: {connection_id}")
+        auth_info = f" (user: {username})" if authenticated else ""
+        logger.info(f"WebSocket connection established: {connection_id}{auth_info}")
 
-        # Send connection confirmation
+        # Send connection confirmation with auth info
         await self._send_to_connection(
             connection,
             WebSocketMessage(
                 type=NotificationType.CONNECTED,
-                data={"connection_id": connection_id}
+                data={
+                    "connection_id": connection_id,
+                    "authenticated": authenticated,
+                    "user_id": user_id,
+                    "username": username,
+                }
             )
         )
 

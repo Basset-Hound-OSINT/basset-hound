@@ -26,6 +26,17 @@ from .search_service import (
     get_search_service,
     set_search_service,
 )
+from .audit_logger import (
+    AuditAction,
+    AuditLogEntry,
+    AuditLogger,
+    AuditPersistenceBackend,
+    EntityType,
+    InMemoryAuditBackend,
+    get_audit_logger,
+    set_audit_logger,
+    initialize_audit_logger,
+)
 
 # Fuzzy matcher imports - gracefully handle if rapidfuzz not installed
 try:
@@ -74,4 +85,14 @@ __all__ = [
     "SearchQuery",
     "get_search_service",
     "set_search_service",
+    # Audit logger exports
+    "AuditAction",
+    "AuditLogEntry",
+    "AuditLogger",
+    "AuditPersistenceBackend",
+    "EntityType",
+    "InMemoryAuditBackend",
+    "get_audit_logger",
+    "set_audit_logger",
+    "initialize_audit_logger",
 ]

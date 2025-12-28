@@ -1007,33 +1007,31 @@ class TestScheduleRouter:
     """Tests for schedule router endpoints and models."""
 
     def test_router_import(self):
-        """Test that schedule router can be imported."""
-        from api.routers.schedule import router
+        """Test that scheduler router can be imported."""
+        from api.routers.scheduler import router
         assert router is not None
 
     def test_models_import(self):
         """Test that all request/response models can be imported."""
-        from api.routers.schedule import (
+        from api.routers.scheduler import (
             CreateScheduleRequest,
             UpdateScheduleRequest,
-            ScheduleResponse,
+            ScheduledReportResponse,
             ScheduleListResponse,
-            RunNowResponse,
-            ReportOptionsRequest,
-            ReportSectionRequest,
+            RunScheduleResponse,
+            ReportConfigRequest,
         )
 
         assert hasattr(CreateScheduleRequest, "model_fields")
         assert hasattr(UpdateScheduleRequest, "model_fields")
-        assert hasattr(ScheduleResponse, "model_fields")
+        assert hasattr(ScheduledReportResponse, "model_fields")
         assert hasattr(ScheduleListResponse, "model_fields")
-        assert hasattr(RunNowResponse, "model_fields")
-        assert hasattr(ReportOptionsRequest, "model_fields")
-        assert hasattr(ReportSectionRequest, "model_fields")
+        assert hasattr(RunScheduleResponse, "model_fields")
+        assert hasattr(ReportConfigRequest, "model_fields")
 
     def test_parse_frequency_helper(self):
         """Test _parse_frequency helper function."""
-        from api.routers.schedule import _parse_frequency
+        from api.routers.scheduler import _parse_frequency
 
         assert _parse_frequency("once") == ScheduleFrequency.ONCE
         assert _parse_frequency("hourly") == ScheduleFrequency.HOURLY
@@ -1043,7 +1041,7 @@ class TestScheduleRouter:
 
     def test_parse_frequency_invalid(self):
         """Test that invalid frequency raises HTTPException."""
-        from api.routers.schedule import _parse_frequency
+        from api.routers.scheduler import _parse_frequency
         from fastapi import HTTPException
 
         with pytest.raises(HTTPException) as exc_info:
@@ -1053,7 +1051,7 @@ class TestScheduleRouter:
 
     def test_parse_format_helper(self):
         """Test _parse_format helper function."""
-        from api.routers.schedule import _parse_format
+        from api.routers.scheduler import _parse_format
 
         assert _parse_format("pdf") == ReportFormat.PDF
         assert _parse_format("html") == ReportFormat.HTML
@@ -1061,7 +1059,7 @@ class TestScheduleRouter:
 
     def test_parse_format_invalid(self):
         """Test that invalid format raises HTTPException."""
-        from api.routers.schedule import _parse_format
+        from api.routers.scheduler import _parse_format
         from fastapi import HTTPException
 
         with pytest.raises(HTTPException) as exc_info:

@@ -204,6 +204,24 @@ def _parse_frequency(frequency_str: str) -> ScheduleFrequency:
         )
 
 
+def _parse_format(format_str: str) -> ReportFormat:
+    """Parse format string to ReportFormat enum."""
+    format_lower = format_str.lower().strip()
+    format_map = {
+        "pdf": ReportFormat.PDF,
+        "html": ReportFormat.HTML,
+        "markdown": ReportFormat.MARKDOWN,
+        "md": ReportFormat.MARKDOWN,
+    }
+    if format_lower not in format_map:
+        valid = ", ".join(format_map.keys())
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid format '{format_str}'. Must be one of: {valid}"
+        )
+    return format_map[format_lower]
+
+
 def _build_report_config(request: ReportConfigRequest) -> ReportConfig:
     """Build ReportConfig from request."""
     return ReportConfig(

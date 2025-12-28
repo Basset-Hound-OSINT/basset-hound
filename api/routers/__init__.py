@@ -25,6 +25,7 @@ This module provides RESTful API endpoints for managing:
 - Marketplace: Template marketplace for sharing and downloading community templates
 - ML Analytics: Machine learning-based query suggestions and insights
 - Jobs: Background job execution and management
+- Audit: Audit logging for entity and project modifications (Phase 14: Enterprise Features)
 """
 
 from fastapi import APIRouter
@@ -54,6 +55,7 @@ from .report_storage import router as report_storage_router
 from .marketplace import router as marketplace_router
 from .ml_analytics import router as ml_analytics_router
 from .jobs import router as jobs_router, schedule_jobs_router
+from .audit import router as audit_router, project_audit_router, entity_audit_router
 
 # Create main API router
 api_router = APIRouter()
@@ -91,6 +93,9 @@ api_router.include_router(marketplace_router)
 api_router.include_router(ml_analytics_router)
 api_router.include_router(jobs_router)
 api_router.include_router(schedule_jobs_router)
+api_router.include_router(audit_router)
+api_router.include_router(project_audit_router)
+api_router.include_router(entity_audit_router)
 
 __all__ = [
     "api_router",
@@ -126,4 +131,7 @@ __all__ = [
     "ml_analytics_router",
     "jobs_router",
     "schedule_jobs_router",
+    "audit_router",
+    "project_audit_router",
+    "entity_audit_router",
 ]
