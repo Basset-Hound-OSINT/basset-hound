@@ -238,6 +238,7 @@ class MLAnalyticsService:
         cache_ttl_seconds: Optional[float] = 3600.0,
         max_cooccurrence_entries: int = 5000,
         max_entity_queries: int = 2000,
+        max_zero_result_queries: int = 1000,
     ):
         """
         Initialize the ML Analytics service.
@@ -251,6 +252,7 @@ class MLAnalyticsService:
             cache_ttl_seconds: Time-to-live for cache entries in seconds (None = no expiration)
             max_cooccurrence_entries: Maximum number of query co-occurrence entries (LRU eviction)
             max_entity_queries: Maximum number of entity query associations (LRU eviction)
+            max_zero_result_queries: Maximum number of zero-result queries to track (LRU eviction)
         """
         self._query_history: List[QueryRecord] = []
         self._query_counts: Counter = Counter()
@@ -258,7 +260,8 @@ class MLAnalyticsService:
         self._cooccurrence: OrderedDict[str, Counter] = OrderedDict()
         # Use OrderedDict for LRU behavior on entity queries
         self._entity_queries: OrderedDict[str, List[str]] = OrderedDict()
-        self._zero_result_queries: Set[str] = set()
+        # Use OrderedDict for LRU behavior on zero-result queries
+        self._zero_result_queries: OrderedDict[str, float] = OrderedDict()  # query -> timestamp
         # Use OrderedDict for LRU cache behavior
         self._tfidf_cache: OrderedDict[str, TFIDFCacheEntry] = OrderedDict()
         self._idf: Dict[str, float] = {}
@@ -276,6 +279,7 @@ class MLAnalyticsService:
         self._cache_ttl_seconds = cache_ttl_seconds
         self._max_cooccurrence_entries = max_cooccurrence_entries
         self._max_entity_queries = max_entity_queries
+        self._max_zero_result_queries = max_zero_result_queries
         self._cache_stats = CacheStatistics()
         self._lock = threading.RLock()
 
@@ -328,9 +332,11 @@ class MLAnalyticsService:
             # Update counts
             self._query_counts[normalized] += 1
 
-            # Track zero results
+            # Track zero results with LRU eviction
             if result_count == 0:
-                self._zero_result_queries.add(normalized)
+                self._zero_result_queries[normalized] = time.time()
+                self._zero_result_queries.move_to_end(normalized)
+                self._enforce_zero_result_queries_limit()
 
             # Track entity associations
             for entity_id in clicked_entities or []:
@@ -1119,6 +1125,13 @@ class MLAnalyticsService:
             del self._entity_queries[oldest_key]
             logger.debug(f"LRU evicted entity queries entry: {oldest_key}")
 
+    def _enforce_zero_result_queries_limit(self) -> None:
+        """Evict oldest zero-result query entries when limit is exceeded (LRU eviction)."""
+        while len(self._zero_result_queries) > self._max_zero_result_queries:
+            oldest_key = next(iter(self._zero_result_queries))
+            del self._zero_result_queries[oldest_key]
+            logger.debug(f"LRU evicted zero-result query: {oldest_key}")
+
     # ==================== Memory Management ====================
 
     def get_tfidf_cache_size(self) -> int:
@@ -1148,6 +1161,15 @@ class MLAnalyticsService:
         """Get maximum entity queries capacity."""
         return self._max_entity_queries
 
+    def get_zero_result_queries_size(self) -> int:
+        """Get current number of zero-result query entries."""
+        with self._lock:
+            return len(self._zero_result_queries)
+
+    def get_zero_result_queries_capacity(self) -> int:
+        """Get maximum zero-result queries capacity."""
+        return self._max_zero_result_queries
+
     def get_memory_stats(self) -> Dict[str, Any]:
         """Get memory usage statistics for this service."""
         with self._lock:
@@ -1165,7 +1187,9 @@ class MLAnalyticsService:
                 "entity_queries_capacity": self._max_entity_queries,
                 "entity_queries_usage_percent": (len(self._entity_queries) / self._max_entity_queries * 100) if self._max_entity_queries > 0 else 0,
                 "unique_queries": len(self._query_counts),
-                "zero_result_queries": len(self._zero_result_queries),
+                "zero_result_queries_count": len(self._zero_result_queries),
+                "zero_result_queries_capacity": self._max_zero_result_queries,
+                "zero_result_queries_usage_percent": (len(self._zero_result_queries) / self._max_zero_result_queries * 100) if self._max_zero_result_queries > 0 else 0,
                 "vocabulary_size": len(self._idf),
             }
 
@@ -1464,6 +1488,105 @@ class MLAnalyticsService:
             self._cache_stats.reset()
             for n in self._ngram_sizes:
                 self._ngram_counts[n].clear()
+
+    # ==================== TF-IDF Cache Invalidation ====================
+
+    def invalidate_entity_cache(self, entity_id: str) -> int:
+        """
+        Invalidate cache entries related to a specific entity.
+
+        Call this when an entity is modified or deleted to ensure
+        the TF-IDF cache doesn't contain stale data.
+
+        Args:
+            entity_id: The ID of the entity that was modified
+
+        Returns:
+            Number of cache entries invalidated
+        """
+        invalidated = 0
+        with self._lock:
+            # Invalidate TF-IDF cache entries that might be related
+            # We check entity queries to find related query terms
+            entity_queries = self._entity_queries.get(entity_id, [])
+
+            for query in entity_queries:
+                if query in self._tfidf_cache:
+                    del self._tfidf_cache[query]
+                    self._cache_stats.invalidations += 1
+                    invalidated += 1
+
+            # Also remove from entity queries tracking
+            if entity_id in self._entity_queries:
+                del self._entity_queries[entity_id]
+
+            logger.debug(f"Invalidated {invalidated} cache entries for entity {entity_id}")
+
+        return invalidated
+
+    def clear_tfidf_cache(self) -> int:
+        """
+        Clear the entire TF-IDF cache.
+
+        Call this after bulk operations that significantly change the corpus,
+        such as bulk imports or deletes.
+
+        Returns:
+            Number of cache entries cleared
+        """
+        with self._lock:
+            count = len(self._tfidf_cache)
+            self._tfidf_cache.clear()
+            self._cache_stats.invalidations += count
+            logger.info(f"Cleared TF-IDF cache: {count} entries removed")
+            return count
+
+    def invalidate_cache_for_queries(self, queries: List[str]) -> int:
+        """
+        Invalidate cache entries for specific queries.
+
+        Args:
+            queries: List of query strings to invalidate
+
+        Returns:
+            Number of cache entries invalidated
+        """
+        invalidated = 0
+        with self._lock:
+            for query in queries:
+                normalized = self._normalize_query(query)
+                if normalized in self._tfidf_cache:
+                    del self._tfidf_cache[normalized]
+                    self._cache_stats.invalidations += 1
+                    invalidated += 1
+
+            logger.debug(f"Invalidated {invalidated} cache entries for {len(queries)} queries")
+
+        return invalidated
+
+    def refresh_idf(self) -> None:
+        """
+        Force a refresh of the IDF values and invalidate stale cache entries.
+
+        Call this periodically or after significant corpus changes to ensure
+        TF-IDF calculations are up-to-date.
+        """
+        with self._lock:
+            # Recalculate IDF for all known terms
+            for term in self._term_document_counts:
+                if self._document_count > 0:
+                    self._idf[term] = math.log(
+                        (1 + self._document_count) / (1 + self._term_document_counts[term])
+                    ) + 1
+
+            # Check for IDF changes and invalidate affected cache entries
+            self._invalidate_cache_for_idf_changes()
+
+            # Update snapshot
+            self._idf_snapshot_at_last_update = dict(self._idf)
+            self._idf_last_updated = time.time()
+
+            logger.info("Refreshed IDF values and invalidated stale cache entries")
 
 
 # ==================== Singleton Management ====================

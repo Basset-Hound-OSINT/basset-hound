@@ -305,7 +305,67 @@ class Neo4jHandler:
                         self.set_person_field(person_id, section_id, field_id, value)
             
             return self.get_person(project_safe_name, person_id)
-    
+
+    def create_people_batch(self, project_safe_name, people_data):
+        """
+        Create multiple people in a batch operation.
+
+        This method uses UNWIND to create multiple person nodes in a single query,
+        then processes their profile data in batches.
+
+        Args:
+            project_safe_name: The project's safe name.
+            people_data: List of person data dictionaries.
+
+        Returns:
+            List of created person IDs.
+        """
+        if not people_data:
+            return []
+
+        # Prepare person data with IDs and timestamps
+        now = datetime.now().isoformat()
+        prepared_people = []
+        person_ids = []
+
+        for person_data in people_data:
+            person_id = person_data.get("id", str(uuid4()))
+            created_at = person_data.get("created_at", now)
+            person_ids.append(person_id)
+            prepared_people.append({
+                "id": person_id,
+                "created_at": created_at
+            })
+
+        with self.driver.session() as session:
+            # Verify project exists
+            project = session.run("""
+                MATCH (p:Project {safe_name: $project_safe_name})
+                RETURN p
+            """, project_safe_name=project_safe_name)
+
+            if not project.single():
+                return []
+
+            # Batch create all person nodes and link to project
+            session.run("""
+                MATCH (project:Project {safe_name: $project_safe_name})
+                UNWIND $people AS p
+                CREATE (person:Person {
+                    id: p.id,
+                    created_at: p.created_at
+                })
+                CREATE (project)-[:HAS_PERSON]->(person)
+            """, project_safe_name=project_safe_name, people=prepared_people)
+
+        # Process profile data for each person using batch operations
+        for i, person_data in enumerate(people_data):
+            person_id = person_ids[i]
+            if "profile" in person_data and person_data["profile"]:
+                self.set_person_fields_batch(person_id, person_data["profile"])
+
+        return person_ids
+
     def get_person(self, project_safe_name, person_id):
         """Retrieve a person by ID within a project."""
         with self.driver.session() as session:

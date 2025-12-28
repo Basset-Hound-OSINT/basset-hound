@@ -83,6 +83,12 @@ def mock_neo4j_handler():
 
     handler.create_person.side_effect = create_person_side_effect
 
+    def create_people_batch_side_effect(project_id, people_data):
+        # Return list of IDs for successfully created people
+        return [p.get("id", f"new-uuid-{i}") for i, p in enumerate(people_data)]
+
+    handler.create_people_batch.side_effect = create_people_batch_side_effect
+
     def update_person_side_effect(project_id, person_id, data):
         return {
             "id": person_id,

@@ -15,7 +15,7 @@ import json
 import io
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, Generator, Iterator, List, Optional, Tuple, Union
+from typing import Any, Dict, Generator, Iterator, List, Optional, Set, Tuple, Union
 from uuid import uuid4
 
 
@@ -130,15 +130,19 @@ class BulkOperationsService:
         self,
         project_id: str,
         entities: List[dict],
-        update_existing: bool = False
+        update_existing: bool = False,
+        batch_size: int = 100
     ) -> BulkImportResult:
         """
         Batch import entities into a project.
+
+        Uses batch creation for new entities to improve performance.
 
         Args:
             project_id: The project safe name to import into.
             entities: List of entity dictionaries to import.
             update_existing: If True, update existing entities; otherwise skip them.
+            batch_size: Number of entities to create in each batch (default 100).
 
         Returns:
             BulkImportResult with import statistics and any errors.
@@ -151,16 +155,19 @@ class BulkOperationsService:
             result.add_error(-1, f"Project '{project_id}' not found")
             return result
 
+        # Separate entities into updates and creates
+        entities_to_create: List[Tuple[int, dict]] = []  # (index, entity_data)
+        now = datetime.now().isoformat()
+
         for index, entity_data in enumerate(entities):
             try:
-                # Check if entity has an ID and already exists
                 entity_id = entity_data.get("id")
 
                 if entity_id:
                     existing = self.neo4j_handler.get_person(project_id, entity_id)
                     if existing:
                         if update_existing:
-                            # Update existing entity
+                            # Update existing entity individually
                             updated = self.neo4j_handler.update_person(
                                 project_id,
                                 entity_id,
@@ -174,27 +181,45 @@ class BulkOperationsService:
                             result.add_error(index, f"Entity '{entity_id}' already exists")
                         continue
 
-                # Create new entity
-                # Ensure profile exists
+                # Prepare new entity for batch creation
                 if "profile" not in entity_data:
                     entity_data["profile"] = {}
 
-                # Generate ID if not provided
                 if not entity_id:
                     entity_data["id"] = str(uuid4())
 
-                # Set created_at if not provided
                 if "created_at" not in entity_data:
-                    entity_data["created_at"] = datetime.now().isoformat()
+                    entity_data["created_at"] = now
 
-                created = self.neo4j_handler.create_person(project_id, entity_data)
-                if created:
-                    result.add_success(created.get("id", entity_data.get("id")))
-                else:
-                    result.add_error(index, "Failed to create entity")
+                entities_to_create.append((index, entity_data))
 
             except Exception as e:
                 result.add_error(index, str(e))
+
+        # Batch create new entities
+        for i in range(0, len(entities_to_create), batch_size):
+            batch = entities_to_create[i:i + batch_size]
+            batch_data = [entity_data for _, entity_data in batch]
+            batch_indices = {entity_data["id"]: idx for idx, entity_data in batch}
+
+            try:
+                created_ids = self.neo4j_handler.create_people_batch(project_id, batch_data)
+
+                # Track successful creates
+                for created_id in created_ids:
+                    result.add_success(created_id)
+
+                # Track failures (entities not in created_ids)
+                created_set = set(created_ids)
+                for entity_data in batch_data:
+                    if entity_data["id"] not in created_set:
+                        original_index = batch_indices.get(entity_data["id"], -1)
+                        result.add_error(original_index, "Failed to create entity in batch")
+
+            except Exception as e:
+                # If batch fails, record errors for all entities in batch
+                for idx, entity_data in batch:
+                    result.add_error(idx, f"Batch creation failed: {str(e)}")
 
         return result
 
