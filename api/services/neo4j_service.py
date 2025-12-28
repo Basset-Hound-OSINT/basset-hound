@@ -272,9 +272,44 @@ class AsyncNeo4jService:
         """
         Create relationship types and properties based on the configuration.
 
+        This method uses UNWIND for batch operations to avoid N+1 query patterns.
+
         Args:
             config: Configuration dictionary with sections and fields.
         """
+        # Prepare batch data
+        sections_data = []
+        fields_data = []
+        components_data = []
+
+        for section in config.get("sections", []):
+            section_id = section.get("id")
+            section_label = section.get("label", section_id)
+            sections_data.append({
+                "id": section_id,
+                "label": section_label
+            })
+
+            for field in section.get("fields", []):
+                field_id = field.get("id")
+                fields_data.append({
+                    "id": field_id,
+                    "section_id": section_id,
+                    "label": field.get("label", field_id),
+                    "type": field.get("type", "string"),
+                    "multiple": field.get("multiple", False)
+                })
+
+                # Handle field components
+                for component in field.get("components", []):
+                    components_data.append({
+                        "id": component.get("id"),
+                        "field_id": field_id,
+                        "section_id": section_id,
+                        "label": component.get("label", component.get("id")),
+                        "type": component.get("type", "string")
+                    })
+
         async with self.session() as session:
             # Clear existing schema if needed
             await session.run("""
@@ -282,60 +317,43 @@ class AsyncNeo4jService:
                 DETACH DELETE c
             """)
 
-            # Create new configuration
-            await session.run("""
-                MERGE (config:Configuration {id: 'main'})
-                SET config.updated_at = $timestamp
-            """, timestamp=datetime.now().isoformat())
-
-            # Process sections and fields
-            for section in config.get("sections", []):
-                section_id = section.get("id")
-                section_label = section.get("label", section_id)
-
+            # Create new configuration and batch create all sections
+            if sections_data:
                 await session.run("""
                     MERGE (config:Configuration {id: 'main'})
-                    MERGE (section:Section {id: $section_id})
-                    SET section.label = $section_label
+                    SET config.updated_at = $timestamp
+                    WITH config
+                    UNWIND $sections AS s
+                    MERGE (section:Section {id: s.id})
+                    SET section.label = s.label
                     MERGE (config)-[:HAS_SECTION]->(section)
-                """, section_id=section_id, section_label=section_label)
+                """, timestamp=datetime.now().isoformat(), sections=sections_data)
 
-                for field in section.get("fields", []):
-                    field_id = field.get("id")
-                    field_label = field.get("label", field_id)
-                    field_type = field.get("type", "string")
-                    field_multiple = field.get("multiple", False)
+            # Batch create all fields
+            if fields_data:
+                await session.run("""
+                    UNWIND $fields AS f
+                    MATCH (section:Section {id: f.section_id})
+                    MERGE (field:Field {id: f.id})
+                    SET field.section_id = f.section_id,
+                        field.label = f.label,
+                        field.type = f.type,
+                        field.multiple = f.multiple
+                    MERGE (section)-[:HAS_FIELD]->(field)
+                """, fields=fields_data)
 
-                    await session.run("""
-                        MERGE (section:Section {id: $section_id})
-                        MERGE (field:Field {id: $field_id})
-                        SET field.section_id = $section_id,
-                            field.label = $field_label,
-                            field.type = $field_type,
-                            field.multiple = $field_multiple
-                        MERGE (section)-[:HAS_FIELD]->(field)
-                    """, section_id=section_id, field_id=field_id,
-                        field_label=field_label, field_type=field_type,
-                        field_multiple=field_multiple)
-
-                    # Handle field components
-                    if "components" in field:
-                        for component in field.get("components", []):
-                            component_id = component.get("id")
-                            component_type = component.get("type", "string")
-                            component_label = component.get("label", component_id)
-
-                            await session.run("""
-                                MERGE (field:Field {id: $field_id})
-                                MERGE (component:Component {id: $component_id})
-                                SET component.field_id = $field_id,
-                                    component.section_id = $section_id,
-                                    component.label = $component_label,
-                                    component.type = $component_type
-                                MERGE (field)-[:HAS_COMPONENT]->(component)
-                            """, section_id=section_id, field_id=field_id,
-                                component_id=component_id, component_label=component_label,
-                                component_type=component_type)
+            # Batch create all components
+            if components_data:
+                await session.run("""
+                    UNWIND $components AS c
+                    MATCH (field:Field {id: c.field_id})
+                    MERGE (component:Component {id: c.id})
+                    SET component.field_id = c.field_id,
+                        component.section_id = c.section_id,
+                        component.label = c.label,
+                        component.type = c.type
+                    MERGE (field)-[:HAS_COMPONENT]->(component)
+                """, components=components_data)
 
     # ==================== Project Management ====================
 
@@ -548,14 +566,9 @@ class AsyncNeo4jService:
             if not await result.single():
                 return None
 
-        # Process profile data
-        if "profile" in person_data:
-            for section_id, fields in person_data["profile"].items():
-                for field_id, value in fields.items():
-                    if isinstance(value, (dict, list)):
-                        # Convert complex objects to JSON strings
-                        value = json.dumps(value)
-                    await self.set_person_field(person_id, section_id, field_id, value)
+        # Process profile data using batch operation to avoid N+1 queries
+        if "profile" in person_data and person_data["profile"]:
+            await self.set_person_fields_batch(person_id, person_data["profile"])
 
         return await self.get_person(project_safe_name, person_id)
 
@@ -640,7 +653,10 @@ class AsyncNeo4jService:
 
     async def get_all_people(self, project_safe_name: str) -> List[Dict[str, Any]]:
         """
-        Retrieve all people in a project.
+        Retrieve all people in a project with all their data in a single query.
+
+        This method uses COLLECT to aggregate all related data (field values and files)
+        in a single query, avoiding N+1 query patterns.
 
         Args:
             project_safe_name: URL-safe project name.
@@ -649,21 +665,78 @@ class AsyncNeo4jService:
             List of person dictionaries.
         """
         async with self.session() as session:
+            # Single optimized query that fetches all people with their field values and files
             result = await session.run("""
                 MATCH (project:Project {safe_name: $project_safe_name})
                       -[:HAS_PERSON]->(person:Person)
-                RETURN person.id AS person_id
+                OPTIONAL MATCH (person)-[:HAS_FIELD_VALUE]->(fv:FieldValue)
+                OPTIONAL MATCH (person)-[file_rel:HAS_FILE]->(file:File)
+                WITH person,
+                     COLLECT(DISTINCT {
+                         section_id: fv.section_id,
+                         field_id: fv.field_id,
+                         value: fv.value
+                     }) AS field_values,
+                     COLLECT(DISTINCT {
+                         file: file,
+                         section_id: file_rel.section_id,
+                         field_id: file_rel.field_id
+                     }) AS files
+                RETURN person, field_values, files
                 ORDER BY person.created_at DESC
             """, project_safe_name=project_safe_name)
 
             records = await result.data()
 
-            # Fetch full person data for each
             people = []
             for record in records:
-                person = await self.get_person(project_safe_name, record["person_id"])
-                if person:
-                    people.append(person)
+                person_data = dict(record["person"])
+                person_data["profile"] = {}
+
+                # Process field values
+                for fv in record["field_values"]:
+                    # Skip empty field values (from OPTIONAL MATCH with no results)
+                    if fv["section_id"] is None:
+                        continue
+
+                    section_id = fv["section_id"]
+                    field_id = fv["field_id"]
+                    value = fv["value"]
+
+                    if section_id not in person_data["profile"]:
+                        person_data["profile"][section_id] = {}
+
+                    # Try to parse JSON strings
+                    if isinstance(value, str):
+                        try:
+                            value = json.loads(value)
+                        except json.JSONDecodeError:
+                            pass
+
+                    person_data["profile"][section_id][field_id] = value
+
+                # Process files
+                for file_data in record["files"]:
+                    # Skip empty file entries (from OPTIONAL MATCH with no results)
+                    if file_data["file"] is None:
+                        continue
+
+                    file_info = dict(file_data["file"])
+                    section_id = file_data["section_id"]
+                    field_id = file_data["field_id"]
+
+                    if section_id not in person_data["profile"]:
+                        person_data["profile"][section_id] = {}
+
+                    if field_id not in person_data["profile"][section_id]:
+                        person_data["profile"][section_id][field_id] = []
+
+                    if isinstance(person_data["profile"][section_id][field_id], list):
+                        person_data["profile"][section_id][field_id].append(file_info)
+                    else:
+                        person_data["profile"][section_id][field_id] = file_info
+
+                people.append(person_data)
 
             return people
 
@@ -700,10 +773,9 @@ class AsyncNeo4jService:
                 if not await result.single():
                     return None
 
-        # Update profile data
-        for section_id, fields in profile_data.items():
-            for field_id, value in fields.items():
-                await self.set_person_field(person_id, section_id, field_id, value)
+        # Update profile data using batch operation to avoid N+1 queries
+        if profile_data:
+            await self.set_person_fields_batch(person_id, profile_data)
 
         return await self.get_person(project_safe_name, person_id)
 
@@ -773,9 +845,161 @@ class AsyncNeo4jService:
             """, person_id=person_id, section_id=section_id,
                 field_id=field_id, value=value)
 
+    async def set_person_fields_batch(
+        self,
+        person_id: str,
+        profile_data: Dict[str, Dict[str, Any]]
+    ) -> None:
+        """
+        Set multiple field values for a person in a batch operation.
+
+        This method uses UNWIND to create multiple field values in a single query,
+        avoiding N+1 query patterns when setting multiple fields.
+
+        Args:
+            person_id: Person's unique identifier.
+            profile_data: Dictionary of section_id -> {field_id -> value} mappings.
+        """
+        if not profile_data:
+            return
+
+        # Separate regular field values from file uploads
+        field_values = []
+        file_uploads = []
+
+        for section_id, fields in profile_data.items():
+            for field_id, value in fields.items():
+                # Check if this is a file field
+                if isinstance(value, dict) and "path" in value:
+                    file_uploads.append({
+                        "section_id": section_id,
+                        "field_id": field_id,
+                        "file_id": value.get("id", str(uuid4())),
+                        "filename": value.get("name", ""),
+                        "file_path": value.get("path", ""),
+                        "metadata": value
+                    })
+                elif isinstance(value, list) and value and isinstance(value[0], dict) and "path" in value[0]:
+                    for file_data in value:
+                        file_uploads.append({
+                            "section_id": section_id,
+                            "field_id": field_id,
+                            "file_id": file_data.get("id", str(uuid4())),
+                            "filename": file_data.get("name", ""),
+                            "file_path": file_data.get("path", ""),
+                            "metadata": file_data
+                        })
+                else:
+                    # Convert complex objects to JSON strings
+                    if isinstance(value, (dict, list)):
+                        value = json.dumps(value)
+                    field_values.append({
+                        "section_id": section_id,
+                        "field_id": field_id,
+                        "value": value
+                    })
+
+        async with self.session() as session:
+            # First, batch delete existing field values for all fields we're updating
+            if field_values:
+                field_keys = [{"section_id": fv["section_id"], "field_id": fv["field_id"]} for fv in field_values]
+                await session.run("""
+                    UNWIND $field_keys AS fk
+                    MATCH (person:Person {id: $person_id})-[r:HAS_FIELD_VALUE]->(fv:FieldValue)
+                    WHERE fv.section_id = fk.section_id AND fv.field_id = fk.field_id
+                    DELETE r, fv
+                """, person_id=person_id, field_keys=field_keys)
+
+                # Batch create new field values
+                await session.run("""
+                    MATCH (person:Person {id: $person_id})
+                    UNWIND $field_values AS fv
+                    CREATE (field_value:FieldValue {
+                        section_id: fv.section_id,
+                        field_id: fv.field_id,
+                        value: fv.value
+                    })
+                    CREATE (person)-[:HAS_FIELD_VALUE]->(field_value)
+                """, person_id=person_id, field_values=field_values)
+
+        # Handle file uploads using batch method
+        if file_uploads:
+            await self.handle_file_uploads_batch(person_id, file_uploads)
+
+    async def handle_file_uploads_batch(
+        self,
+        person_id: str,
+        file_uploads: List[Dict[str, Any]]
+    ) -> None:
+        """
+        Handle multiple file uploads in a batch operation.
+
+        This method uses UNWIND to create multiple file nodes and relationships
+        in a single query, avoiding N+1 query patterns.
+
+        Args:
+            person_id: Person's unique identifier.
+            file_uploads: List of file upload dictionaries containing:
+                - section_id: Section identifier
+                - field_id: Field identifier
+                - file_id: Unique file identifier
+                - filename: Original filename
+                - file_path: Path to the file
+                - metadata: Additional file metadata
+        """
+        if not file_uploads:
+            return
+
+        # Prepare file properties for batch operation
+        now = datetime.now().isoformat()
+        file_data_list = []
+
+        for upload in file_uploads:
+            file_props = {
+                "id": upload["file_id"],
+                "name": upload["filename"],
+                "path": upload["file_path"],
+                "section_id": upload["section_id"],
+                "field_id": upload["field_id"],
+                "person_id": person_id,
+                "uploaded_at": now
+            }
+            if upload.get("metadata"):
+                file_props.update(upload["metadata"])
+
+            file_data_list.append({
+                "file_props": self.clean_data(file_props),
+                "section_id": upload["section_id"],
+                "field_id": upload["field_id"]
+            })
+
+        async with self.session() as session:
+            # First, batch delete existing files for the fields we're updating
+            field_keys = [{"section_id": fd["section_id"], "field_id": fd["field_id"]} for fd in file_data_list]
+            await session.run("""
+                UNWIND $field_keys AS fk
+                MATCH (person:Person {id: $person_id})-[r:HAS_FILE]->(file:File)
+                WHERE file.section_id = fk.section_id AND file.field_id = fk.field_id
+                DELETE r, file
+            """, person_id=person_id, field_keys=field_keys)
+
+            # Batch create new file nodes and relationships
+            await session.run("""
+                MATCH (person:Person {id: $person_id})
+                UNWIND $file_data_list AS fd
+                CREATE (file:File)
+                SET file = fd.file_props
+                CREATE (person)-[r:HAS_FILE]->(file)
+                SET r.section_id = fd.section_id,
+                    r.field_id = fd.field_id
+            """, person_id=person_id, file_data_list=file_data_list)
+
     async def delete_person(self, project_safe_name: str, person_id: str) -> bool:
         """
-        Delete a person and all their associated data.
+        Delete a person and all their associated data in a single query.
+
+        This method uses a single optimized query to delete the person and all
+        related data, avoiding multiple round trips to the database.
 
         Args:
             project_safe_name: URL-safe project name.
@@ -785,35 +1009,26 @@ class AsyncNeo4jService:
             True if person was deleted, False otherwise.
         """
         async with self.session() as session:
-            # First check if person exists
-            verify = await session.run("""
+            # Single query to verify, delete related data, and delete person
+            result = await session.run("""
                 MATCH (project:Project {safe_name: $project_safe_name})
                       -[:HAS_PERSON]->(person:Person {id: $person_id})
-                RETURN count(person) as exists
+                OPTIONAL MATCH (person)-[fv_rel:HAS_FIELD_VALUE]->(fv:FieldValue)
+                OPTIONAL MATCH (person)-[file_rel:HAS_FILE]->(file:File)
+                WITH person, COLLECT(DISTINCT fv) AS field_values,
+                     COLLECT(DISTINCT file) AS files,
+                     COLLECT(DISTINCT fv_rel) AS fv_rels,
+                     COLLECT(DISTINCT file_rel) AS file_rels
+                FOREACH (r IN fv_rels | DELETE r)
+                FOREACH (f IN field_values | DELETE f)
+                FOREACH (r IN file_rels | DELETE r)
+                FOREACH (f IN files | DELETE f)
+                DETACH DELETE person
+                RETURN count(person) as deleted_count
             """, project_safe_name=project_safe_name, person_id=person_id)
 
-            record = await verify.single()
-            if not record or record["exists"] == 0:
-                return False
-
-            # Delete all related data
-            await session.run("""
-                MATCH (person:Person {id: $person_id})-[r:HAS_FIELD_VALUE]->(fv)
-                DELETE r, fv
-            """, person_id=person_id)
-
-            await session.run("""
-                MATCH (person:Person {id: $person_id})-[r:HAS_FILE]->(file)
-                DELETE r, file
-            """, person_id=person_id)
-
-            # Finally delete the person
-            await session.run("""
-                MATCH (person:Person {id: $person_id})
-                DETACH DELETE person
-            """, person_id=person_id)
-
-            return True
+            record = await result.single()
+            return record is not None and record["deleted_count"] > 0
 
     # ==================== File Management ====================
 
@@ -967,6 +1182,9 @@ class AsyncNeo4jService:
         """
         Import a project from JSON data.
 
+        This method uses batch operations to efficiently import multiple people,
+        avoiding N+1 query patterns.
+
         Args:
             project_data: Project data including people.
 
@@ -978,10 +1196,76 @@ class AsyncNeo4jService:
 
         await self.create_project(project_name, safe_name)
 
-        for person_data in project_data.get("people", []):
-            await self.create_person(safe_name, person_data)
+        # Use batch import for people if there are multiple
+        people_data = project_data.get("people", [])
+        if people_data:
+            await self.create_people_batch(safe_name, people_data)
 
         return await self.get_project(safe_name)
+
+    async def create_people_batch(
+        self,
+        project_safe_name: str,
+        people_data: List[Dict[str, Any]]
+    ) -> List[str]:
+        """
+        Create multiple people in a batch operation.
+
+        This method uses UNWIND to create multiple person nodes in a single query,
+        then processes their profile data in batches.
+
+        Args:
+            project_safe_name: URL-safe project name.
+            people_data: List of person data dictionaries.
+
+        Returns:
+            List of created person IDs.
+        """
+        if not people_data:
+            return []
+
+        # Prepare person data with IDs and timestamps
+        now = datetime.now().isoformat()
+        prepared_people = []
+        person_ids = []
+
+        for person_data in people_data:
+            person_id = person_data.get("id", str(uuid4()))
+            created_at = person_data.get("created_at", now)
+            person_ids.append(person_id)
+            prepared_people.append({
+                "id": person_id,
+                "created_at": created_at
+            })
+
+        async with self.session() as session:
+            # Verify project exists
+            project = await session.run("""
+                MATCH (p:Project {safe_name: $project_safe_name})
+                RETURN p
+            """, project_safe_name=project_safe_name)
+
+            if not await project.single():
+                return []
+
+            # Batch create all person nodes and link to project
+            await session.run("""
+                MATCH (project:Project {safe_name: $project_safe_name})
+                UNWIND $people AS p
+                CREATE (person:Person {
+                    id: p.id,
+                    created_at: p.created_at
+                })
+                CREATE (project)-[:HAS_PERSON]->(person)
+            """, project_safe_name=project_safe_name, people=prepared_people)
+
+        # Process profile data for each person using batch operations
+        for i, person_data in enumerate(people_data):
+            person_id = person_ids[i]
+            if "profile" in person_data and person_data["profile"]:
+                await self.set_person_fields_batch(person_id, person_data["profile"])
+
+        return person_ids
 
     async def export_to_json(self, project_safe_name: str) -> Optional[Dict[str, Any]]:
         """

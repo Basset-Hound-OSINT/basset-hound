@@ -140,6 +140,61 @@ class Settings(BaseSettings):
         description="Prefer Redis over in-memory cache when available"
     )
 
+    # Memory Limit Settings for In-Memory Caches (Phase 12: Performance Optimization)
+    # JobRunner memory limits
+    job_runner_max_jobs: int = Field(
+        default=1000,
+        description="Maximum number of jobs to store in memory"
+    )
+    job_runner_max_results: int = Field(
+        default=1000,
+        description="Maximum number of job results to store in memory"
+    )
+
+    # ReportStorage memory limits
+    report_storage_max_reports: int = Field(
+        default=500,
+        description="Maximum number of reports to store in memory"
+    )
+    report_storage_max_context_hashes: int = Field(
+        default=1000,
+        description="Maximum number of context hashes for deduplication"
+    )
+
+    # MarketplaceService memory limits
+    marketplace_max_templates: int = Field(
+        default=500,
+        description="Maximum number of marketplace templates to store"
+    )
+    marketplace_max_reviews_per_template: int = Field(
+        default=100,
+        description="Maximum number of reviews per template"
+    )
+
+    # TemplateService memory limits
+    template_service_max_templates: int = Field(
+        default=200,
+        description="Maximum number of templates to store in memory"
+    )
+
+    # MLAnalytics memory limits
+    ml_analytics_max_history: int = Field(
+        default=10000,
+        description="Maximum query history size for ML analytics"
+    )
+    ml_analytics_max_tfidf_cache: int = Field(
+        default=5000,
+        description="Maximum TF-IDF cache entries"
+    )
+    ml_analytics_max_entity_queries: int = Field(
+        default=2000,
+        description="Maximum entity query associations to track"
+    )
+    ml_analytics_max_cooccurrence: int = Field(
+        default=5000,
+        description="Maximum query co-occurrence entries"
+    )
+
     @property
     def cors_origins_list(self) -> List[str]:
         """Get CORS origins as a list."""

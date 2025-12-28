@@ -13,6 +13,7 @@ Features:
 """
 
 import logging
+import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from enum import Enum
@@ -87,6 +88,7 @@ class ReportScheduler:
         self._handler = neo4j_handler
         self._report_service = report_service
         # In-memory storage for schedules, keyed by schedule ID
+        self._lock = threading.RLock()
         self._schedules: Dict[str, ReportSchedule] = {}
 
     def schedule_report(
@@ -147,7 +149,8 @@ class ReportScheduler:
             created_by=created_by.strip()
         )
 
-        self._schedules[schedule_id] = schedule
+        with self._lock:
+            self._schedules[schedule_id] = schedule
         logger.info(f"Created schedule {schedule_id} for project {project_id}")
 
         return schedule
@@ -162,7 +165,8 @@ class ReportScheduler:
         Returns:
             ReportSchedule if found, None otherwise
         """
-        return self._schedules.get(schedule_id)
+        with self._lock:
+            return self._schedules.get(schedule_id)
 
     def list_schedules(
         self,
@@ -179,10 +183,11 @@ class ReportScheduler:
         Returns:
             List of ReportSchedule objects for the project
         """
-        schedules = [
-            s for s in self._schedules.values()
-            if s.project_id == project_id
-        ]
+        with self._lock:
+            schedules = [
+                s for s in self._schedules.values()
+                if s.project_id == project_id
+            ]
 
         if enabled_only:
             schedules = [s for s in schedules if s.enabled]
@@ -215,40 +220,42 @@ class ReportScheduler:
         Returns:
             Updated ReportSchedule if found, None otherwise
         """
-        schedule = self._schedules.get(schedule_id)
-        if schedule is None:
-            return None
+        with self._lock:
+            schedule = self._schedules.get(schedule_id)
+            if schedule is None:
+                return None
 
-        # Create a new schedule with updated values
-        updated_schedule = ReportSchedule(
-            id=schedule.id,
-            project_id=schedule.project_id,
-            report_type=report_type if report_type is not None else schedule.report_type,
-            frequency=frequency if frequency is not None else schedule.frequency,
-            next_run=next_run if next_run is not None else schedule.next_run,
-            last_run=schedule.last_run,
-            options=options if options is not None else schedule.options,
-            enabled=enabled if enabled is not None else schedule.enabled,
-            created_at=schedule.created_at,
-            created_by=schedule.created_by
-        )
-
-        # Ensure next_run is timezone-aware
-        if updated_schedule.next_run.tzinfo is None:
+            # Create a new schedule with updated values
             updated_schedule = ReportSchedule(
-                id=updated_schedule.id,
-                project_id=updated_schedule.project_id,
-                report_type=updated_schedule.report_type,
-                frequency=updated_schedule.frequency,
-                next_run=updated_schedule.next_run.replace(tzinfo=timezone.utc),
-                last_run=updated_schedule.last_run,
-                options=updated_schedule.options,
-                enabled=updated_schedule.enabled,
-                created_at=updated_schedule.created_at,
-                created_by=updated_schedule.created_by
+                id=schedule.id,
+                project_id=schedule.project_id,
+                report_type=report_type if report_type is not None else schedule.report_type,
+                frequency=frequency if frequency is not None else schedule.frequency,
+                next_run=next_run if next_run is not None else schedule.next_run,
+                last_run=schedule.last_run,
+                options=options if options is not None else schedule.options,
+                enabled=enabled if enabled is not None else schedule.enabled,
+                created_at=schedule.created_at,
+                created_by=schedule.created_by
             )
 
-        self._schedules[schedule_id] = updated_schedule
+            # Ensure next_run is timezone-aware
+            if updated_schedule.next_run.tzinfo is None:
+                updated_schedule = ReportSchedule(
+                    id=updated_schedule.id,
+                    project_id=updated_schedule.project_id,
+                    report_type=updated_schedule.report_type,
+                    frequency=updated_schedule.frequency,
+                    next_run=updated_schedule.next_run.replace(tzinfo=timezone.utc),
+                    last_run=updated_schedule.last_run,
+                    options=updated_schedule.options,
+                    enabled=updated_schedule.enabled,
+                    created_at=updated_schedule.created_at,
+                    created_by=updated_schedule.created_by
+                )
+
+            self._schedules[schedule_id] = updated_schedule
+
         logger.info(f"Updated schedule {schedule_id}")
 
         return updated_schedule
@@ -263,11 +270,12 @@ class ReportScheduler:
         Returns:
             True if the schedule was deleted, False if not found
         """
-        if schedule_id in self._schedules:
-            del self._schedules[schedule_id]
-            logger.info(f"Deleted schedule {schedule_id}")
-            return True
-        return False
+        with self._lock:
+            if schedule_id in self._schedules:
+                del self._schedules[schedule_id]
+                logger.info(f"Deleted schedule {schedule_id}")
+                return True
+            return False
 
     def pause_schedule(self, schedule_id: str) -> Optional[ReportSchedule]:
         """
@@ -317,14 +325,15 @@ class ReportScheduler:
         elif as_of.tzinfo is None:
             as_of = as_of.replace(tzinfo=timezone.utc)
 
-        due_schedules = []
-        for schedule in self._schedules.values():
-            if not schedule.enabled:
-                continue
-            if project_id is not None and schedule.project_id != project_id:
-                continue
-            if schedule.next_run <= as_of:
-                due_schedules.append(schedule)
+        with self._lock:
+            due_schedules = []
+            for schedule in self._schedules.values():
+                if not schedule.enabled:
+                    continue
+                if project_id is not None and schedule.project_id != project_id:
+                    continue
+                if schedule.next_run <= as_of:
+                    due_schedules.append(schedule)
 
         # Sort by next_run (oldest first)
         due_schedules.sort(key=lambda s: s.next_run)
@@ -351,35 +360,43 @@ class ReportScheduler:
             ValueError: If report_service is not configured
             Exception: If report generation fails
         """
-        schedule = self._schedules.get(schedule_id)
-        if schedule is None:
-            return None
+        # Get schedule data under lock, then release for long operation
+        with self._lock:
+            schedule = self._schedules.get(schedule_id)
+            if schedule is None:
+                return None
+
+            # Copy needed data for report generation
+            report_type = schedule.report_type
+            options = schedule.options
+            frequency = schedule.frequency
+            schedule_enabled = schedule.enabled
 
         if self._report_service is None:
             raise ValueError("report_service is not configured")
 
         now = datetime.now(timezone.utc)
 
-        # Generate the report based on report_type
+        # Generate the report based on report_type - NO lock held during long operation
         try:
-            if schedule.report_type == "summary":
+            if report_type == "summary":
                 report_bytes = self._report_service.generate_project_summary(
-                    schedule.options.project_id,
-                    schedule.options.format
+                    options.project_id,
+                    options.format
                 )
-            elif schedule.report_type == "entity":
+            elif report_type == "entity":
                 # For entity reports, entity_ids should have at least one ID
-                if schedule.options.entity_ids and len(schedule.options.entity_ids) > 0:
+                if options.entity_ids and len(options.entity_ids) > 0:
                     report_bytes = self._report_service.generate_entity_report(
-                        schedule.options.project_id,
-                        schedule.options.entity_ids[0],
-                        schedule.options.format
+                        options.project_id,
+                        options.entity_ids[0],
+                        options.format
                     )
                 else:
                     raise ValueError("entity_ids required for entity report type")
             else:
                 # Default to custom report
-                report_bytes = self._report_service.generate_report(schedule.options)
+                report_bytes = self._report_service.generate_report(options)
 
             logger.info(f"Generated report for schedule {schedule_id}")
 
@@ -388,27 +405,34 @@ class ReportScheduler:
             raise
 
         # Calculate next run time
-        next_run = self.calculate_next_run(schedule.frequency, now)
+        next_run = self.calculate_next_run(frequency, now)
 
-        # Update schedule
-        new_enabled = schedule.enabled
-        if schedule.frequency == ScheduleFrequency.ONCE:
-            new_enabled = False
+        # Update schedule under lock
+        with self._lock:
+            # Re-fetch schedule in case it was modified
+            schedule = self._schedules.get(schedule_id)
+            if schedule is None:
+                # Schedule was deleted while we were generating report
+                return report_bytes
 
-        updated_schedule = ReportSchedule(
-            id=schedule.id,
-            project_id=schedule.project_id,
-            report_type=schedule.report_type,
-            frequency=schedule.frequency,
-            next_run=next_run,
-            last_run=now,
-            options=schedule.options,
-            enabled=new_enabled,
-            created_at=schedule.created_at,
-            created_by=schedule.created_by
-        )
+            new_enabled = schedule.enabled
+            if schedule.frequency == ScheduleFrequency.ONCE:
+                new_enabled = False
 
-        self._schedules[schedule_id] = updated_schedule
+            updated_schedule = ReportSchedule(
+                id=schedule.id,
+                project_id=schedule.project_id,
+                report_type=schedule.report_type,
+                frequency=schedule.frequency,
+                next_run=next_run,
+                last_run=now,
+                options=schedule.options,
+                enabled=new_enabled,
+                created_at=schedule.created_at,
+                created_by=schedule.created_by
+            )
+
+            self._schedules[schedule_id] = updated_schedule
 
         return report_bytes
 
@@ -493,7 +517,8 @@ class ReportScheduler:
         Returns:
             List of all ReportSchedule objects
         """
-        return list(self._schedules.values())
+        with self._lock:
+            return list(self._schedules.values())
 
     def clear_all_schedules(self) -> int:
         """
@@ -502,14 +527,16 @@ class ReportScheduler:
         Returns:
             Number of schedules that were cleared
         """
-        count = len(self._schedules)
-        self._schedules.clear()
+        with self._lock:
+            count = len(self._schedules)
+            self._schedules.clear()
         logger.info(f"Cleared {count} schedules")
         return count
 
 
 # Singleton instance management
 _report_scheduler: Optional[ReportScheduler] = None
+_report_scheduler_lock = threading.RLock()
 
 
 def get_report_scheduler(
@@ -529,7 +556,10 @@ def get_report_scheduler(
     global _report_scheduler
 
     if _report_scheduler is None:
-        _report_scheduler = ReportScheduler(neo4j_handler, report_service)
+        with _report_scheduler_lock:
+            # Double-check after acquiring lock
+            if _report_scheduler is None:
+                _report_scheduler = ReportScheduler(neo4j_handler, report_service)
 
     return _report_scheduler
 
@@ -537,4 +567,5 @@ def get_report_scheduler(
 def set_report_scheduler(scheduler: Optional[ReportScheduler]) -> None:
     """Set the report scheduler singleton (for testing)."""
     global _report_scheduler
-    _report_scheduler = scheduler
+    with _report_scheduler_lock:
+        _report_scheduler = scheduler

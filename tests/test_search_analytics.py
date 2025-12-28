@@ -23,7 +23,7 @@ import json
 import pytest
 import threading
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, AsyncMock, patch
 from uuid import uuid4
 
@@ -161,9 +161,9 @@ class TestSearchEvent:
 
     def test_event_timestamp_defaults_to_utcnow(self):
         """Test that timestamp defaults to UTC now."""
-        before = datetime.utcnow()
+        before = datetime.now(timezone.utc)
         event = SearchEvent(query="test")
-        after = datetime.utcnow()
+        after = datetime.now(timezone.utc)
 
         assert before <= event.timestamp <= after
 
@@ -723,7 +723,7 @@ class TestCleanup:
 
         # Add an old event
         old_event = analytics.record_search(query="old")
-        old_event.timestamp = datetime.utcnow() - timedelta(days=10)
+        old_event.timestamp = datetime.now(timezone.utc) - timedelta(days=10)
 
         # Add a recent event
         analytics.record_search(query="new")
@@ -739,7 +739,7 @@ class TestCleanup:
 
         # Add event 5 days old
         event = analytics.record_search(query="test")
-        event.timestamp = datetime.utcnow() - timedelta(days=5)
+        event.timestamp = datetime.now(timezone.utc) - timedelta(days=5)
 
         # Cleanup with 3 day retention
         removed = analytics.cleanup_old_events(older_than_days=3)
@@ -1001,58 +1001,46 @@ class TestAnalyticsRouter:
     """Tests for the analytics router endpoints."""
 
     def test_router_import(self):
-        """Test that router can be imported."""
-        from api.routers.analytics import router, project_analytics_router
+        """Test that router can be imported from deprecated module."""
+        import warnings
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            from api.routers.analytics import router, project_analytics_router
         assert router is not None
         assert project_analytics_router is not None
 
     def test_response_models_import(self):
-        """Test that all response models can be imported."""
-        from api.routers.analytics import (
-            PopularQueryResponse,
-            PopularQueriesResponse,
-            SearchVolumeResponse,
-            CTRResponse,
-            QuerySuggestionsResponse,
-            SearchTrendsResponse,
-            ProjectAnalyticsResponse,
-            CleanupResponse,
-            RecordSearchRequest,
-            RecordSearchResponse,
-            RecordClickRequest,
-            RecordClickResponse,
-            ExportAnalyticsResponse,
-        )
+        """Test that v2 response models can be imported via deprecated wrapper."""
+        import warnings
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            from api.routers.analytics import (
+                RecordSearchRequest,
+                RecordSearchResponse,
+                QueryStatsResponse,
+                TopQueriesResponse,
+                SuggestionsResponse,
+                ClearAnalyticsResponse,
+                AnalyticsSummaryResponse,
+            )
 
         # Verify models have expected fields
-        assert hasattr(PopularQueryResponse, "model_fields")
-        assert hasattr(PopularQueriesResponse, "model_fields")
-        assert hasattr(SearchVolumeResponse, "model_fields")
-        assert hasattr(CTRResponse, "model_fields")
-        assert hasattr(QuerySuggestionsResponse, "model_fields")
-        assert hasattr(SearchTrendsResponse, "model_fields")
-        assert hasattr(ProjectAnalyticsResponse, "model_fields")
-        assert hasattr(CleanupResponse, "model_fields")
+        assert hasattr(RecordSearchRequest, "model_fields")
+        assert hasattr(RecordSearchResponse, "model_fields")
+        assert hasattr(QueryStatsResponse, "model_fields")
+        assert hasattr(TopQueriesResponse, "model_fields")
+        assert hasattr(SuggestionsResponse, "model_fields")
+        assert hasattr(ClearAnalyticsResponse, "model_fields")
+        assert hasattr(AnalyticsSummaryResponse, "model_fields")
 
     def test_helper_functions(self):
-        """Test router helper functions."""
-        from api.routers.analytics import _parse_datetime, _popular_query_to_response
+        """Test router helper functions from analytics_v2."""
+        from api.routers.analytics_v2 import _parse_datetime
 
         # Test datetime parsing
         assert _parse_datetime(None) is None
         assert _parse_datetime("2024-01-15T10:30:00") is not None
         assert _parse_datetime("invalid") is None
-
-        # Test popular query conversion
-        pq = PopularQuery(
-            query="test",
-            count=10,
-            avg_results=5.0,
-            last_searched=datetime(2024, 1, 15)
-        )
-        response = _popular_query_to_response(pq)
-        assert response.query == "test"
-        assert response.count == 10
 
 
 # ==================== Integration Tests ====================

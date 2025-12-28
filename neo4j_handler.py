@@ -62,68 +62,88 @@ class Neo4jHandler:
                     print(f"Error creating constraint {constraint}: {e}")
     
     def setup_schema_from_config(self, config):
-        """Create relationship types and properties based on the configuration."""
+        """
+        Create relationship types and properties based on the configuration.
+
+        This method uses UNWIND for batch operations to avoid N+1 query patterns.
+        """
+        # Prepare batch data
+        sections_data = []
+        fields_data = []
+        components_data = []
+
+        for section in config.get("sections", []):
+            section_id = section.get("id")
+            section_label = section.get("label", section_id)
+            sections_data.append({
+                "id": section_id,
+                "label": section_label
+            })
+
+            for field in section.get("fields", []):
+                field_id = field.get("id")
+                fields_data.append({
+                    "id": field_id,
+                    "section_id": section_id,
+                    "label": field.get("label", field_id),
+                    "type": field.get("type", "string"),
+                    "multiple": field.get("multiple", False)
+                })
+
+                # Handle field components
+                for component in field.get("components", []):
+                    components_data.append({
+                        "id": component.get("id"),
+                        "field_id": field_id,
+                        "section_id": section_id,
+                        "label": component.get("label", component.get("id")),
+                        "type": component.get("type", "string")
+                    })
+
         with self.driver.session() as session:
             # Clear existing schema if needed
             session.run("""
                 MATCH (c:Configuration {id: 'main'})
                 DETACH DELETE c
             """)
-            
-            # Create new configuration
-            session.run("""
-                MERGE (config:Configuration {id: 'main'})
-                SET config.updated_at = $timestamp
-            """, timestamp=datetime.now().isoformat())
-            
-            # Process sections and fields
-            for section in config.get("sections", []):
-                section_id = section.get("id")
-                section_label = section.get("label", section_id)
-                
+
+            # Create new configuration and batch create all sections
+            if sections_data:
                 session.run("""
                     MERGE (config:Configuration {id: 'main'})
-                    MERGE (section:Section {id: $section_id})
-                    SET section.label = $section_label
+                    SET config.updated_at = $timestamp
+                    WITH config
+                    UNWIND $sections AS s
+                    MERGE (section:Section {id: s.id})
+                    SET section.label = s.label
                     MERGE (config)-[:HAS_SECTION]->(section)
-                """, section_id=section_id, section_label=section_label)
-                
-                for field in section.get("fields", []):
-                    field_id = field.get("id")
-                    field_label = field.get("label", field_id)
-                    field_type = field.get("type", "string")
-                    field_multiple = field.get("multiple", False)
-                    
-                    session.run("""
-                        MERGE (section:Section {id: $section_id})
-                        MERGE (field:Field {id: $field_id})
-                        SET field.section_id = $section_id,
-                            field.label = $field_label,
-                            field.type = $field_type,
-                            field.multiple = $field_multiple
-                        MERGE (section)-[:HAS_FIELD]->(field)
-                    """, section_id=section_id, field_id=field_id, 
-                        field_label=field_label, field_type=field_type, 
-                        field_multiple=field_multiple)
-                    
-                    # Handle field components
-                    if "components" in field:
-                        for component in field.get("components", []):
-                            component_id = component.get("id")
-                            component_type = component.get("type", "string")
-                            component_label = component.get("label", component_id)
-                            
-                            session.run("""
-                                MERGE (field:Field {id: $field_id})
-                                MERGE (component:Component {id: $component_id})
-                                SET component.field_id = $field_id,
-                                    component.section_id = $section_id,
-                                    component.label = $component_label,
-                                    component.type = $component_type
-                                MERGE (field)-[:HAS_COMPONENT]->(component)
-                            """, section_id=section_id, field_id=field_id, 
-                                component_id=component_id, component_label=component_label,
-                                component_type=component_type)
+                """, timestamp=datetime.now().isoformat(), sections=sections_data)
+
+            # Batch create all fields
+            if fields_data:
+                session.run("""
+                    UNWIND $fields AS f
+                    MATCH (section:Section {id: f.section_id})
+                    MERGE (field:Field {id: f.id})
+                    SET field.section_id = f.section_id,
+                        field.label = f.label,
+                        field.type = f.type,
+                        field.multiple = f.multiple
+                    MERGE (section)-[:HAS_FIELD]->(field)
+                """, fields=fields_data)
+
+            # Batch create all components
+            if components_data:
+                session.run("""
+                    UNWIND $components AS c
+                    MATCH (field:Field {id: c.field_id})
+                    MERGE (component:Component {id: c.id})
+                    SET component.field_id = c.field_id,
+                        component.section_id = c.section_id,
+                        component.label = c.label,
+                        component.type = c.type
+                    MERGE (field)-[:HAS_COMPONENT]->(component)
+                """, components=components_data)
 
     # In neo4j_handler.py, update create_project:
     def create_project(self, project_name, safe_name=None):
@@ -167,18 +187,7 @@ class Neo4jHandler:
             project_data = dict(project_record["p"])
             project_data["people"] = self.get_all_people(safe_name)
             return project_data
-        
-    def get_all_people(self, project_safe_name):
-        """Retrieve all people in a project."""
-        with self.driver.session() as session:
-            result = session.run("""
-                MATCH (project:Project {safe_name: $project_safe_name})-[:HAS_PERSON]->(person:Person)
-                RETURN person.id AS person_id
-                ORDER BY person.created_at DESC
-            """, project_safe_name=project_safe_name)
-            
-            return [self.get_person(project_safe_name, record["person_id"]) for record in result]
-    
+
     def get_all_projects(self):
         """Retrieve all projects with basic info."""
         with self.driver.session() as session:
@@ -361,16 +370,285 @@ class Neo4jHandler:
             return person_data
 
     def get_all_people(self, project_safe_name):
-        """Retrieve all people in a project."""
+        """
+        Retrieve all people in a project with all their data in a single query.
+
+        This method uses COLLECT to aggregate all related data (field values and files)
+        in a single query, avoiding N+1 query patterns.
+        """
         with self.driver.session() as session:
+            # Single optimized query that fetches all people with their field values and files
             result = session.run("""
-                MATCH (project:Project {safe_name: $project_safe_name})-[:HAS_PERSON]->(person:Person)
-                RETURN person.id AS person_id
+                MATCH (project:Project {safe_name: $project_safe_name})
+                      -[:HAS_PERSON]->(person:Person)
+                OPTIONAL MATCH (person)-[:HAS_FIELD_VALUE]->(fv:FieldValue)
+                OPTIONAL MATCH (person)-[file_rel:HAS_FILE]->(file:File)
+                WITH person,
+                     COLLECT(DISTINCT {
+                         section_id: fv.section_id,
+                         field_id: fv.field_id,
+                         value: fv.value
+                     }) AS field_values,
+                     COLLECT(DISTINCT {
+                         file: file,
+                         section_id: file_rel.section_id,
+                         field_id: file_rel.field_id
+                     }) AS files
+                RETURN person, field_values, files
                 ORDER BY person.created_at DESC
             """, project_safe_name=project_safe_name)
-            
-            return [self.get_person(project_safe_name, record["person_id"]) for record in result]
-    
+
+            people = []
+            for record in result:
+                person_data = dict(record["person"])
+                person_data["profile"] = {}
+
+                # Process field values
+                for fv in record["field_values"]:
+                    # Skip empty field values (from OPTIONAL MATCH with no results)
+                    if fv["section_id"] is None:
+                        continue
+
+                    section_id = fv["section_id"]
+                    field_id = fv["field_id"]
+                    value = fv["value"]
+
+                    if section_id not in person_data["profile"]:
+                        person_data["profile"][section_id] = {}
+
+                    # Try to parse JSON strings
+                    if isinstance(value, str):
+                        try:
+                            value = json.loads(value)
+                        except json.JSONDecodeError:
+                            pass
+
+                    person_data["profile"][section_id][field_id] = value
+
+                # Process files
+                for file_data in record["files"]:
+                    # Skip empty file entries (from OPTIONAL MATCH with no results)
+                    if file_data["file"] is None:
+                        continue
+
+                    file_info = dict(file_data["file"])
+                    section_id = file_data["section_id"]
+                    field_id = file_data["field_id"]
+
+                    if section_id not in person_data["profile"]:
+                        person_data["profile"][section_id] = {}
+
+                    if field_id not in person_data["profile"][section_id]:
+                        person_data["profile"][section_id][field_id] = []
+
+                    if isinstance(person_data["profile"][section_id][field_id], list):
+                        person_data["profile"][section_id][field_id].append(file_info)
+                    else:
+                        person_data["profile"][section_id][field_id] = file_info
+
+                people.append(person_data)
+
+            return people
+
+    def get_people_batch(self, project_safe_name, entity_ids):
+        """
+        Retrieve multiple people by their IDs in a single query.
+
+        This method uses UNWIND to fetch multiple entities efficiently,
+        avoiding N+1 query patterns when retrieving multiple people.
+
+        Args:
+            project_safe_name: The project's safe name
+            entity_ids: List of entity IDs to retrieve
+
+        Returns:
+            Dict mapping entity_id to person data
+        """
+        if not entity_ids:
+            return {}
+
+        with self.driver.session() as session:
+            # Single optimized query that fetches all requested people with their data
+            result = session.run("""
+                MATCH (project:Project {safe_name: $project_safe_name})
+                UNWIND $entity_ids AS eid
+                MATCH (project)-[:HAS_PERSON]->(person:Person {id: eid})
+                OPTIONAL MATCH (person)-[:HAS_FIELD_VALUE]->(fv:FieldValue)
+                OPTIONAL MATCH (person)-[file_rel:HAS_FILE]->(file:File)
+                WITH person,
+                     COLLECT(DISTINCT {
+                         section_id: fv.section_id,
+                         field_id: fv.field_id,
+                         value: fv.value
+                     }) AS field_values,
+                     COLLECT(DISTINCT {
+                         file: file,
+                         section_id: file_rel.section_id,
+                         field_id: file_rel.field_id
+                     }) AS files
+                RETURN person, field_values, files
+            """, project_safe_name=project_safe_name, entity_ids=list(entity_ids))
+
+            people_map = {}
+            for record in result:
+                person_data = dict(record["person"])
+                person_data["profile"] = {}
+
+                # Process field values
+                for fv in record["field_values"]:
+                    if fv["section_id"] is None:
+                        continue
+
+                    section_id = fv["section_id"]
+                    field_id = fv["field_id"]
+                    value = fv["value"]
+
+                    if section_id not in person_data["profile"]:
+                        person_data["profile"][section_id] = {}
+
+                    # Try to parse JSON strings
+                    if isinstance(value, str):
+                        try:
+                            value = json.loads(value)
+                        except json.JSONDecodeError:
+                            pass
+
+                    person_data["profile"][section_id][field_id] = value
+
+                # Process files
+                for file_data in record["files"]:
+                    if file_data["file"] is None:
+                        continue
+
+                    file_info = dict(file_data["file"])
+                    section_id = file_data["section_id"]
+                    field_id = file_data["field_id"]
+
+                    if section_id not in person_data["profile"]:
+                        person_data["profile"][section_id] = {}
+
+                    if field_id not in person_data["profile"][section_id]:
+                        person_data["profile"][section_id][field_id] = []
+
+                    if isinstance(person_data["profile"][section_id][field_id], list):
+                        person_data["profile"][section_id][field_id].append(file_info)
+                    else:
+                        person_data["profile"][section_id][field_id] = file_info
+
+                people_map[person_data["id"]] = person_data
+
+            return people_map
+
+    def get_all_people_paginated(self, project_safe_name, offset=0, limit=100):
+        """
+        Retrieve people in a project with database-level pagination.
+
+        This method uses SKIP and LIMIT in the Cypher query for efficient
+        pagination without loading all data into memory.
+
+        Args:
+            project_safe_name: The project's safe name
+            offset: Number of records to skip (default 0)
+            limit: Maximum number of records to return (default 100)
+
+        Returns:
+            List of person data dictionaries
+        """
+        with self.driver.session() as session:
+            result = session.run("""
+                MATCH (project:Project {safe_name: $project_safe_name})
+                      -[:HAS_PERSON]->(person:Person)
+                WITH person
+                ORDER BY person.created_at DESC
+                SKIP $offset
+                LIMIT $limit
+                OPTIONAL MATCH (person)-[:HAS_FIELD_VALUE]->(fv:FieldValue)
+                OPTIONAL MATCH (person)-[file_rel:HAS_FILE]->(file:File)
+                WITH person,
+                     COLLECT(DISTINCT {
+                         section_id: fv.section_id,
+                         field_id: fv.field_id,
+                         value: fv.value
+                     }) AS field_values,
+                     COLLECT(DISTINCT {
+                         file: file,
+                         section_id: file_rel.section_id,
+                         field_id: file_rel.field_id
+                     }) AS files
+                RETURN person, field_values, files
+            """, project_safe_name=project_safe_name, offset=offset, limit=limit)
+
+            people = []
+            for record in result:
+                person_data = dict(record["person"])
+                person_data["profile"] = {}
+
+                # Process field values
+                for fv in record["field_values"]:
+                    if fv["section_id"] is None:
+                        continue
+
+                    section_id = fv["section_id"]
+                    field_id = fv["field_id"]
+                    value = fv["value"]
+
+                    if section_id not in person_data["profile"]:
+                        person_data["profile"][section_id] = {}
+
+                    if isinstance(value, str):
+                        try:
+                            value = json.loads(value)
+                        except json.JSONDecodeError:
+                            pass
+
+                    person_data["profile"][section_id][field_id] = value
+
+                # Process files
+                for file_data in record["files"]:
+                    if file_data["file"] is None:
+                        continue
+
+                    file_info = dict(file_data["file"])
+                    section_id = file_data["section_id"]
+                    field_id = file_data["field_id"]
+
+                    if section_id not in person_data["profile"]:
+                        person_data["profile"][section_id] = {}
+
+                    if field_id not in person_data["profile"][section_id]:
+                        person_data["profile"][section_id][field_id] = []
+
+                    if isinstance(person_data["profile"][section_id][field_id], list):
+                        person_data["profile"][section_id][field_id].append(file_info)
+                    else:
+                        person_data["profile"][section_id][field_id] = file_info
+
+                people.append(person_data)
+
+            return people
+
+    def get_people_count(self, project_safe_name):
+        """
+        Get the total count of people in a project.
+
+        This is useful for pagination calculations without loading all data.
+
+        Args:
+            project_safe_name: The project's safe name
+
+        Returns:
+            Integer count of people in the project
+        """
+        with self.driver.session() as session:
+            result = session.run("""
+                MATCH (project:Project {safe_name: $project_safe_name})
+                      -[:HAS_PERSON]->(person:Person)
+                RETURN count(person) AS count
+            """, project_safe_name=project_safe_name)
+
+            record = result.single()
+            return record["count"] if record else 0
+
     def update_person(self, project_safe_name, person_id, updated_data):
         """Update a person's data."""
         profile_data = updated_data.pop("profile", {}) if "profile" in updated_data else {}
@@ -442,40 +720,172 @@ class Neo4jHandler:
                     value: $value
                 })
                 CREATE (person)-[:HAS_FIELD_VALUE]->(fv)
-            """, person_id=person_id, section_id=section_id, 
+            """, person_id=person_id, section_id=section_id,
                 field_id=field_id, value=value)
 
-    def delete_person(self, project_safe_name, person_id):
-        """Delete a person and all their associated data."""
+    def set_person_fields_batch(self, person_id, profile_data):
+        """
+        Set multiple field values for a person in a batch operation.
+
+        This method uses UNWIND to create multiple field values in a single query,
+        avoiding N+1 query patterns when setting multiple fields.
+
+        Args:
+            person_id: Person's unique identifier.
+            profile_data: Dictionary of section_id -> {field_id -> value} mappings.
+        """
+        if not profile_data:
+            return
+
+        # Separate regular field values from file uploads
+        field_values = []
+        file_uploads = []
+
+        for section_id, fields in profile_data.items():
+            for field_id, value in fields.items():
+                # Check if this is a file field
+                if isinstance(value, dict) and "path" in value:
+                    file_uploads.append({
+                        "section_id": section_id,
+                        "field_id": field_id,
+                        "file_id": value.get("id", str(uuid4())),
+                        "filename": value.get("name", ""),
+                        "file_path": value.get("path", ""),
+                        "metadata": value
+                    })
+                elif isinstance(value, list) and value and isinstance(value[0], dict) and "path" in value[0]:
+                    for file_data in value:
+                        file_uploads.append({
+                            "section_id": section_id,
+                            "field_id": field_id,
+                            "file_id": file_data.get("id", str(uuid4())),
+                            "filename": file_data.get("name", ""),
+                            "file_path": file_data.get("path", ""),
+                            "metadata": file_data
+                        })
+                else:
+                    # Convert complex objects to JSON strings
+                    if isinstance(value, (dict, list)):
+                        value = json.dumps(value)
+                    field_values.append({
+                        "section_id": section_id,
+                        "field_id": field_id,
+                        "value": value
+                    })
+
         with self.driver.session() as session:
-            # First check if person exists
-            verify = session.run("""
-                MATCH (project:Project {safe_name: $project_safe_name})-[:HAS_PERSON]->(person:Person {id: $person_id})
-                RETURN count(person) as exists
-            """, project_safe_name=project_safe_name, person_id=person_id)
-            
-            record = verify.single()
-            if not record or record["exists"] == 0:
-                return False
-            
-            # Delete all related data
+            # First, batch delete existing field values for all fields we're updating
+            if field_values:
+                field_keys = [{"section_id": fv["section_id"], "field_id": fv["field_id"]} for fv in field_values]
+                session.run("""
+                    UNWIND $field_keys AS fk
+                    MATCH (person:Person {id: $person_id})-[r:HAS_FIELD_VALUE]->(fv:FieldValue)
+                    WHERE fv.section_id = fk.section_id AND fv.field_id = fk.field_id
+                    DELETE r, fv
+                """, person_id=person_id, field_keys=field_keys)
+
+                # Batch create new field values
+                session.run("""
+                    MATCH (person:Person {id: $person_id})
+                    UNWIND $field_values AS fv
+                    CREATE (field_value:FieldValue {
+                        section_id: fv.section_id,
+                        field_id: fv.field_id,
+                        value: fv.value
+                    })
+                    CREATE (person)-[:HAS_FIELD_VALUE]->(field_value)
+                """, person_id=person_id, field_values=field_values)
+
+        # Handle file uploads using batch method
+        if file_uploads:
+            self.handle_file_uploads_batch(person_id, file_uploads)
+
+    def handle_file_uploads_batch(self, person_id, file_uploads):
+        """
+        Handle multiple file uploads in a batch operation.
+
+        This method uses UNWIND to create multiple file nodes and relationships
+        in a single query, avoiding N+1 query patterns.
+
+        Args:
+            person_id: Person's unique identifier.
+            file_uploads: List of file upload dictionaries.
+        """
+        if not file_uploads:
+            return
+
+        # Prepare file properties for batch operation
+        now = datetime.now().isoformat()
+        file_data_list = []
+
+        for upload in file_uploads:
+            file_props = {
+                "id": upload["file_id"],
+                "name": upload["filename"],
+                "path": upload["file_path"],
+                "section_id": upload["section_id"],
+                "field_id": upload["field_id"],
+                "person_id": person_id,
+                "uploaded_at": now
+            }
+            if upload.get("metadata"):
+                file_props.update(upload["metadata"])
+
+            file_data_list.append({
+                "file_props": self.clean_data(file_props),
+                "section_id": upload["section_id"],
+                "field_id": upload["field_id"]
+            })
+
+        with self.driver.session() as session:
+            # First, batch delete existing files for the fields we're updating
+            field_keys = [{"section_id": fd["section_id"], "field_id": fd["field_id"]} for fd in file_data_list]
             session.run("""
-                MATCH (person:Person {id: $person_id})-[r:HAS_FIELD_VALUE]->(fv)
-                DELETE r, fv
-            """, person_id=person_id)
-            
-            session.run("""
-                MATCH (person:Person {id: $person_id})-[r:HAS_FILE]->(file)
+                UNWIND $field_keys AS fk
+                MATCH (person:Person {id: $person_id})-[r:HAS_FILE]->(file:File)
+                WHERE file.section_id = fk.section_id AND file.field_id = fk.field_id
                 DELETE r, file
-            """, person_id=person_id)
-            
-            # Finally delete the person
+            """, person_id=person_id, field_keys=field_keys)
+
+            # Batch create new file nodes and relationships
             session.run("""
                 MATCH (person:Person {id: $person_id})
+                UNWIND $file_data_list AS fd
+                CREATE (file:File)
+                SET file = fd.file_props
+                CREATE (person)-[r:HAS_FILE]->(file)
+                SET r.section_id = fd.section_id,
+                    r.field_id = fd.field_id
+            """, person_id=person_id, file_data_list=file_data_list)
+
+    def delete_person(self, project_safe_name, person_id):
+        """
+        Delete a person and all their associated data in a single query.
+
+        This method uses a single optimized query to delete the person and all
+        related data, avoiding multiple round trips to the database.
+        """
+        with self.driver.session() as session:
+            # Single query to verify, delete related data, and delete person
+            result = session.run("""
+                MATCH (project:Project {safe_name: $project_safe_name})
+                      -[:HAS_PERSON]->(person:Person {id: $person_id})
+                OPTIONAL MATCH (person)-[fv_rel:HAS_FIELD_VALUE]->(fv:FieldValue)
+                OPTIONAL MATCH (person)-[file_rel:HAS_FILE]->(file:File)
+                WITH person, COLLECT(DISTINCT fv) AS field_values,
+                     COLLECT(DISTINCT file) AS files,
+                     COLLECT(DISTINCT fv_rel) AS fv_rels,
+                     COLLECT(DISTINCT file_rel) AS file_rels
+                FOREACH (r IN fv_rels | DELETE r)
+                FOREACH (f IN field_values | DELETE f)
+                FOREACH (r IN file_rels | DELETE r)
+                FOREACH (f IN files | DELETE f)
                 DETACH DELETE person
-            """, person_id=person_id)
-            
-            return True
+                RETURN count(person) as deleted_count
+            """, project_safe_name=project_safe_name, person_id=person_id)
+
+            record = result.single()
+            return record is not None and record["deleted_count"] > 0
     
     def handle_file_upload(self, person_id, section_id, field_id, file_id, filename, file_path, metadata=None):
         """Handle file upload and create appropriate relationships."""
@@ -642,12 +1052,9 @@ class Neo4jHandler:
             entity_ids = record["entity_ids"]
             path_length = record["path_length"]
 
-            # Get full entity data for each node in path
-            entities = []
-            for eid in entity_ids:
-                entity = self.get_person(project_safe_name, eid)
-                if entity:
-                    entities.append(entity)
+            # Get full entity data for each node in path using batch query
+            entities_map = self.get_people_batch(project_safe_name, entity_ids)
+            entities = [entities_map[eid] for eid in entity_ids if eid in entities_map]
 
             return {
                 "found": True,
@@ -914,14 +1321,16 @@ class Neo4jHandler:
                         levels[new_depth] = []
                     levels[new_depth].append(neighbor_id)
 
-        # Build result with entity data
+        # Build result with entity data using batch query
+        all_neighborhood_ids = list(visited.keys())
+        entities_map = self.get_people_batch(project_safe_name, all_neighborhood_ids)
+
         neighborhood = {}
-        for level, entity_ids in levels.items():
+        for level, entity_ids_at_level in levels.items():
             neighborhood[f"depth_{level}"] = []
-            for eid in entity_ids:
-                entity_data = self.get_person(project_safe_name, eid)
-                if entity_data:
-                    neighborhood[f"depth_{level}"].append(entity_data)
+            for eid in entity_ids_at_level:
+                if eid in entities_map:
+                    neighborhood[f"depth_{level}"].append(entities_map[eid])
 
         # Collect all edges within the neighborhood
         neighborhood_ids = set(visited.keys())
@@ -1013,6 +1422,10 @@ class Neo4jHandler:
                 clusters_map[root] = []
             clusters_map[root].append(eid)
 
+        # Fetch all entities once using batch query
+        all_entity_ids = list(entity_ids)
+        entities_map = self.get_people_batch(project_safe_name, all_entity_ids)
+
         # Build cluster information
         clusters = []
         isolated_count = 0
@@ -1021,12 +1434,8 @@ class Neo4jHandler:
             if len(members) == 1:
                 isolated_count += 1
 
-            # Get entity data for cluster members
-            member_entities = []
-            for eid in members:
-                entity = self.get_person(project_safe_name, eid)
-                if entity:
-                    member_entities.append(entity)
+            # Get entity data for cluster members from the batch-fetched map
+            member_entities = [entities_map[eid] for eid in members if eid in entities_map]
 
             # Count internal edges
             internal_edges = 0

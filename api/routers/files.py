@@ -7,6 +7,7 @@ associated with entities in OSINT investigation projects.
 
 import os
 import hashlib
+import mimetypes
 from typing import Optional
 from datetime import datetime
 
@@ -36,6 +37,8 @@ class FileInfo(BaseModel):
             "id": "a1b2c3d4e5f6",
             "name": "profile_photo.jpg",
             "path": "a1b2c3d4e5f6_profile_photo.jpg",
+            "size": 102400,
+            "type": "image/jpeg",
             "section_id": "profile",
             "field_id": "profile_picture",
             "uploaded_at": "2024-01-15T10:30:00"
@@ -45,6 +48,8 @@ class FileInfo(BaseModel):
     id: str = Field(..., description="Unique file identifier")
     name: str = Field(..., description="Original filename")
     path: str = Field(..., description="Storage path/filename")
+    size: Optional[int] = Field(None, description="File size in bytes")
+    type: Optional[str] = Field(None, description="MIME type of the file")
     section_id: Optional[str] = Field(None, description="Profile section ID")
     field_id: Optional[str] = Field(None, description="Profile field ID")
     uploaded_at: Optional[str] = Field(None, description="Upload timestamp")
@@ -54,6 +59,28 @@ class FileUploadResponse(BaseModel):
     """Schema for file upload response."""
     success: bool = True
     files: list[FileInfo] = Field(default_factory=list)
+
+
+class FileListResponse(BaseModel):
+    """Schema for file list response."""
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "files": [
+                {
+                    "id": "a1b2c3d4e5f6",
+                    "name": "profile_photo.jpg",
+                    "path": "a1b2c3d4e5f6_profile_photo.jpg",
+                    "size": 102400,
+                    "type": "image/jpeg",
+                    "uploaded_at": "2024-01-15T10:30:00"
+                }
+            ],
+            "total": 1
+        }
+    })
+
+    files: list[FileInfo] = Field(default_factory=list, description="List of files")
+    total: int = Field(..., description="Total number of files")
 
 
 class SuccessResponse(BaseModel):
@@ -105,6 +132,27 @@ ALLOWED_IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp'}
 def is_image_file(filename: str) -> bool:
     """Check if a file is an allowed image type."""
     return os.path.splitext(filename)[1].lower() in ALLOWED_IMAGE_EXTENSIONS
+
+
+def get_mime_type(filename: str) -> str:
+    """Get MIME type for a file based on its extension."""
+    mime_type, _ = mimetypes.guess_type(filename)
+    return mime_type or 'application/octet-stream'
+
+
+def extract_original_filename(stored_filename: str) -> tuple[str, str]:
+    """
+    Extract the file ID and original filename from a stored filename.
+
+    Stored format: {file_id}_{original_filename}
+    Returns: (file_id, original_filename)
+    """
+    # The file ID is the first 12 characters before the underscore
+    if '_' in stored_filename and len(stored_filename) > 13:
+        file_id = stored_filename[:12]
+        original_name = stored_filename[13:]  # Skip the 12-char ID and underscore
+        return file_id, original_name
+    return stored_filename, stored_filename
 
 
 # ----- Endpoints -----
@@ -202,6 +250,88 @@ async def upload_files(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to upload files: {str(e)}"
         )
+
+
+@router.get(
+    "/",
+    response_model=FileListResponse,
+    summary="List entity files",
+    description="Get a list of all files for an entity with metadata.",
+    responses={
+        200: {"description": "List of files retrieved successfully"},
+        404: {"description": "Entity or project not found"},
+    }
+)
+async def list_entity_files(
+    project_safe_name: str,
+    entity_id: str,
+    neo4j_handler=Depends(get_neo4j_handler)
+):
+    """
+    List all files for an entity.
+
+    Returns a list of all files associated with the entity, including
+    metadata such as file name, size, type, and upload date.
+
+    - **project_safe_name**: The URL-safe identifier for the project
+    - **entity_id**: The unique identifier for the entity
+    """
+    # Get project for project_id
+    project = neo4j_handler.get_project(project_safe_name)
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Project '{project_safe_name}' not found"
+        )
+
+    # Verify entity exists
+    person = neo4j_handler.get_person(project_safe_name, entity_id)
+    if not person:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Entity '{entity_id}' not found in project '{project_safe_name}'"
+        )
+
+    project_id = project.get('id')
+    files_dir = os.path.join("projects", project_id, "people", entity_id, "files")
+
+    files_list = []
+
+    # Check if files directory exists
+    if os.path.exists(files_dir) and os.path.isdir(files_dir):
+        try:
+            for root, dirs, files in os.walk(files_dir):
+                for filename in files:
+                    file_path = os.path.join(root, filename)
+                    rel_path = os.path.relpath(file_path, files_dir)
+
+                    # Get file stats
+                    stat_info = os.stat(file_path)
+                    file_size = stat_info.st_size
+                    mod_time = datetime.fromtimestamp(stat_info.st_mtime).isoformat()
+
+                    # Extract original filename and ID
+                    file_id, original_name = extract_original_filename(filename)
+
+                    # Get MIME type
+                    mime_type = get_mime_type(original_name)
+
+                    files_list.append(FileInfo(
+                        id=file_id,
+                        name=original_name,
+                        path=rel_path,
+                        size=file_size,
+                        type=mime_type,
+                        uploaded_at=mod_time
+                    ))
+
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to list files: {str(e)}"
+            )
+
+    return FileListResponse(files=files_list, total=len(files_list))
 
 
 @router.get(

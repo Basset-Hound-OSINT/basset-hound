@@ -22,7 +22,7 @@ import logging
 import threading
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import uuid4
 
@@ -47,7 +47,7 @@ class SearchEvent:
         clicked_results: List of entity IDs that were clicked from results
     """
     query: str
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     id: str = field(default_factory=lambda: str(uuid4()))
     project_id: Optional[str] = None
     user_id: Optional[str] = None
@@ -80,9 +80,9 @@ class SearchEvent:
             try:
                 timestamp = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
             except ValueError:
-                timestamp = datetime.utcnow()
+                timestamp = datetime.now(timezone.utc)
         elif timestamp is None:
-            timestamp = datetime.utcnow()
+            timestamp = datetime.now(timezone.utc)
 
         return cls(
             id=data.get("id", str(uuid4())),
@@ -520,7 +520,7 @@ class SearchAnalytics:
             Number of events removed
         """
         days = older_than_days if older_than_days is not None else self._retention_days
-        cutoff = datetime.utcnow() - timedelta(days=days)
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
 
         with self._lock:
             initial_count = len(self._events)
@@ -558,7 +558,7 @@ class SearchAnalytics:
             filtered = self._filter_events(project_id, start_date, end_date)
 
             export = {
-                "generated_at": datetime.utcnow().isoformat(),
+                "generated_at": datetime.now(timezone.utc).isoformat(),
                 "filters": {
                     "project_id": project_id,
                     "start_date": start_date.isoformat() if start_date else None,

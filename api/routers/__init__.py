@@ -21,6 +21,10 @@ This module provides RESTful API endpoints for managing:
 - Templates: Custom report template management
 - Schedules: Scheduled report generation management
 - WebSocket: Real-time notifications via WebSocket connections
+- Report Storage: Persistent storage for generated reports with version history
+- Marketplace: Template marketplace for sharing and downloading community templates
+- ML Analytics: Machine learning-based query suggestions and insights
+- Jobs: Background job execution and management
 """
 
 from fastapi import APIRouter
@@ -40,10 +44,16 @@ from .timeline import router as timeline_router
 from .crypto import router as crypto_router
 from .export import router as export_router, entity_export_router, templates_router as export_templates_router
 from .search import router as search_router, project_search_router
-from .analytics import router as analytics_router, project_analytics_router
+# Use analytics_v2 as the primary analytics module (analytics.py is deprecated and re-exports from analytics_v2)
+from .analytics_v2 import router as analytics_router, project_router as project_analytics_router
 from .templates import router as templates_router
-from .schedule import router as schedule_router
+# Use scheduler as the primary scheduling module (schedule.py is deprecated and re-exports from scheduler)
+from .scheduler import router as scheduler_router
 from .websocket import router as websocket_router
+from .report_storage import router as report_storage_router
+from .marketplace import router as marketplace_router
+from .ml_analytics import router as ml_analytics_router
+from .jobs import router as jobs_router, schedule_jobs_router
 
 # Create main API router
 api_router = APIRouter()
@@ -74,8 +84,13 @@ api_router.include_router(project_search_router)
 api_router.include_router(analytics_router)
 api_router.include_router(project_analytics_router)
 api_router.include_router(templates_router)
-api_router.include_router(schedule_router)
+api_router.include_router(scheduler_router)
 api_router.include_router(websocket_router)
+api_router.include_router(report_storage_router)
+api_router.include_router(marketplace_router)
+api_router.include_router(ml_analytics_router)
+api_router.include_router(jobs_router)
+api_router.include_router(schedule_jobs_router)
 
 __all__ = [
     "api_router",
@@ -104,6 +119,11 @@ __all__ = [
     "analytics_router",
     "project_analytics_router",
     "templates_router",
-    "schedule_router",
+    "scheduler_router",
     "websocket_router",
+    "report_storage_router",
+    "marketplace_router",
+    "ml_analytics_router",
+    "jobs_router",
+    "schedule_jobs_router",
 ]

@@ -13,11 +13,12 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ..services.template_service import (
     TemplateService,
-    TemplateFormat,
+    TemplateType,
+    VariableType,
+    TemplateVariable,
     ReportTemplate,
     TemplateValidationError,
     TemplateNotFoundError,
-    SystemTemplateError,
     get_template_service,
 )
 
@@ -35,16 +36,37 @@ router = APIRouter(
 # ==================== Pydantic Models ====================
 
 
+class TemplateVariableCreate(BaseModel):
+    """Schema for creating a template variable."""
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(..., description="Variable name")
+    type: str = Field(default="string", description="Variable type (string, list, dict, number, boolean)")
+    required: bool = Field(default=True, description="Whether the variable is required")
+    default_value: Optional[Any] = Field(default=None, description="Default value")
+    description: str = Field(default="", description="Variable description")
+
+
+class TemplateVariableResponse(BaseModel):
+    """Schema for template variable response."""
+    name: str
+    type: str
+    required: bool
+    default_value: Optional[Any]
+    description: str
+
+
 class TemplateCreate(BaseModel):
     """Schema for creating a new template."""
     model_config = ConfigDict(json_schema_extra={
         "example": {
             "name": "Custom Report",
-            "description": "My custom report template",
+            "template_type": "custom",
             "content": "<html><body><h1>{{ title }}</h1></body></html>",
-            "styles": "body { font-family: sans-serif; }",
-            "format": "html",
-            "variables": ["title", "entities"]
+            "description": "My custom report template",
+            "variables": [
+                {"name": "title", "type": "string", "required": True}
+            ]
         }
     })
 
@@ -54,26 +76,22 @@ class TemplateCreate(BaseModel):
         min_length=1,
         max_length=100,
     )
-    description: str = Field(
-        default="",
-        description="Description of the template",
-        max_length=500,
+    template_type: str = Field(
+        default="custom",
+        description="Type of template (entity_report, project_summary, relationship_graph, timeline, custom)",
     )
     content: str = Field(
         ...,
-        description="Jinja2 template content (HTML/Markdown)",
+        description="Jinja2 template content",
     )
-    styles: str = Field(
-        default="",
-        description="CSS styles for the template",
-    )
-    format: str = Field(
-        default="html",
-        description="Output format (html, pdf, markdown)",
-    )
-    variables: Optional[List[str]] = Field(
+    variables: Optional[List[TemplateVariableCreate]] = Field(
         default=None,
-        description="List of required variable names",
+        description="List of expected variables",
+    )
+    description: Optional[str] = Field(
+        default=None,
+        description="Description of the template",
+        max_length=500,
     )
 
 
@@ -82,8 +100,8 @@ class TemplateUpdate(BaseModel):
     model_config = ConfigDict(json_schema_extra={
         "example": {
             "name": "Updated Template Name",
-            "description": "Updated description",
-            "content": "<html><body><h1>{{ title }}</h1>{{ content }}</body></html>"
+            "content": "<html><body><h1>{{ title }}</h1>{{ content }}</body></html>",
+            "description": "Updated description"
         }
     })
 
@@ -93,26 +111,18 @@ class TemplateUpdate(BaseModel):
         min_length=1,
         max_length=100,
     )
-    description: Optional[str] = Field(
-        default=None,
-        description="New description",
-        max_length=500,
-    )
     content: Optional[str] = Field(
         default=None,
         description="New Jinja2 template content",
     )
-    styles: Optional[str] = Field(
-        default=None,
-        description="New CSS styles",
-    )
-    format: Optional[str] = Field(
-        default=None,
-        description="New output format",
-    )
-    variables: Optional[List[str]] = Field(
+    variables: Optional[List[TemplateVariableCreate]] = Field(
         default=None,
         description="New list of required variables",
+    )
+    description: Optional[str] = Field(
+        default=None,
+        description="New description",
+        max_length=500,
     )
 
 
@@ -123,37 +133,37 @@ class TemplateResponse(BaseModel):
             "id": "550e8400-e29b-41d4-a716-446655440000",
             "name": "Custom Report",
             "description": "My custom report template",
+            "template_type": "custom",
             "content": "<html><body><h1>{{ title }}</h1></body></html>",
-            "styles": "body { font-family: sans-serif; }",
-            "format": "html",
-            "variables": ["title", "entities"],
+            "variables": [
+                {"name": "title", "type": "string", "required": True, "default_value": None, "description": ""}
+            ],
             "created_at": "2024-01-15T10:30:00",
             "updated_at": "2024-01-15T10:30:00",
-            "created_by": "user123",
-            "is_system": False
+            "is_default": False,
+            "author": None
         }
     })
 
     id: str
     name: str
-    description: str
+    description: Optional[str]
+    template_type: str
     content: str
-    styles: str
-    format: str
-    variables: List[str]
+    variables: List[TemplateVariableResponse]
     created_at: str
     updated_at: str
-    created_by: Optional[str]
-    is_system: bool
+    is_default: bool
+    author: Optional[str]
 
 
 class TemplateListItem(BaseModel):
     """Schema for template list item (condensed)."""
     id: str
     name: str
-    description: str
-    format: str
-    is_system: bool
+    description: Optional[str]
+    template_type: str
+    is_default: bool
     created_at: str
     updated_at: str
 
@@ -175,25 +185,47 @@ class ValidationRequest(BaseModel):
 class ValidationResponse(BaseModel):
     """Schema for template validation response."""
     valid: bool
-    variables: List[str]
-    message: str
+    error: Optional[str] = None
+
+
+class RenderRequest(BaseModel):
+    """Schema for template render request."""
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "context": {
+                "title": "Sample Report",
+                "entity": {"id": "123", "name": "John Doe"},
+            }
+        }
+    })
+
+    context: Dict[str, Any] = Field(
+        ...,
+        description="Context data to render the template with",
+    )
+
+
+class RenderResponse(BaseModel):
+    """Schema for template render response."""
+    rendered: str
+    template_id: str
+    template_name: str
 
 
 class PreviewRequest(BaseModel):
     """Schema for template preview request."""
     model_config = ConfigDict(json_schema_extra={
         "example": {
-            "data": {
+            "sample_data": {
                 "title": "Sample Report",
                 "entities": [{"id": "123", "name": "John Doe"}],
-                "statistics": {"total_entities": 5}
             }
         }
     })
 
-    data: Dict[str, Any] = Field(
-        ...,
-        description="Data to render the template with",
+    sample_data: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Sample data to preview the template with",
     )
 
 
@@ -206,57 +238,77 @@ class PreviewResponse(BaseModel):
 
 class DuplicateRequest(BaseModel):
     """Schema for template duplication request."""
-    new_name: Optional[str] = Field(
-        default=None,
-        description="Name for the duplicated template",
-    )
-
-
-class ExportRequest(BaseModel):
-    """Schema for template export request."""
-    template_ids: List[str] = Field(
+    new_name: str = Field(
         ...,
-        description="List of template IDs to export",
+        description="Name for the duplicated template",
+        min_length=1,
+        max_length=100,
     )
 
 
 class ImportRequest(BaseModel):
     """Schema for template import request."""
-    templates: List[Dict[str, Any]] = Field(
+    template_data: Dict[str, Any] = Field(
         ...,
-        description="List of template data objects to import",
-    )
-    overwrite: bool = Field(
-        default=False,
-        description="Whether to overwrite existing templates with same name",
+        description="Template data object to import",
     )
 
 
-class ImportResponse(BaseModel):
-    """Schema for template import response."""
-    imported: List[TemplateListItem]
-    count: int
-    message: str
-
-
-class SuccessResponse(BaseModel):
-    """Generic success response."""
-    success: bool = True
-    message: Optional[str] = None
+class ExportResponse(BaseModel):
+    """Schema for template export response."""
+    id: str
+    name: str
+    description: Optional[str]
+    template_type: str
+    content: str
+    variables: List[Dict[str, Any]]
+    created_at: str
+    updated_at: str
+    is_default: bool
+    author: Optional[str]
+    exported_at: str
+    export_version: str
 
 
 # ==================== Helper Functions ====================
 
 
-def _parse_format(format_str: str) -> TemplateFormat:
-    """Parse format string to TemplateFormat enum."""
+def _parse_template_type(type_str: str) -> TemplateType:
+    """Parse template type string to TemplateType enum."""
     try:
-        return TemplateFormat(format_str.lower())
+        return TemplateType(type_str.lower())
     except ValueError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid format: {format_str}. Must be one of: html, pdf, markdown"
+            detail=f"Invalid template type: {type_str}. Must be one of: entity_report, project_summary, relationship_graph, timeline, custom"
         )
+
+
+def _parse_variable_type(type_str: str) -> VariableType:
+    """Parse variable type string to VariableType enum."""
+    try:
+        return VariableType(type_str.lower())
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid variable type: {type_str}. Must be one of: string, list, dict, number, boolean"
+        )
+
+
+def _convert_variables(variables: Optional[List[TemplateVariableCreate]]) -> Optional[List[TemplateVariable]]:
+    """Convert request variables to service variables."""
+    if variables is None:
+        return None
+    return [
+        TemplateVariable(
+            name=v.name,
+            type=_parse_variable_type(v.type),
+            required=v.required,
+            default_value=v.default_value,
+            description=v.description,
+        )
+        for v in variables
+    ]
 
 
 def _template_to_response(template: ReportTemplate) -> TemplateResponse:
@@ -265,14 +317,22 @@ def _template_to_response(template: ReportTemplate) -> TemplateResponse:
         id=template.id,
         name=template.name,
         description=template.description,
+        template_type=template.template_type.value,
         content=template.content,
-        styles=template.styles,
-        format=template.format.value if isinstance(template.format, TemplateFormat) else template.format,
-        variables=template.variables,
-        created_at=template.created_at,
-        updated_at=template.updated_at,
-        created_by=template.created_by,
-        is_system=template.is_system,
+        variables=[
+            TemplateVariableResponse(
+                name=v.name,
+                type=v.type.value,
+                required=v.required,
+                default_value=v.default_value,
+                description=v.description,
+            )
+            for v in template.variables
+        ],
+        created_at=template.created_at.isoformat(),
+        updated_at=template.updated_at.isoformat(),
+        is_default=template.is_default,
+        author=template.author,
     )
 
 
@@ -282,10 +342,10 @@ def _template_to_list_item(template: ReportTemplate) -> TemplateListItem:
         id=template.id,
         name=template.name,
         description=template.description,
-        format=template.format.value if isinstance(template.format, TemplateFormat) else template.format,
-        is_system=template.is_system,
-        created_at=template.created_at,
-        updated_at=template.updated_at,
+        template_type=template.template_type.value,
+        is_default=template.is_default,
+        created_at=template.created_at.isoformat(),
+        updated_at=template.updated_at.isoformat(),
     )
 
 
@@ -309,29 +369,27 @@ async def create_template(
     """
     Create a new custom report template.
 
-    The template content should be valid Jinja2 syntax with HTML or Markdown.
+    The template content should be valid Jinja2 syntax.
     Variables like {{ title }}, {{ entities }}, {% for entity in entities %} are supported.
 
     - **name**: Display name for the template
-    - **description**: Description of the template's purpose
+    - **template_type**: Type of template (entity_report, project_summary, relationship_graph, timeline, custom)
     - **content**: Jinja2 template content
-    - **styles**: CSS styles for PDF/HTML output
-    - **format**: Output format (html, pdf, markdown)
-    - **variables**: List of required variable names
+    - **variables**: List of expected variables (optional, auto-extracted if not provided)
+    - **description**: Optional description
     """
     service = get_template_service()
 
     try:
-        template_format = _parse_format(template_data.format)
+        template_type = _parse_template_type(template_data.template_type)
+        variables = _convert_variables(template_data.variables)
 
         template = service.create_template(
             name=template_data.name,
-            description=template_data.description,
+            template_type=template_type,
             content=template_data.content,
-            styles=template_data.styles,
-            format=template_format,
-            variables=template_data.variables,
-            created_by=None,  # Could be extracted from auth
+            variables=variables,
+            description=template_data.description,
         )
 
         return _template_to_response(template)
@@ -347,39 +405,32 @@ async def create_template(
     "",
     response_model=TemplateListResponse,
     summary="List all templates",
-    description="Retrieve a list of all available templates with optional filtering.",
+    description="Retrieve a list of all available templates with optional type filtering.",
     responses={
         200: {"description": "List of templates"},
     },
 )
 async def list_templates(
-    format: Optional[str] = Query(
+    template_type: Optional[str] = Query(
         default=None,
-        description="Filter by output format (html, pdf, markdown)",
-    ),
-    is_system: Optional[bool] = Query(
-        default=None,
-        description="Filter by system (True) or custom (False) templates",
+        alias="type",
+        description="Filter by template type (entity_report, project_summary, relationship_graph, timeline, custom)",
     ),
 ) -> TemplateListResponse:
     """
     List all available templates.
 
-    Templates are sorted with system templates first, then by name.
+    Templates are sorted with default templates first, then by name.
 
-    - **format**: Optional filter by output format
-    - **is_system**: Optional filter by system/custom template
+    - **type**: Optional filter by template type
     """
     service = get_template_service()
 
-    template_format = None
-    if format is not None:
-        template_format = _parse_format(format)
+    parsed_type = None
+    if template_type is not None:
+        parsed_type = _parse_template_type(template_type)
 
-    templates = service.list_templates(
-        format=template_format,
-        is_system=is_system,
-    )
+    templates = service.get_templates(template_type=parsed_type)
 
     items = [_template_to_list_item(t) for t in templates]
 
@@ -393,7 +444,7 @@ async def list_templates(
     "/{template_id}",
     response_model=TemplateResponse,
     summary="Get template by ID",
-    description="Retrieve a specific template by its ID or name.",
+    description="Retrieve a specific template by its ID.",
     responses={
         200: {"description": "Template found"},
         404: {"description": "Template not found"},
@@ -403,9 +454,9 @@ async def get_template(
     template_id: str,
 ) -> TemplateResponse:
     """
-    Get a template by ID or name.
+    Get a template by ID.
 
-    - **template_id**: The template UUID or name
+    - **template_id**: The template UUID
     """
     service = get_template_service()
 
@@ -424,11 +475,10 @@ async def get_template(
     "/{template_id}",
     response_model=TemplateResponse,
     summary="Update template",
-    description="Update an existing custom template. System templates cannot be modified.",
+    description="Update an existing custom template. Default templates cannot be modified.",
     responses={
         200: {"description": "Template updated successfully"},
-        400: {"description": "Invalid template data"},
-        403: {"description": "Cannot modify system template"},
+        400: {"description": "Invalid template data or cannot modify default template"},
         404: {"description": "Template not found"},
     },
 )
@@ -439,31 +489,25 @@ async def update_template(
     """
     Update an existing template.
 
-    Only custom templates can be modified. System templates are read-only.
+    Only custom templates can be modified. Default templates are read-only.
 
     - **template_id**: The template UUID
     - **name**: New display name (optional)
-    - **description**: New description (optional)
     - **content**: New Jinja2 content (optional)
-    - **styles**: New CSS styles (optional)
-    - **format**: New output format (optional)
     - **variables**: New variable list (optional)
+    - **description**: New description (optional)
     """
     service = get_template_service()
 
     try:
-        template_format = None
-        if template_data.format is not None:
-            template_format = _parse_format(template_data.format)
+        variables = _convert_variables(template_data.variables)
 
         template = service.update_template(
             template_id=template_id,
             name=template_data.name,
-            description=template_data.description,
             content=template_data.content,
-            styles=template_data.styles,
-            format=template_format,
-            variables=template_data.variables,
+            variables=variables,
+            description=template_data.description,
         )
 
         return _template_to_response(template)
@@ -472,11 +516,6 @@ async def update_template(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Template not found: {template_id}"
-        )
-    except SystemTemplateError:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Cannot modify system templates"
         )
     except TemplateValidationError as e:
         raise HTTPException(
@@ -489,10 +528,10 @@ async def update_template(
     "/{template_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete template",
-    description="Delete a custom template. System templates cannot be deleted.",
+    description="Delete a custom template. Default templates cannot be deleted.",
     responses={
         204: {"description": "Template deleted successfully"},
-        403: {"description": "Cannot delete system template"},
+        400: {"description": "Cannot delete default template"},
         404: {"description": "Template not found"},
     },
 )
@@ -502,7 +541,7 @@ async def delete_template(
     """
     Delete a template.
 
-    Only custom templates can be deleted. System templates are protected.
+    Only custom templates can be deleted. Default templates are protected.
 
     - **template_id**: The template UUID
     """
@@ -517,32 +556,35 @@ async def delete_template(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Template not found: {template_id}"
         )
-    except SystemTemplateError:
+    except TemplateValidationError as e:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Cannot delete system templates"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
         )
 
 
 @router.post(
-    "/{template_id}/validate",
-    response_model=ValidationResponse,
-    summary="Validate template syntax",
-    description="Validate the Jinja2 syntax of a template.",
+    "/{template_id}/render",
+    response_model=RenderResponse,
+    summary="Render template with context",
+    description="Render a template with provided context data.",
     responses={
-        200: {"description": "Validation result"},
+        200: {"description": "Rendered template"},
+        400: {"description": "Rendering error"},
         404: {"description": "Template not found"},
     },
 )
-async def validate_template(
+async def render_template(
     template_id: str,
-) -> ValidationResponse:
+    request: RenderRequest,
+) -> RenderResponse:
     """
-    Validate the syntax of an existing template.
+    Render a template with the provided context.
 
-    Returns validation status and list of variables found in the template.
+    Provide context matching the template's expected variables.
 
     - **template_id**: The template UUID
+    - **context**: Dictionary of data to render the template with
     """
     service = get_template_service()
 
@@ -555,17 +597,21 @@ async def validate_template(
         )
 
     try:
-        result = service.validate_template(template.content)
-        return ValidationResponse(
-            valid=result["valid"],
-            variables=result["variables"],
-            message=result["message"],
+        rendered = service.render_template(
+            template_id=template_id,
+            context=request.context,
         )
+
+        return RenderResponse(
+            rendered=rendered,
+            template_id=template.id,
+            template_name=template.name,
+        )
+
     except TemplateValidationError as e:
-        return ValidationResponse(
-            valid=False,
-            variables=[],
-            message=str(e),
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
         )
 
 
@@ -590,26 +636,19 @@ async def validate_template_content(
     """
     service = get_template_service()
 
-    try:
-        result = service.validate_template(request.content)
-        return ValidationResponse(
-            valid=result["valid"],
-            variables=result["variables"],
-            message=result["message"],
-        )
-    except TemplateValidationError as e:
-        return ValidationResponse(
-            valid=False,
-            variables=[],
-            message=str(e),
-        )
+    is_valid, error_msg = service.validate_template(request.content)
+
+    return ValidationResponse(
+        valid=is_valid,
+        error=error_msg,
+    )
 
 
 @router.post(
     "/{template_id}/preview",
     response_model=PreviewResponse,
     summary="Preview template with sample data",
-    description="Render a template with provided data to preview the output.",
+    description="Render a template with sample data to preview the output.",
     responses={
         200: {"description": "Rendered preview"},
         400: {"description": "Rendering error"},
@@ -618,15 +657,15 @@ async def validate_template_content(
 )
 async def preview_template(
     template_id: str,
-    request: PreviewRequest,
+    request: PreviewRequest = Body(default=PreviewRequest()),
 ) -> PreviewResponse:
     """
     Preview a template by rendering it with sample data.
 
-    Provide data matching the template's expected variables.
+    If no sample data is provided, default/generated values will be used.
 
     - **template_id**: The template UUID
-    - **data**: Dictionary of data to render the template with
+    - **sample_data**: Optional dictionary of sample data
     """
     service = get_template_service()
 
@@ -639,10 +678,9 @@ async def preview_template(
         )
 
     try:
-        rendered = service.render_template(
+        rendered = service.preview_template(
             template_id=template_id,
-            data=request.data,
-            include_styles=True,
+            sample_data=request.sample_data,
         )
 
         return PreviewResponse(
@@ -671,15 +709,15 @@ async def preview_template(
 )
 async def duplicate_template(
     template_id: str,
-    request: DuplicateRequest = Body(default=DuplicateRequest()),
+    request: DuplicateRequest,
 ) -> TemplateResponse:
     """
     Duplicate a template to create a new custom template.
 
-    This works with both system and custom templates.
+    This works with both default and custom templates.
 
     - **template_id**: The template UUID to duplicate
-    - **new_name**: Optional name for the new template
+    - **new_name**: Name for the new template
     """
     service = get_template_service()
 
@@ -687,7 +725,6 @@ async def duplicate_template(
         template = service.duplicate_template(
             template_id=template_id,
             new_name=request.new_name,
-            created_by=None,
         )
 
         return _template_to_response(template)
@@ -699,67 +736,78 @@ async def duplicate_template(
         )
 
 
-@router.post(
-    "/export",
-    summary="Export templates",
-    description="Export multiple templates as JSON for backup or sharing.",
+@router.get(
+    "/{template_id}/export",
+    response_model=ExportResponse,
+    summary="Export template",
+    description="Export a template as JSON for sharing or backup.",
     responses={
         200: {"description": "Exported template data"},
+        404: {"description": "Template not found"},
     },
 )
-async def export_templates(
-    request: ExportRequest,
-) -> Dict[str, Any]:
+async def export_template(
+    template_id: str,
+) -> ExportResponse:
     """
-    Export multiple templates as JSON.
+    Export a template as JSON.
 
     The exported data can be imported into another Basset Hound instance.
 
-    - **template_ids**: List of template IDs to export
-    """
-    service = get_template_service()
-
-    return service.export_templates(request.template_ids)
-
-
-@router.post(
-    "/import",
-    response_model=ImportResponse,
-    status_code=status.HTTP_201_CREATED,
-    summary="Import templates",
-    description="Import templates from JSON data.",
-    responses={
-        201: {"description": "Templates imported successfully"},
-        400: {"description": "Invalid template data"},
-    },
-)
-async def import_templates(
-    request: ImportRequest,
-) -> ImportResponse:
-    """
-    Import templates from JSON data.
-
-    Templates with invalid syntax or missing required fields will be skipped.
-
-    - **templates**: List of template data objects
-    - **overwrite**: Whether to overwrite existing templates with same name
+    - **template_id**: The template UUID to export
     """
     service = get_template_service()
 
     try:
-        imported = service.import_templates(
-            data={"templates": request.templates},
-            created_by=None,
-            overwrite=request.overwrite,
+        export_data = service.export_template(template_id)
+
+        return ExportResponse(
+            id=export_data["id"],
+            name=export_data["name"],
+            description=export_data["description"],
+            template_type=export_data["template_type"],
+            content=export_data["content"],
+            variables=export_data["variables"],
+            created_at=export_data["created_at"],
+            updated_at=export_data["updated_at"],
+            is_default=export_data["is_default"],
+            author=export_data["author"],
+            exported_at=export_data["exported_at"],
+            export_version=export_data["export_version"],
         )
 
-        items = [_template_to_list_item(t) for t in imported]
-
-        return ImportResponse(
-            imported=items,
-            count=len(items),
-            message=f"Successfully imported {len(items)} template(s)",
+    except TemplateNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Template not found: {template_id}"
         )
+
+
+@router.post(
+    "/import",
+    response_model=TemplateResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Import template",
+    description="Import a template from JSON data.",
+    responses={
+        201: {"description": "Template imported successfully"},
+        400: {"description": "Invalid template data"},
+    },
+)
+async def import_template(
+    request: ImportRequest,
+) -> TemplateResponse:
+    """
+    Import a template from JSON data.
+
+    - **template_data**: Template data object containing name, content, etc.
+    """
+    service = get_template_service()
+
+    try:
+        template = service.import_template(request.template_data)
+
+        return _template_to_response(template)
 
     except TemplateValidationError as e:
         raise HTTPException(

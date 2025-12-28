@@ -68,6 +68,30 @@ class ProjectDetailResponse(ProjectResponse):
     people: list = Field(default_factory=list, description="List of people in the project")
 
 
+class ProjectUpdate(BaseModel):
+    """Schema for updating a project."""
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "name": "Operation Sunrise",
+            "description": "Updated investigation description"
+        }
+    })
+
+    name: Optional[str] = Field(
+        None,
+        min_length=1,
+        max_length=255,
+        description="The new display name for the project",
+        json_schema_extra={"example": "Operation Sunrise"}
+    )
+    description: Optional[str] = Field(
+        None,
+        max_length=2000,
+        description="The project description",
+        json_schema_extra={"example": "An updated description of the investigation"}
+    )
+
+
 class ProjectSetCurrent(BaseModel):
     """Schema for setting the current active project."""
     safe_name: str = Field(
@@ -218,6 +242,73 @@ async def get_project(
         )
 
     return project
+
+
+@router.patch(
+    "/{safe_name}",
+    response_model=ProjectResponse,
+    summary="Update a project",
+    description="Update a project's name and/or description.",
+    responses={
+        200: {"description": "Project updated successfully"},
+        400: {"description": "Invalid update data or no changes provided"},
+        404: {"description": "Project not found"},
+    }
+)
+async def update_project(
+    safe_name: str,
+    project_update: ProjectUpdate,
+    neo4j_handler=Depends(get_neo4j_handler)
+):
+    """
+    Update a project.
+
+    Updates the project's name and/or description. At least one field must be provided.
+
+    - **safe_name**: The URL-safe identifier for the project to update
+    - **name**: The new display name for the project (optional)
+    - **description**: The new description for the project (optional)
+    """
+    # Check if project exists
+    existing_project = neo4j_handler.get_project(safe_name)
+    if not existing_project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Project '{safe_name}' not found"
+        )
+
+    # Build update data from non-None fields
+    update_data = {}
+    if project_update.name is not None:
+        update_data['name'] = project_update.name
+    if project_update.description is not None:
+        update_data['description'] = project_update.description
+
+    # Ensure at least one field is being updated
+    if not update_data:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No update data provided. Provide at least 'name' or 'description'."
+        )
+
+    try:
+        updated_project = neo4j_handler.update_project(safe_name, update_data)
+
+        if not updated_project:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to update project"
+            )
+
+        return updated_project
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update project: {str(e)}"
+        )
 
 
 @router.delete(

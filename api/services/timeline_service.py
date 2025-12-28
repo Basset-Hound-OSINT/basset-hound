@@ -15,7 +15,7 @@ Features:
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
@@ -57,7 +57,7 @@ class TimelineEvent:
     entity_id: str
     project_id: str
     event_type: str
-    timestamp: datetime = field(default_factory=datetime.now)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     details: Dict[str, Any] = field(default_factory=dict)
     actor: Optional[str] = None
     event_id: str = field(default_factory=lambda: str(uuid4()))
@@ -82,9 +82,9 @@ class TimelineEvent:
             try:
                 timestamp = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
             except ValueError:
-                timestamp = datetime.now()
+                timestamp = datetime.now(timezone.utc)
         elif timestamp is None:
-            timestamp = datetime.now()
+            timestamp = datetime.now(timezone.utc)
 
         return cls(
             event_id=data.get("event_id", str(uuid4())),
@@ -625,7 +625,7 @@ class TimelineService:
             - first_event: Timestamp of first event
             - last_event: Timestamp of last event
         """
-        end_date = datetime.now()
+        end_date = datetime.now(timezone.utc)
         start_date = end_date - timedelta(days=days)
 
         query = """
@@ -703,7 +703,7 @@ class TimelineService:
         Returns:
             Dictionary containing activity statistics
         """
-        end_date = datetime.now()
+        end_date = datetime.now(timezone.utc)
         start_date = end_date - timedelta(days=days)
 
         query = """
@@ -804,9 +804,9 @@ class TimelineService:
             try:
                 timestamp = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
             except ValueError:
-                timestamp = datetime.now()
+                timestamp = datetime.now(timezone.utc)
         elif timestamp is None:
-            timestamp = datetime.now()
+            timestamp = datetime.now(timezone.utc)
 
         return TimelineEvent(
             event_id=record.get("event_id", str(uuid4())),

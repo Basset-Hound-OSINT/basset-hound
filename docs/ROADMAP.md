@@ -1083,11 +1083,272 @@ markdown>=3.0.0                   # Markdown to HTML conversion
 # weasyprint>=60.0                # Optional PDF generation
 ```
 
-### Next Steps (Phase 9+)
+### Phase 9: Real-Time & Automation - ✅ COMPLETED (2025-12-27)
 
+| Task | Status | Notes |
+|------|--------|-------|
+| Report Scheduling service | ✅ Done | ONCE, HOURLY, DAILY, WEEKLY, MONTHLY frequencies + cron |
+| Custom Report Templates | ✅ Done | 5 template types with Jinja2 support, import/export |
+| Search Analytics | ✅ Done | Query tracking, zero-result detection, suggestions |
+| WebSocket Notifications | ✅ Done | Real-time entity/relationship/report notifications |
+| Comprehensive tests | ✅ Done | 302 new tests (1039 total) |
+
+#### Report Scheduling Features
+
+- **Frequencies**: ONCE, HOURLY, DAILY, WEEKLY, MONTHLY
+- **Cron Support**: Custom cron expressions via croniter
+- **Lifecycle**: Create, update, delete, enable, disable schedules
+- **Execution**: Manual trigger or automatic via due detection
+- **Timezone Awareness**: UTC-based scheduling
+
+**API Endpoints:**
+- `POST /api/v1/projects/{project}/schedules` - Create schedule
+- `GET /api/v1/projects/{project}/schedules` - List schedules
+- `PATCH /api/v1/schedules/{id}` - Update schedule
+- `DELETE /api/v1/schedules/{id}` - Delete schedule
+- `POST /api/v1/schedules/{id}/run` - Trigger immediate run
+
+#### Custom Template Features
+
+- **Template Types**: ENTITY_REPORT, PROJECT_SUMMARY, RELATIONSHIP_GRAPH, TIMELINE, CUSTOM
+- **Jinja2 Syntax**: Full template language with validation
+- **Variable Types**: STRING, LIST, DICT, NUMBER, BOOLEAN
+- **Default Templates**: Pre-loaded for each type
+- **Import/Export**: Share templates between instances
+
+**API Endpoints:**
+- `POST /api/v1/templates` - Create template
+- `GET /api/v1/templates` - List templates
+- `POST /api/v1/templates/{id}/render` - Render with context
+- `POST /api/v1/templates/validate` - Validate syntax
+- `POST /api/v1/templates/{id}/preview` - Preview with sample data
+
+#### Search Analytics Features
+
+- **Event Recording**: Query, results, response time, fields, filters
+- **Aggregations**: Top queries, zero-result queries, slow queries
+- **Time Analysis**: Searches by day/hour/week
+- **Suggestions**: Related queries, query improvements
+- **Export**: JSON and CSV formats
+
+**API Endpoints:**
+- `POST /api/v1/analytics/search` - Record search event
+- `GET /api/v1/analytics/summary` - Analytics summary
+- `GET /api/v1/analytics/top-queries` - Popular queries
+- `GET /api/v1/analytics/zero-results` - Failed queries
+- `GET /api/v1/analytics/export` - Export data
+
+#### WebSocket Notification Features
+
+- **Connection Management**: Connect, disconnect, reconnect with ID
+- **Subscriptions**: Subscribe to project updates
+- **Message Types**: Entity, relationship, search, report, bulk import
+- **Heartbeat**: Ping/pong for connection health
+
+**Endpoints:**
+- `WS /api/v1/ws` - WebSocket connection
+- `GET /api/v1/ws/stats` - Connection statistics
+
+#### Files Created
+
+```
+api/services/
+├── report_scheduler.py        # Report scheduling (62 tests)
+├── template_service.py        # Custom templates (55 tests)
+├── search_analytics.py        # Search analytics (60 tests)
+└── websocket_service.py       # WebSocket notifications (125 tests)
+
+api/routers/
+├── schedule.py               # Scheduling endpoints
+├── analytics.py              # Analytics endpoints
+├── templates.py              # Template endpoints
+└── websocket.py              # WebSocket endpoints
+```
+
+### Phase 10: Background Processing & Advanced Features - ✅ COMPLETED (2025-12-27)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| Background Job Runner | ✅ Done | ARQ-compatible async job execution with retry logic |
+| Report Storage with history | ✅ Done | Version control, diffing, deduplication, export/import |
+| Template Marketplace | ✅ Done | Publish, search, download, rate/review templates |
+| ML Analytics | ✅ Done | Query suggestions, pattern detection, entity insights |
+| Comprehensive tests | ✅ Done | 542 new tests (1581 total passing) |
+
+#### Background Job Runner Features
+
+- **Job Types**: REPORT, EXPORT, BULK_IMPORT, CUSTOM
+- **Priority Levels**: CRITICAL, HIGH, NORMAL, LOW
+- **Status Tracking**: PENDING, RUNNING, COMPLETED, FAILED, CANCELLED
+- **Retry Logic**: Configurable max retries with exponential backoff
+- **Worker Lifecycle**: Start/stop worker, worker status, heartbeat
+- **Job Statistics**: Success rate, average duration, execution metrics
+
+**API Endpoints:**
+- `POST /api/v1/jobs` - Enqueue job
+- `GET /api/v1/jobs` - List jobs with filtering
+- `GET /api/v1/jobs/{id}` - Get job details
+- `DELETE /api/v1/jobs/{id}` - Cancel job
+- `GET /api/v1/jobs/stats` - Get statistics
+- `POST /api/v1/jobs/worker/start` - Start worker
+- `POST /api/v1/jobs/worker/stop` - Stop worker
+
+#### Report Storage Features
+
+- **Version History**: Multiple versions per report with sequential numbering
+- **Content Deduplication**: Context hash to detect duplicate content
+- **Version Comparison**: Unified diff between any two versions
+- **Cleanup**: Remove old versions, keep most recent N
+- **Export/Import**: Full backup and restore with all versions
+
+**API Endpoints:**
+- `POST /api/v1/reports` - Store report
+- `GET /api/v1/reports/{id}/versions` - List versions
+- `GET /api/v1/reports/{id}/diff` - Compare versions
+- `POST /api/v1/reports/{id}/cleanup` - Cleanup old versions
+- `GET /api/v1/reports/{id}/export` - Export report
+
+#### Template Marketplace Features
+
+- **Publishing**: Share templates with descriptions, tags, preview images
+- **Searching**: Filter by query, type, tags, author; sort by downloads/rating
+- **Downloading**: Import templates to local library with one click
+- **Ratings & Reviews**: 1-5 stars with comments, update existing reviews
+- **Statistics**: Total templates, downloads, authors, average rating
+
+**API Endpoints:**
+- `POST /api/v1/marketplace/templates` - Publish template
+- `GET /api/v1/marketplace/templates` - Search templates
+- `POST /api/v1/marketplace/templates/{id}/download` - Download template
+- `POST /api/v1/marketplace/templates/{id}/reviews` - Add review
+- `GET /api/v1/marketplace/popular` - Popular templates
+- `GET /api/v1/marketplace/top-rated` - Top rated templates
+
+#### ML Analytics Features
+
+- **Query Suggestions**: Auto-complete based on history, patterns, semantic similarity
+- **Pattern Detection**: Trending, common, declining, entity-type patterns
+- **Entity Insights**: Related entities, data quality issues, search frequency
+- **Query Similarity**: TF-IDF + Jaccard + Edit distance combination
+- **Query Clustering**: Group similar queries using greedy clustering
+- **Zero-Result Prediction**: Predict likelihood of no results
+
+**ML Techniques Used:**
+- TF-IDF vectorization for semantic similarity
+- N-gram analysis (bigrams, trigrams) for pattern detection
+- Levenshtein distance for edit-based similarity
+- Frequency analysis for trend detection
+
+**API Endpoints:**
+- `POST /api/v1/ml/record-query` - Record query for learning
+- `GET /api/v1/ml/suggest` - Get query suggestions
+- `GET /api/v1/ml/patterns` - Detect search patterns
+- `GET /api/v1/ml/entity-insights/{id}` - Get entity insights
+- `GET /api/v1/ml/predict-zero-results` - Predict zero results
+
+#### Files Created
+
+```
+api/services/
+├── job_runner.py           # Background job execution (1042 lines)
+├── report_storage.py       # Report versioning (682 lines)
+├── marketplace_service.py  # Template marketplace (873 lines)
+└── ml_analytics.py         # ML-powered suggestions (1165 lines)
+
+api/routers/
+├── jobs.py                 # Job runner endpoints
+├── report_storage.py       # Report storage endpoints
+├── marketplace.py          # Marketplace endpoints
+└── ml_analytics.py         # ML analytics endpoints
+
+tests/
+├── test_job_runner.py
+├── test_report_storage.py
+├── test_marketplace_service.py
+└── test_ml_analytics.py
+```
+
+### Comprehensive Code Review Results (2025-12-27)
+
+**Test Results:** 1,581 passed, 2 skipped in 16.02 seconds
+
+#### What's Working Well
+- All Phase 1-10 features fully functional and tested
+- 150+ API endpoints across 26 routers
+- Comprehensive Pydantic models with validation
+- Proper HTTP semantics and error handling
+- Extensive test coverage across all services
+
+#### Issues Identified (Prioritized)
+
+| Priority | Issue | Affected Services |
+|----------|-------|-------------------|
+| HIGH | Thread safety for in-memory storage | job_runner, report_storage, marketplace, template_service, scheduler |
+| MEDIUM | Inconsistent datetime handling | report_storage, marketplace, template, ml_analytics, search_analytics |
+| MEDIUM | Jinja2 templates not sandboxed | template_service |
+| MEDIUM | API path conflict | marketplace router (/api/v1/api/v1) |
+| LOW | Duplicate router functionality | analytics vs analytics_v2, schedule vs scheduler |
+| LOW | N+1 query in get_all_people | neo4j_service |
+| LOW | Missing CRUD endpoints | projects (no update), files (no list) |
+
+See [10-COMPREHENSIVE-REVIEW.md](docs/findings/10-COMPREHENSIVE-REVIEW.md) for full details.
+
+---
+
+### Phase 11: Production Hardening - ✅ COMPLETED (2025-12-27)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| Thread safety for in-memory services | ✅ Done | Added RLock to job_runner, report_storage, marketplace, template_service |
+| Datetime standardization | ✅ Done | Replaced datetime.now()/utcnow() with datetime.now(timezone.utc) |
+| Router conflict resolution | ✅ Done | Fixed marketplace prefix, deprecated analytics.py and schedule.py |
+| Jinja2 sandboxing | ✅ Done | SandboxedEnvironment for user templates, 14 security tests |
+| Missing CRUD endpoints | ✅ Done | Added project update (PATCH) and file list (GET) endpoints |
+| Comprehensive tests | ✅ Done | 1,595 tests passing, 2 skipped |
+
+#### Thread Safety Implementation
+
+Added `threading.RLock()` to all in-memory services ensuring safe concurrent access.
+
+#### Datetime Standardization
+
+All services now use `datetime.now(timezone.utc)` for timezone-aware timestamps.
+
+#### Router Consolidation
+
+- Fixed `marketplace.py` prefix from `/api/v1/marketplace` to `/marketplace`
+- Created deprecation wrappers for legacy `analytics.py` → `analytics_v2`
+- Created deprecation wrappers for legacy `schedule.py` → `scheduler`
+
+#### Jinja2 Security
+
+Added `SandboxedEnvironment` for user template rendering with 14 comprehensive security tests.
+
+#### New Endpoints
+
+- `PATCH /projects/{safe_name}` - Update project name/description
+- `GET /projects/{safe_name}/entities/{entity_id}/files/` - List entity files
+
+See [11-PHASE11-PRODUCTION-HARDENING.md](docs/findings/11-PHASE11-PRODUCTION-HARDENING.md) for full details.
+
+---
+
+### Next Steps (Phase 12+)
+
+#### Phase 12: Performance Optimization (Recommended Next)
+1. **Query Optimization** - Fix N+1 queries in neo4j_service
+2. **Bulk Export Streaming** - Implement pagination for large exports
+3. **Memory Limits** - Add max size limits for in-memory caches
+4. **TF-IDF Cache** - Fix cache invalidation in ml_analytics
+
+#### Phase 13: Infrastructure
+1. **Redis Integration** - Migrate in-memory services to Redis for persistence
+2. **Docker Compose Enhancement** - Add Redis, Celery worker containers
+3. **API Rate Limiting** - Protect endpoints from abuse
+
+#### Phase 14: Enterprise Features
 1. **UI for Multi-Entity Types** - Frontend support for creating/viewing different entity types
 2. **Graph Visualization Enhancements** - Visual display of cross-project links, timeline view
-3. **Real-time Notifications** - WebSocket support for live updates
-4. **Report Scheduling** - Automated report generation
-5. **Custom Report Templates** - User-defined templates
-6. **Search Analytics** - Track popular queries, improve relevance
+3. **Audit Logging** - Track all data modifications with user attribution
+4. **Multi-tenant Support** - Isolate data between different users/organizations
+5. **WebSocket Authentication** - Secure real-time connections

@@ -3,6 +3,11 @@ Bulk Operations Service for Basset Hound.
 
 Provides batch import and export functionality for entities,
 supporting JSON, CSV, and JSONL formats.
+
+Phase 12 Enhancements:
+- Streaming/pagination support for large exports
+- Generator-based approach for memory efficiency
+- Configurable batch sizes
 """
 
 import csv
@@ -10,8 +15,13 @@ import json
 import io
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, Generator, Iterator, List, Optional, Tuple, Union
 from uuid import uuid4
+
+
+# Default batch size for streaming exports
+DEFAULT_BATCH_SIZE = 100
+MAX_BATCH_SIZE = 10000
 
 
 @dataclass
@@ -54,14 +64,49 @@ class BulkExportOptions:
     include_relationships: bool = True
     include_files: bool = False
     entity_ids: Optional[List[str]] = None  # None = all entities
+    # Pagination parameters
+    offset: int = 0
+    limit: Optional[int] = None  # None = no limit
+    batch_size: int = DEFAULT_BATCH_SIZE
 
     def __post_init__(self):
-        """Validate export format."""
+        """Validate export format and pagination parameters."""
         valid_formats = {"json", "csv", "jsonl"}
         if self.format not in valid_formats:
             raise ValueError(
                 f"Invalid format '{self.format}'. Must be one of: {', '.join(valid_formats)}"
             )
+
+        # Validate pagination parameters
+        if self.offset < 0:
+            raise ValueError("offset must be non-negative")
+        if self.limit is not None and self.limit < 0:
+            raise ValueError("limit must be non-negative")
+        if self.batch_size < 1:
+            raise ValueError("batch_size must be at least 1")
+        if self.batch_size > MAX_BATCH_SIZE:
+            raise ValueError(f"batch_size must not exceed {MAX_BATCH_SIZE}")
+
+
+@dataclass
+class StreamingExportBatch:
+    """Represents a batch of entities in a streaming export."""
+    entities: List[dict]
+    batch_number: int
+    total_batches: Optional[int]
+    offset: int
+    has_more: bool
+
+    def to_dict(self) -> dict:
+        """Convert to dictionary representation."""
+        return {
+            "entities": self.entities,
+            "batch_number": self.batch_number,
+            "total_batches": self.total_batches,
+            "offset": self.offset,
+            "has_more": self.has_more,
+            "count": len(self.entities)
+        }
 
 
 class BulkOperationsService:
@@ -192,6 +237,12 @@ class BulkOperationsService:
             processed = self._process_entity_for_export(entity, options)
             processed_entities.append(processed)
 
+        # Apply pagination if specified
+        if options.offset > 0:
+            processed_entities = processed_entities[options.offset:]
+        if options.limit is not None:
+            processed_entities = processed_entities[:options.limit]
+
         # Format output
         if options.format == "json":
             return json.dumps(processed_entities, indent=2, default=str)
@@ -201,6 +252,255 @@ class BulkOperationsService:
             return self._to_csv(processed_entities)
         else:
             raise ValueError(f"Unsupported format: {options.format}")
+
+    def export_entities_streaming(
+        self,
+        project_id: str,
+        options: BulkExportOptions
+    ) -> Generator[StreamingExportBatch, None, None]:
+        """
+        Stream export entities from a project in batches.
+
+        This is a memory-efficient alternative to export_entities() for large datasets.
+        Yields batches of entities rather than loading all at once.
+
+        Args:
+            project_id: The project safe name to export from.
+            options: Export options including format, filters, and batch_size.
+
+        Yields:
+            StreamingExportBatch objects containing entity batches.
+
+        Raises:
+            ValueError: If project not found or invalid options.
+        """
+        # Verify project exists
+        project = self.neo4j_handler.get_project(project_id)
+        if not project:
+            raise ValueError(f"Project '{project_id}' not found")
+
+        # Get entity iterator
+        entity_iterator = self._get_entity_iterator(project_id, options)
+
+        # Apply offset by consuming entities
+        for _ in range(options.offset):
+            try:
+                next(entity_iterator)
+            except StopIteration:
+                # Offset exceeds total entities, yield empty batch
+                yield StreamingExportBatch(
+                    entities=[],
+                    batch_number=0,
+                    total_batches=0,
+                    offset=options.offset,
+                    has_more=False
+                )
+                return
+
+        # Calculate total for pagination info (if possible)
+        total_count = self._get_entity_count(project_id, options)
+        effective_total = max(0, total_count - options.offset)
+        if options.limit is not None:
+            effective_total = min(effective_total, options.limit)
+
+        total_batches = (effective_total + options.batch_size - 1) // options.batch_size if effective_total > 0 else 0
+
+        batch_number = 0
+        entities_yielded = 0
+        limit = options.limit
+
+        while True:
+            batch = []
+            remaining_in_limit = None
+            if limit is not None:
+                remaining_in_limit = limit - entities_yielded
+                if remaining_in_limit <= 0:
+                    break
+
+            batch_limit = options.batch_size
+            if remaining_in_limit is not None:
+                batch_limit = min(batch_limit, remaining_in_limit)
+
+            for _ in range(batch_limit):
+                try:
+                    entity = next(entity_iterator)
+                    processed = self._process_entity_for_export(entity, options)
+                    batch.append(processed)
+                except StopIteration:
+                    break
+
+            if not batch:
+                break
+
+            entities_yielded += len(batch)
+            has_more = (
+                (limit is None and len(batch) == options.batch_size) or
+                (limit is not None and entities_yielded < limit and len(batch) == batch_limit)
+            )
+
+            # Check if there are actually more entities
+            if has_more:
+                try:
+                    # Peek ahead to see if there are more
+                    peek_entity = next(entity_iterator)
+                    # Put it back by recreating iterator state
+                    entity_iterator = self._chain_entity(peek_entity, entity_iterator)
+                except StopIteration:
+                    has_more = False
+
+            yield StreamingExportBatch(
+                entities=batch,
+                batch_number=batch_number,
+                total_batches=total_batches if total_batches > 0 else None,
+                offset=options.offset + entities_yielded - len(batch),
+                has_more=has_more
+            )
+
+            batch_number += 1
+
+            if not has_more:
+                break
+
+    def stream_jsonl_export(
+        self,
+        project_id: str,
+        options: Optional[BulkExportOptions] = None
+    ) -> Generator[str, None, None]:
+        """
+        Stream entities as JSONL (one JSON object per line).
+
+        Memory-efficient generator for exporting large datasets as JSONL.
+        Each yield produces one line of the JSONL output.
+
+        Args:
+            project_id: The project safe name to export from.
+            options: Optional export options. Uses defaults if not provided.
+
+        Yields:
+            Individual JSON lines (entities serialized as JSON strings).
+
+        Raises:
+            ValueError: If project not found.
+        """
+        if options is None:
+            options = BulkExportOptions(format="jsonl")
+        else:
+            # Ensure format is jsonl
+            options = BulkExportOptions(
+                format="jsonl",
+                include_relationships=options.include_relationships,
+                include_files=options.include_files,
+                entity_ids=options.entity_ids,
+                offset=options.offset,
+                limit=options.limit,
+                batch_size=options.batch_size
+            )
+
+        for batch in self.export_entities_streaming(project_id, options):
+            for entity in batch.entities:
+                yield json.dumps(entity, default=str)
+
+    def stream_csv_export(
+        self,
+        project_id: str,
+        options: Optional[BulkExportOptions] = None,
+        fields: Optional[List[str]] = None
+    ) -> Generator[str, None, None]:
+        """
+        Stream entities as CSV rows.
+
+        Memory-efficient generator for exporting large datasets as CSV.
+        First yield is the header row, subsequent yields are data rows.
+
+        Args:
+            project_id: The project safe name to export from.
+            options: Optional export options. Uses defaults if not provided.
+            fields: Optional list of field paths to include. If None,
+                   automatically determines fields from first batch.
+
+        Yields:
+            CSV rows as strings (including newline characters).
+
+        Raises:
+            ValueError: If project not found.
+        """
+        if options is None:
+            options = BulkExportOptions(format="csv")
+        else:
+            options = BulkExportOptions(
+                format="csv",
+                include_relationships=options.include_relationships,
+                include_files=options.include_files,
+                entity_ids=options.entity_ids,
+                offset=options.offset,
+                limit=options.limit,
+                batch_size=options.batch_size
+            )
+
+        header_written = False
+        field_names: Optional[List[str]] = fields
+
+        for batch in self.export_entities_streaming(project_id, options):
+            if not batch.entities:
+                continue
+
+            # Flatten entities for CSV
+            flattened_batch = [self._flatten_entity(e) for e in batch.entities]
+
+            # Determine fields from first batch if not specified
+            if field_names is None:
+                all_fields = set()
+                for flat_entity in flattened_batch:
+                    all_fields.update(flat_entity.keys())
+                field_names = sorted(all_fields)
+
+            # Write header on first batch
+            if not header_written:
+                output = io.StringIO()
+                writer = csv.DictWriter(output, fieldnames=field_names)
+                writer.writeheader()
+                yield output.getvalue()
+                header_written = True
+
+            # Write data rows
+            for flat_entity in flattened_batch:
+                output = io.StringIO()
+                writer = csv.DictWriter(output, fieldnames=field_names)
+                row = {field: flat_entity.get(field, "") for field in field_names}
+                writer.writerow(row)
+                yield output.getvalue()
+
+    def get_export_count(
+        self,
+        project_id: str,
+        options: Optional[BulkExportOptions] = None
+    ) -> int:
+        """
+        Get the count of entities that would be exported.
+
+        Useful for progress tracking and pagination calculations.
+
+        Args:
+            project_id: The project safe name to count from.
+            options: Optional export options for filtering.
+
+        Returns:
+            Count of entities that match the export criteria.
+
+        Raises:
+            ValueError: If project not found.
+        """
+        if options is None:
+            options = BulkExportOptions()
+
+        total = self._get_entity_count(project_id, options)
+
+        # Apply pagination
+        effective = max(0, total - options.offset)
+        if options.limit is not None:
+            effective = min(effective, options.limit)
+
+        return effective
 
     def validate_import_data(self, entities: List[dict]) -> List[dict]:
         """
@@ -307,6 +607,102 @@ class BulkOperationsService:
         return output.getvalue()
 
     # ----- Private Helper Methods -----
+
+    def _get_entity_iterator(
+        self,
+        project_id: str,
+        options: BulkExportOptions
+    ) -> Iterator[dict]:
+        """
+        Get an iterator over entities for streaming export.
+
+        Uses database-level pagination to avoid loading all entities into memory.
+
+        Args:
+            project_id: The project safe name.
+            options: Export options with entity_ids filter.
+
+        Returns:
+            Iterator over entity dictionaries.
+        """
+        if options.entity_ids:
+            # Iterate over specific entity IDs using batch query for efficiency
+            def entity_id_iterator() -> Iterator[dict]:
+                # Fetch in batches for efficiency
+                batch_size = min(options.batch_size, 100)
+                entity_ids = list(options.entity_ids)
+                for i in range(0, len(entity_ids), batch_size):
+                    batch_ids = entity_ids[i:i + batch_size]
+                    entities_map = self.neo4j_handler.get_people_batch(project_id, batch_ids)
+                    # Yield in order of requested IDs
+                    for eid in batch_ids:
+                        if eid in entities_map:
+                            yield entities_map[eid]
+            return entity_id_iterator()
+        else:
+            # Use database-level pagination for memory efficiency
+            def paginated_iterator() -> Iterator[dict]:
+                page_size = options.batch_size
+                offset = 0
+                while True:
+                    batch = self.neo4j_handler.get_all_people_paginated(
+                        project_id, offset=offset, limit=page_size
+                    )
+                    if not batch:
+                        break
+                    for entity in batch:
+                        yield entity
+                    if len(batch) < page_size:
+                        break
+                    offset += page_size
+            return paginated_iterator()
+
+    def _get_entity_count(
+        self,
+        project_id: str,
+        options: BulkExportOptions
+    ) -> int:
+        """
+        Get the total count of entities matching the options.
+
+        Uses database-level count query for efficiency.
+
+        Args:
+            project_id: The project safe name.
+            options: Export options with entity_ids filter.
+
+        Returns:
+            Count of matching entities.
+        """
+        if options.entity_ids:
+            # Count specific entity IDs that exist using batch query
+            entities_map = self.neo4j_handler.get_people_batch(
+                project_id, options.entity_ids
+            )
+            return len(entities_map)
+        else:
+            # Use efficient count query
+            return self.neo4j_handler.get_people_count(project_id)
+
+    def _chain_entity(
+        self,
+        first_entity: dict,
+        remaining_iterator: Iterator[dict]
+    ) -> Iterator[dict]:
+        """
+        Chain a single entity with an iterator.
+
+        Used for "peeking" at the next entity and then putting it back.
+
+        Args:
+            first_entity: The entity to yield first.
+            remaining_iterator: The iterator to continue with.
+
+        Returns:
+            Iterator that yields first_entity, then remaining entities.
+        """
+        yield first_entity
+        yield from remaining_iterator
 
     def _process_entity_for_export(
         self,
