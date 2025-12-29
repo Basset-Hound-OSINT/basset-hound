@@ -1,38 +1,317 @@
-<td width="100" align="center">
+# Basset Hound OSINT Platform
 
-<img src="static/imgs/basset_hound_osint_logo.png">
+<div align="center">
+<img src="static/imgs/basset_hound_osint_logo.png" width="200">
 
-</td>
+**A configurable entity relationship management system for OSINT investigations**
 
-# basset-hound
-A BloodhoundAD-inspired tool for OSINT 
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-green.svg)](https://fastapi.tiangolo.com/)
+[![Neo4j](https://img.shields.io/badge/Neo4j-5.28+-red.svg)](https://neo4j.com/)
+</div>
 
-**Running just Neo4j**
+---
+
+## What is Basset Hound?
+
+Basset Hound is a **local-first, graph-based OSINT intelligence platform** designed for security researchers and investigators. Unlike traditional databases, Basset Hound treats relationships as first-class citizens and allows you to:
+
+- **Store unlinked data** (emails, phones, addresses) before you know who they belong to
+- **Build entity profiles** from scattered information across multiple sources
+- **Discover hidden connections** through graph analysis and relationship mapping
+- **Track investigation progress** with timeline and change tracking
+- **Automate linking** using intelligent identifier matching
+
+### Core Philosophy: "Collect Now, Connect Later"
+
+In OSINT investigations, you often discover fragments of information before knowing the full picture:
+- A phone number mentioned in a forum post
+- An email address in a data breach
+- A crypto wallet in a transaction
+- A username on social media
+
+**Traditional approach:** Wait until you have enough info to create a full profile
+**Basset Hound approach:** Store everything immediately as "orphan data", then link it when connections become clear
+
+This is the **orphan data** concept: storing identifiers and information fragments without requiring an entity assignment. As your investigation progresses, Basset Hound suggests connections and helps you merge orphan data into entity profiles.
+
+---
+
+## Key Features
+
+### 🔍 Orphan Data Management
+- Store unlinked identifiers (emails, phones, crypto addresses, usernames, IPs)
+- Auto-suggest potential entity matches based on existing data
+- One-click linking to merge orphan data into entity profiles
+- Track data provenance (source, confidence, timestamps)
+
+### 👤 Multi-Entity Type Support
+- **Person** - Individuals with detailed social/contact info
+- **Organization** - Companies, groups, agencies
+- **Device** - Phones, computers, IoT devices
+- **Location** - Addresses, venues, regions
+- **Event** - Incidents, meetings, transactions
+- **Document** - Files, reports, evidence
+
+### 🕸️ Graph-Based Relationships
+- 26 relationship types (WORKS_WITH, KNOWS, FAMILY, OWNS, etc.)
+- Bidirectional and transitive relationship support
+- Path finding (shortest path, all paths)
+- Cluster detection and centrality analysis
+- Cross-project entity linking
+
+### 🔎 Advanced Search
+- Boolean operators: AND, OR, NOT
+- Phrase search: "exact match"
+- Field-specific: `email:john@example.com`
+- Wildcards: `name:John*`, `phone:555?`
+- Fuzzy matching with phonetic support
+
+### 📊 Visualization & Analysis
+- Graph visualization API (D3.js, vis.js, Cytoscape formats)
+- Timeline analysis for entity/relationship changes
+- Activity heat maps and pattern detection
+- ML-powered query suggestions
+
+### 🤖 API & MCP Integration
+- Full REST API with OpenAPI docs
+- MCP (Model Context Protocol) server for AI tools
+- Bulk import/export (JSON, CSV, JSONL)
+- WebSocket real-time notifications
+
+### 🛡️ Privacy-Focused
+- **Local-first** - Your data never leaves your machine
+- **No authentication** - Single-user, trusted environment
+- **No telemetry** - 100% offline operation
+- **Open source** - Full transparency and control
+
+---
+
+## Quick Start
+
+### Prerequisites
+- **Python 3.12+**
+- **Docker & Docker Compose** (for Neo4j)
+- **Git**
+
+### Installation
 
 ```bash
+# 1. Clone the repository
+git clone https://github.com/yourusername/basset-hound.git
+cd basset-hound
+
+# 2. Start Neo4j database
 docker compose up -d neo4j
-docker compose down -v
 
-# more agressive cleanup of non used containers not defined in the compose file
-docker compose down --volumes --remove-orphans
-```
-
-**Run setup the python environment**
-
-```
+# 3. Set up Python environment
 python3.12 -m venv venv
-source venv/bin/activate
+source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
+
+# 4. Start Basset Hound
+python main.py
 ```
 
-**Run the app**
+### Access Points
+
+- **Web UI:** http://localhost:5000 (Flask legacy UI)
+- **FastAPI Docs:** http://localhost:8000/docs
+- **Neo4j Browser:** http://localhost:7474 (user: neo4j, pass: your_password)
+
+---
+
+## Usage Examples
+
+### Storing Orphan Data
 
 ```bash
-python3 app.py
+# Found an email but don't know who it belongs to yet
+curl -X POST http://localhost:8000/api/v1/projects/my-investigation/orphan-data \
+  -H "Content-Type: application/json" \
+  -d '{
+    "identifier_type": "EMAIL",
+    "identifier_value": "suspicious@example.com",
+    "metadata": {
+      "source": "data breach xyz",
+      "confidence": "high",
+      "notes": "Found in leaked customer list"
+    },
+    "tags": ["breach-2024", "investigate"]
+  }'
 ```
 
-Visit the app in your web browser [here](http://localhost:5000)
+### Getting Match Suggestions
+
+```bash
+# Check if this orphan data matches any existing entities
+curl http://localhost:8000/api/v1/projects/my-investigation/orphan-data/{orphan_id}/suggestions
+```
+
+### Linking Orphan to Entity
+
+```bash
+# Merge orphan data into an entity profile
+curl -X POST http://localhost:8000/api/v1/projects/my-investigation/orphan-data/{orphan_id}/link/{entity_id}
+```
+
+### Advanced Search
+
+```bash
+# Boolean search with field-specific queries
+curl "http://localhost:8000/api/v1/projects/my-investigation/search/advanced?query=email:*@gmail.com+AND+tag:suspect+AND+NOT+status:cleared"
+```
+
+### Graph Visualization
+
+```bash
+# Get graph data in D3.js format
+curl "http://localhost:8000/api/v1/projects/my-investigation/graph?format=d3&include_orphans=true"
+```
+
+---
+
+## Configuration
+
+Basset Hound uses `data_config.yaml` for runtime schema configuration. You can add custom fields, sections, and entity types without modifying code.
+
+Example custom field:
+```yaml
+sections:
+  - id: custom_section
+    name: My Custom Data
+    fields:
+      - id: custom_field
+        type: string
+        label: Custom Field
+        identifier: true  # Use for entity matching
+        searchable: true  # Include in search index
+```
+
+See [docs/ROADMAP.md](docs/ROADMAP.md) for full configuration documentation.
+
+---
+
+## Architecture
 
 ```
-http://localhost:5000
+┌─────────────────────────────────────────────────────────────┐
+│                      Basset Hound                            │
+├─────────────────────────────────────────────────────────────┤
+│  FastAPI (REST API)  │  Flask (Web UI)  │  MCP Server       │
+├─────────────────────────────────────────────────────────────┤
+│                     Services Layer                           │
+│  • Entity Management    • Orphan Data    • Graph Analysis   │
+│  • Auto-Linking         • Search         • Timeline         │
+│  • Bulk Operations      • Reports        • Cache            │
+├─────────────────────────────────────────────────────────────┤
+│                     Neo4j Graph Database                     │
+│  Entities (Person, Org, Device, etc.) + Relationships        │
+└─────────────────────────────────────────────────────────────┘
 ```
+
+---
+
+## Development
+
+### Running Tests
+
+```bash
+# All tests
+python -m pytest tests/ -v
+
+# Specific test file
+python -m pytest tests/test_orphan_data.py -v
+
+# With coverage
+python -m pytest tests/ --cov=api --cov-report=html
+```
+
+### Project Structure
+
+```
+basset-hound/
+├── api/                    # FastAPI application
+│   ├── routers/           # REST API endpoints
+│   ├── services/          # Business logic
+│   ├── models/            # Pydantic models
+│   └── utils/             # Utilities
+├── mcp/                   # MCP server
+├── tests/                 # Pytest tests
+├── docs/                  # Documentation
+│   ├── ROADMAP.md         # Development roadmap
+│   └── findings/          # Phase documentation
+├── static/                # Web UI assets
+├── templates/             # Jinja2 templates
+├── data_config.yaml       # Schema configuration
+└── main.py               # Entry point
+```
+
+---
+
+## Use Cases
+
+### OSINT Investigations
+Track people, organizations, and their connections across multiple sources
+
+### Threat Intelligence
+Map threat actors, infrastructure, and attack patterns
+
+### Data Breach Analysis
+Correlate leaked credentials, emails, and personal information
+
+### Social Network Analysis
+Discover hidden relationships and community structures
+
+### Research & Genealogy
+Build knowledge graphs for academic research or family trees
+
+---
+
+## Roadmap
+
+See [docs/ROADMAP.md](docs/ROADMAP.md) for detailed development plans.
+
+**Recently Completed:**
+- ✅ FastAPI migration (Phases 1-14)
+- ✅ Multi-entity type support
+- ✅ Advanced relationship features
+- ✅ ML-powered analytics
+
+**In Progress (Phase 15):**
+- 🚧 Orphan data management
+- 🚧 Graph visualization API
+- 🚧 Advanced search operators
+- 🚧 Frontend UI enhancements
+
+---
+
+## Contributing
+
+Basset Hound is open source and welcomes contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+---
+
+## License
+
+[Your License Here - e.g., MIT, GPL, Apache 2.0]
+
+---
+
+## Credits
+
+Inspired by BloodhoundAD's approach to relationship mapping, adapted for OSINT investigations.
+
+Built with:
+- [FastAPI](https://fastapi.tiangolo.com/) - Modern Python web framework
+- [Neo4j](https://neo4j.com/) - Graph database
+- [Pydantic](https://pydantic-docs.helpmanual.io/) - Data validation
+- [MCP](https://modelcontextprotocol.io/) - AI tool integration
+
+---
+
+## Support
+
+- **Issues:** https://github.com/yourusername/basset-hound/issues
+- **Documentation:** [docs/](docs/)
+- **Discussions:** [GitHub Discussions](https://github.com/yourusername/basset-hound/discussions)

@@ -26,6 +26,7 @@ This module provides RESTful API endpoints for managing:
 - ML Analytics: Machine learning-based query suggestions and insights
 - Jobs: Background job execution and management
 - Audit: Change tracking for debugging and audit purposes
+- Graph: Graph visualization API for D3.js, vis.js, and Cytoscape
 """
 
 from fastapi import APIRouter
@@ -56,6 +57,7 @@ from .marketplace import router as marketplace_router
 from .ml_analytics import router as ml_analytics_router
 from .jobs import router as jobs_router, schedule_jobs_router
 from .audit import router as audit_router, project_audit_router, entity_audit_router
+from .graph import router as graph_router
 
 # Create main API router
 api_router = APIRouter()
@@ -96,6 +98,7 @@ api_router.include_router(schedule_jobs_router)
 api_router.include_router(audit_router)
 api_router.include_router(project_audit_router)
 api_router.include_router(entity_audit_router)
+api_router.include_router(graph_router)
 
 __all__ = [
     "api_router",
@@ -134,4 +137,5 @@ __all__ = [
     "audit_router",
     "project_audit_router",
     "entity_audit_router",
+    "graph_router",
 ]

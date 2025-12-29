@@ -6,7 +6,9 @@ Provides RESTful API endpoints for full-text search across entities.
 Endpoints:
 - GET /api/v1/search - Global search with query params
 - GET /api/v1/projects/{project_id}/search - Project-scoped search
+- GET /api/v1/projects/{project_id}/search/advanced - Advanced boolean search
 - GET /api/v1/search/fields - Get searchable fields
+- GET /api/v1/search/syntax-help - Get advanced syntax documentation
 - POST /api/v1/projects/{project_id}/search/reindex - Rebuild search index
 """
 
@@ -146,6 +148,42 @@ class ReindexResponse(BaseModel):
     indexed_count: int = Field(0, ge=0, description="Number of entities indexed")
     project_id: str = Field(..., description="Project that was reindexed")
     message: str = Field(..., description="Status message")
+
+
+class SyntaxHelpResponse(BaseModel):
+    """Response model for syntax help documentation."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "syntax": {
+                    "operators": ["AND", "OR", "NOT"],
+                    "wildcards": ["*", "?"],
+                    "field_search": "field:value",
+                    "phrase_search": "\"exact phrase\"",
+                    "grouping": "(query1 OR query2) AND query3"
+                },
+                "examples": [
+                    "email:john@example.com",
+                    "name:John AND email:*@gmail.com"
+                ]
+            }
+        }
+    )
+
+    syntax: dict[str, Any] = Field(..., description="Syntax reference")
+    examples: list[dict[str, str]] = Field(
+        default_factory=list,
+        description="Query examples with descriptions"
+    )
+    operators: list[dict[str, str]] = Field(
+        default_factory=list,
+        description="Available operators"
+    )
+    wildcards: list[dict[str, str]] = Field(
+        default_factory=list,
+        description="Wildcard characters"
+    )
 
 
 # ----- Dependency -----
@@ -339,6 +377,113 @@ async def get_searchable_fields(
         )
 
 
+@router.get(
+    "/syntax-help",
+    response_model=SyntaxHelpResponse,
+    summary="Get advanced search syntax documentation",
+    description="""
+    Returns comprehensive documentation for the advanced boolean search syntax.
+
+    This endpoint provides:
+    - Available operators (AND, OR, NOT)
+    - Wildcard characters (* and ?)
+    - Field-specific search syntax
+    - Phrase search syntax
+    - Query grouping with parentheses
+    - Real-world examples
+    """,
+    responses={
+        200: {"description": "Syntax help returned successfully"},
+    }
+)
+async def get_syntax_help():
+    """
+    Get documentation for advanced search syntax.
+
+    Returns operators, wildcards, field syntax, and examples.
+    """
+    return SyntaxHelpResponse(
+        syntax={
+            "operators": {
+                "AND": "Both conditions must match",
+                "OR": "At least one condition must match",
+                "NOT": "Negates the following condition"
+            },
+            "wildcards": {
+                "*": "Matches any number of characters (including zero)",
+                "?": "Matches exactly one character"
+            },
+            "field_search": "field:value - Search in a specific field",
+            "phrase_search": '"exact phrase" - Search for exact phrase match',
+            "grouping": "(query1 OR query2) AND query3 - Group queries with parentheses",
+            "precedence": "NOT > AND > OR (from highest to lowest)"
+        },
+        examples=[
+            {
+                "query": "email:john@example.com",
+                "description": "Find entities with exact email match"
+            },
+            {
+                "query": "name:John AND email:*@gmail.com",
+                "description": "Find John with any Gmail address"
+            },
+            {
+                "query": '(tag:suspect OR tag:person_of_interest) AND NOT status:cleared',
+                "description": "Complex boolean query with grouping"
+            },
+            {
+                "query": '"John Smith"',
+                "description": "Exact phrase match across all fields"
+            },
+            {
+                "query": "phone:555* OR phone:777*",
+                "description": "Multiple wildcard patterns with OR"
+            },
+            {
+                "query": "name:J?hn",
+                "description": "Single character wildcard (matches John, Jahn, etc.)"
+            },
+            {
+                "query": "email:*@company.com AND NOT department:sales",
+                "description": "Company emails excluding sales department"
+            },
+            {
+                "query": '(name:"John Doe" OR name:"Jane Doe") AND city:Boston',
+                "description": "Search for specific names in a city"
+            }
+        ],
+        operators=[
+            {
+                "operator": "AND",
+                "description": "Both conditions must be true",
+                "example": "name:John AND city:Boston"
+            },
+            {
+                "operator": "OR",
+                "description": "At least one condition must be true",
+                "example": "email:john@example.com OR phone:555-1234"
+            },
+            {
+                "operator": "NOT",
+                "description": "Negates the following condition",
+                "example": "tag:customer AND NOT status:inactive"
+            }
+        ],
+        wildcards=[
+            {
+                "character": "*",
+                "description": "Matches zero or more characters",
+                "example": "john* matches john, johnny, johnson"
+            },
+            {
+                "character": "?",
+                "description": "Matches exactly one character",
+                "example": "j?hn matches john, jahn, jahn"
+            }
+        ]
+    )
+
+
 # ----- Project-Scoped Search Endpoints -----
 
 @project_search_router.get(
@@ -420,6 +565,119 @@ async def project_search(
         offset=offset,
         fuzzy=fuzzy,
         highlight=highlight,
+    )
+
+    try:
+        results, total = await search_service.search(query)
+
+        return SearchResponse(
+            results=[
+                SearchResultResponse(
+                    entity_id=r.entity_id,
+                    project_id=r.project_id,
+                    entity_type=r.entity_type,
+                    score=r.score,
+                    highlights=r.highlights,
+                    matched_fields=r.matched_fields,
+                    entity_data=r.entity_data,
+                )
+                for r in results
+            ],
+            total=total,
+            query=q,
+            limit=limit,
+            offset=offset,
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Search failed: {str(e)}"
+        )
+
+
+@project_search_router.get(
+    "/advanced",
+    response_model=SearchResponse,
+    summary="Advanced boolean search within a project",
+    description="""
+    Execute an advanced boolean search with operators, wildcards, and field-specific queries.
+
+    Supports:
+    - Boolean operators: AND, OR, NOT
+    - Field-specific search: field:value
+    - Phrase search: "exact phrase"
+    - Wildcards: * (multiple chars), ? (single char)
+    - Grouping: (query1 OR query2) AND query3
+
+    See /api/v1/search/syntax-help for complete documentation.
+    """,
+    responses={
+        200: {"description": "Search results returned successfully"},
+        400: {"description": "Invalid query syntax"},
+        404: {"description": "Project not found"},
+    }
+)
+async def advanced_project_search(
+    project_id: str,
+    q: str = Query(
+        ...,
+        min_length=1,
+        max_length=1000,
+        description="Advanced search query with boolean operators",
+        examples=[
+            "email:john@example.com",
+            "name:John AND email:*@gmail.com",
+            '(tag:suspect OR tag:poi) AND NOT status:cleared'
+        ]
+    ),
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    highlight: bool = Query(True),
+    search_service: SearchService = Depends(get_search_service_dep),
+    neo4j_handler=Depends(get_neo4j_handler)
+):
+    """
+    Execute an advanced boolean search within a specific project.
+
+    - **project_id**: Project ID or safe_name to search in
+    - **q**: Advanced query with boolean operators
+    - **limit**: Max results per page (1-100, default 20)
+    - **offset**: Skip N results for pagination
+    - **highlight**: Generate highlighted snippets (default true)
+    """
+    # Verify project exists
+    project = neo4j_handler.get_project(project_id)
+    if not project:
+        all_projects = neo4j_handler.get_all_projects()
+        project = next(
+            (p for p in all_projects if p.get("id") == project_id),
+            None
+        )
+
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Project '{project_id}' not found"
+        )
+
+    # Parse the query to validate syntax
+    parsed = search_service.parse_advanced_query(q)
+    if parsed.error:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid query syntax: {parsed.error}"
+        )
+
+    # Create advanced search query
+    query = SearchQuery(
+        query=q,
+        project_id=project_id,
+        limit=limit,
+        offset=offset,
+        fuzzy=False,  # Disable fuzzy for advanced queries
+        highlight=highlight,
+        advanced=True  # Enable advanced parsing
     )
 
     try:

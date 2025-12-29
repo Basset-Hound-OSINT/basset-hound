@@ -11,11 +11,16 @@ Features:
 - Relevance-based scoring
 - Field-specific search
 - Multi-project search support
+- Advanced boolean operators (AND, OR, NOT)
+- Phrase search with quotes
+- Wildcard support (* and ?)
+- Nested query grouping with parentheses
 """
 
 import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
+from enum import Enum
 
 # Fuzzy matcher is optional but enhances search
 try:
@@ -31,6 +36,47 @@ DEFAULT_SEARCHABLE_TYPES = {"string", "email", "url", "comment", "ip_address"}
 
 # Index name for full-text search
 FULLTEXT_INDEX_NAME = "entity_fulltext_index"
+
+
+class QueryOperator(Enum):
+    """Enumeration of supported query operators."""
+    AND = "AND"
+    OR = "OR"
+    NOT = "NOT"
+
+
+@dataclass
+class QueryToken:
+    """
+    Represents a token in the parsed query.
+
+    Attributes:
+        type: Type of token ('field', 'phrase', 'word', 'operator', 'group')
+        value: The token value
+        field: Optional field name for field-specific searches
+        negated: Whether this token is negated with NOT
+    """
+    type: str
+    value: str
+    field: Optional[str] = None
+    negated: bool = False
+
+
+@dataclass
+class ParsedQuery:
+    """
+    Represents a parsed advanced search query.
+
+    Attributes:
+        tokens: List of query tokens
+        field_conditions: Dict mapping field names to their search conditions
+        has_wildcards: Whether the query contains wildcards
+        error: Optional parsing error message
+    """
+    tokens: List[QueryToken] = field(default_factory=list)
+    field_conditions: Dict[str, List[str]] = field(default_factory=dict)
+    has_wildcards: bool = False
+    error: Optional[str] = None
 
 
 @dataclass
@@ -82,6 +128,7 @@ class SearchQuery:
         offset: Number of results to skip (for pagination)
         fuzzy: Whether to enable fuzzy matching for sparse results
         highlight: Whether to generate highlighted snippets
+        advanced: Whether to parse query as advanced boolean query
     """
     query: str
     project_id: Optional[str] = None
@@ -91,6 +138,7 @@ class SearchQuery:
     offset: int = 0
     fuzzy: bool = True
     highlight: bool = True
+    advanced: bool = False
 
     def __post_init__(self):
         """Validate query parameters."""
@@ -100,6 +148,176 @@ class SearchQuery:
             self.limit = 100
         if self.offset < 0:
             self.offset = 0
+
+
+class AdvancedQueryParser:
+    """
+    Parser for advanced boolean search queries.
+
+    Supports:
+    - Boolean operators: AND, OR, NOT
+    - Field-specific search: field:value
+    - Phrase search: "exact phrase"
+    - Wildcards: * (multiple chars), ? (single char)
+    - Grouping: (query1 OR query2) AND query3
+    """
+
+    # Regex patterns for tokenization
+    FIELD_PATTERN = re.compile(r'(\w+):')
+    PHRASE_PATTERN = re.compile(r'"([^"]*)"')
+    OPERATOR_PATTERN = re.compile(r'\b(AND|OR|NOT)\b')
+    PAREN_PATTERN = re.compile(r'[()]')
+    WILDCARD_PATTERN = re.compile(r'[*?]')
+
+    def parse(self, query: str) -> ParsedQuery:
+        """
+        Parse an advanced search query into tokens.
+
+        Args:
+            query: Raw query string
+
+        Returns:
+            ParsedQuery object with parsed tokens
+        """
+        if not query or not query.strip():
+            return ParsedQuery(error="Empty query")
+
+        try:
+            tokens = self._tokenize(query.strip())
+            parsed = ParsedQuery(tokens=tokens)
+
+            # Extract field conditions
+            for token in tokens:
+                if token.field:
+                    if token.field not in parsed.field_conditions:
+                        parsed.field_conditions[token.field] = []
+                    parsed.field_conditions[token.field].append(token.value)
+
+                # Check for wildcards
+                if self.WILDCARD_PATTERN.search(token.value):
+                    parsed.has_wildcards = True
+
+            return parsed
+
+        except Exception as e:
+            return ParsedQuery(error=f"Parse error: {str(e)}")
+
+    def _tokenize(self, query: str) -> List[QueryToken]:
+        """
+        Tokenize the query string.
+
+        Args:
+            query: Query string to tokenize
+
+        Returns:
+            List of QueryToken objects
+        """
+        tokens = []
+        position = 0
+        negated = False
+
+        while position < len(query):
+            # Skip whitespace
+            while position < len(query) and query[position].isspace():
+                position += 1
+
+            if position >= len(query):
+                break
+
+            # Check for operators
+            operator_match = self.OPERATOR_PATTERN.match(query, position)
+            if operator_match:
+                operator = operator_match.group(1)
+                if operator == "NOT":
+                    negated = True
+                else:
+                    tokens.append(QueryToken(
+                        type="operator",
+                        value=operator
+                    ))
+                position = operator_match.end()
+                continue
+
+            # Check for parentheses
+            if query[position] in '()':
+                tokens.append(QueryToken(
+                    type="group",
+                    value=query[position]
+                ))
+                position += 1
+                continue
+
+            # Check for field:value pattern
+            field_match = self.FIELD_PATTERN.match(query, position)
+            if field_match:
+                field_name = field_match.group(1)
+                position = field_match.end()
+
+                # Get the value (might be phrase or word)
+                if position < len(query) and query[position] == '"':
+                    # Phrase value
+                    phrase_match = self.PHRASE_PATTERN.match(query, position)
+                    if phrase_match:
+                        tokens.append(QueryToken(
+                            type="field",
+                            value=phrase_match.group(1),
+                            field=field_name,
+                            negated=negated
+                        ))
+                        position = phrase_match.end()
+                        negated = False
+                    else:
+                        raise ValueError(f"Unclosed quote at position {position}")
+                else:
+                    # Word value (until space or special char)
+                    word_end = position
+                    while word_end < len(query) and not query[word_end].isspace() \
+                            and query[word_end] not in '()':
+                        word_end += 1
+
+                    if word_end > position:
+                        tokens.append(QueryToken(
+                            type="field",
+                            value=query[position:word_end],
+                            field=field_name,
+                            negated=negated
+                        ))
+                        position = word_end
+                        negated = False
+                continue
+
+            # Check for quoted phrase
+            if query[position] == '"':
+                phrase_match = self.PHRASE_PATTERN.match(query, position)
+                if phrase_match:
+                    tokens.append(QueryToken(
+                        type="phrase",
+                        value=phrase_match.group(1),
+                        negated=negated
+                    ))
+                    position = phrase_match.end()
+                    negated = False
+                else:
+                    raise ValueError(f"Unclosed quote at position {position}")
+                continue
+
+            # Regular word
+            word_end = position
+            while word_end < len(query) and not query[word_end].isspace() \
+                    and query[word_end] not in '()':
+                word_end += 1
+
+            if word_end > position:
+                word = query[position:word_end]
+                tokens.append(QueryToken(
+                    type="word",
+                    value=word,
+                    negated=negated
+                ))
+                position = word_end
+                negated = False
+
+        return tokens
 
 
 class SearchService:
@@ -116,8 +334,11 @@ class SearchService:
         query = SearchQuery(query="John Doe")
         results, total = await service.search(query)
 
-        # Project-scoped search
-        query = SearchQuery(query="email", project_id="my-project")
+        # Advanced search
+        query = SearchQuery(
+            query='(email:john* OR name:"John Doe") AND NOT tag:archived',
+            advanced=True
+        )
         results, total = await service.search(query)
 
         # Build search index
@@ -140,6 +361,7 @@ class SearchService:
         self.config = config or {}
         self._fuzzy_matcher: Optional[FuzzyMatcher] = None
         self._searchable_fields: Optional[List[str]] = None
+        self._query_parser = AdvancedQueryParser()
 
     @property
     def fuzzy_matcher(self) -> Optional[FuzzyMatcher]:
@@ -150,6 +372,23 @@ class SearchService:
             except Exception:
                 pass
         return self._fuzzy_matcher
+
+    def parse_advanced_query(self, query_string: str) -> ParsedQuery:
+        """
+        Parse an advanced search query.
+
+        Args:
+            query_string: Raw query string with boolean operators
+
+        Returns:
+            ParsedQuery object with parsed tokens
+
+        Examples:
+            >>> service.parse_advanced_query('email:john@example.com')
+            >>> service.parse_advanced_query('name:John AND email:*@gmail.com')
+            >>> service.parse_advanced_query('(tag:suspect OR tag:poi) AND NOT status:cleared')
+        """
+        return self._query_parser.parse(query_string)
 
     async def search(self, query: SearchQuery) -> Tuple[List[SearchResult], int]:
         """
@@ -170,22 +409,26 @@ class SearchService:
 
         search_text = query.query.strip()
 
-        # Try full-text search first
-        results, total = await self._fulltext_search(query, search_text)
+        # Check if using advanced query syntax
+        if query.advanced:
+            results, total = await self._advanced_search(query, search_text)
+        else:
+            # Try full-text search first
+            results, total = await self._fulltext_search(query, search_text)
 
-        # If results are sparse and fuzzy matching is enabled, enhance with fuzzy
-        if query.fuzzy and len(results) < query.limit and self.fuzzy_matcher:
-            fuzzy_results = await self._fuzzy_search(query, search_text, results)
-            results.extend(fuzzy_results)
-            # Deduplicate by entity_id
-            seen = set()
-            unique_results = []
-            for r in results:
-                if r.entity_id not in seen:
-                    seen.add(r.entity_id)
-                    unique_results.append(r)
-            results = unique_results
-            total = len(results)
+            # If results are sparse and fuzzy matching is enabled, enhance with fuzzy
+            if query.fuzzy and len(results) < query.limit and self.fuzzy_matcher:
+                fuzzy_results = await self._fuzzy_search(query, search_text, results)
+                results.extend(fuzzy_results)
+                # Deduplicate by entity_id
+                seen = set()
+                unique_results = []
+                for r in results:
+                    if r.entity_id not in seen:
+                        seen.add(r.entity_id)
+                        unique_results.append(r)
+                results = unique_results
+                total = len(results)
 
         # Sort by score descending
         results.sort(key=lambda r: r.score, reverse=True)
@@ -194,6 +437,385 @@ class SearchService:
         paginated = results[query.offset:query.offset + query.limit]
 
         return paginated, total
+
+    async def _advanced_search(
+        self,
+        query: SearchQuery,
+        search_text: str
+    ) -> Tuple[List[SearchResult], int]:
+        """
+        Execute an advanced boolean search.
+
+        Args:
+            query: Search query parameters
+            search_text: Advanced query string
+
+        Returns:
+            Tuple of (results, total_count)
+        """
+        # Parse the advanced query
+        parsed = self.parse_advanced_query(search_text)
+
+        if parsed.error:
+            return [], 0
+
+        if not parsed.tokens:
+            return [], 0
+
+        # Convert to property-based search with boolean logic
+        results = await self._execute_boolean_query(query, parsed)
+
+        return results, len(results)
+
+    async def _execute_boolean_query(
+        self,
+        query: SearchQuery,
+        parsed: ParsedQuery
+    ) -> List[SearchResult]:
+        """
+        Execute a parsed boolean query against entities.
+
+        Args:
+            query: Search query parameters
+            parsed: Parsed query tokens
+
+        Returns:
+            List of SearchResult
+        """
+        results = []
+
+        # Get all entities to search
+        if query.project_id:
+            project = self._get_project_by_id(query.project_id)
+            if not project:
+                return []
+            projects = [project]
+        else:
+            projects = self.neo4j.get_all_projects()
+
+        for project in projects:
+            project_safe_name = project.get("safe_name")
+            project_id = project.get("id", project_safe_name)
+
+            entities = self.neo4j.get_all_people(project_safe_name)
+
+            for entity in entities:
+                entity_id = entity.get("id", "")
+                profile = entity.get("profile", {})
+
+                # Evaluate the query against this entity
+                matches, score, highlights, matched_fields = self._evaluate_query(
+                    parsed.tokens,
+                    profile,
+                    query.highlight
+                )
+
+                if matches:
+                    results.append(SearchResult(
+                        entity_id=entity_id,
+                        project_id=project_id,
+                        entity_type="Person",
+                        score=score,
+                        highlights=highlights,
+                        matched_fields=matched_fields,
+                        entity_data=self._extract_entity_summary(entity),
+                    ))
+
+        return results
+
+    def _evaluate_query(
+        self,
+        tokens: List[QueryToken],
+        profile: Dict[str, Any],
+        highlight: bool
+    ) -> Tuple[bool, float, Dict[str, List[str]], List[str]]:
+        """
+        Evaluate query tokens against an entity profile.
+
+        Args:
+            tokens: List of query tokens
+            profile: Entity profile data
+            highlight: Whether to generate highlights
+
+        Returns:
+            Tuple of (matches, score, highlights, matched_fields)
+        """
+        if not tokens:
+            return False, 0.0, {}, []
+
+        # Convert tokens to a postfix notation for evaluation
+        # Handle operator precedence: NOT > AND > OR
+        result_stack = []
+        operator_stack = []
+        highlights = {}
+        matched_fields = []
+        max_score = 0.0
+
+        i = 0
+        while i < len(tokens):
+            token = tokens[i]
+
+            if token.type == "group" and token.value == "(":
+                # Find matching closing parenthesis
+                depth = 1
+                j = i + 1
+                while j < len(tokens) and depth > 0:
+                    if tokens[j].type == "group":
+                        if tokens[j].value == "(":
+                            depth += 1
+                        elif tokens[j].value == ")":
+                            depth -= 1
+                    j += 1
+
+                # Recursively evaluate the group
+                group_tokens = tokens[i + 1:j - 1]
+                matches, score, group_highlights, group_fields = self._evaluate_query(
+                    group_tokens,
+                    profile,
+                    highlight
+                )
+                result_stack.append((matches, score, group_highlights, group_fields))
+                i = j
+
+            elif token.type == "operator":
+                operator_stack.append(token.value)
+                i += 1
+
+            elif token.type in ("field", "phrase", "word"):
+                # Evaluate the search term
+                matches, score, term_highlights, term_fields = self._evaluate_term(
+                    token,
+                    profile,
+                    highlight
+                )
+                result_stack.append((matches, score, term_highlights, term_fields))
+                i += 1
+
+            else:
+                i += 1
+
+        # Process operators
+        while operator_stack or len(result_stack) > 1:
+            if not operator_stack:
+                # Implicit AND between terms
+                operator = "AND"
+            else:
+                operator = operator_stack.pop(0)
+
+            if operator == "NOT":
+                if result_stack:
+                    matches, score, h, f = result_stack.pop()
+                    result_stack.append((not matches, 0.0 if matches else 1.0, {}, []))
+
+            elif operator in ("AND", "OR"):
+                if len(result_stack) >= 2:
+                    right = result_stack.pop()
+                    left = result_stack.pop()
+
+                    if operator == "AND":
+                        combined_match = left[0] and right[0]
+                        combined_score = min(left[1], right[1]) if combined_match else 0.0
+                    else:  # OR
+                        combined_match = left[0] or right[0]
+                        combined_score = max(left[1], right[1])
+
+                    # Merge highlights and fields
+                    combined_highlights = {**left[2], **right[2]}
+                    combined_fields = list(set(left[3] + right[3]))
+
+                    result_stack.append((
+                        combined_match,
+                        combined_score,
+                        combined_highlights,
+                        combined_fields
+                    ))
+                elif len(result_stack) == 1:
+                    break
+
+        if result_stack:
+            return result_stack[0]
+
+        return False, 0.0, {}, []
+
+    def _evaluate_term(
+        self,
+        token: QueryToken,
+        profile: Dict[str, Any],
+        highlight: bool
+    ) -> Tuple[bool, float, Dict[str, List[str]], List[str]]:
+        """
+        Evaluate a single search term against a profile.
+
+        Args:
+            token: Query token to evaluate
+            profile: Entity profile data
+            highlight: Whether to generate highlights
+
+        Returns:
+            Tuple of (matches, score, highlights, matched_fields)
+        """
+        highlights = {}
+        matched_fields = []
+        max_score = 0.0
+        found_match = False
+
+        # Determine which fields to search
+        if token.field:
+            # Search specific field
+            search_fields = [(token.field, None)]
+        else:
+            # Search all fields
+            search_fields = []
+            for section_id, fields in profile.items():
+                if isinstance(fields, dict):
+                    for field_id in fields.keys():
+                        search_fields.append((f"{section_id}.{field_id}", None))
+
+        for field_path, _ in search_fields:
+            # Get the value from the profile
+            value = self._get_field_value(profile, field_path)
+            if value is None:
+                continue
+
+            # Check for match
+            match_result = self._match_value(
+                value,
+                token.value,
+                token.type == "phrase",
+                highlight
+            )
+
+            if match_result["matched"]:
+                found_match = True
+                matched_fields.append(field_path)
+                max_score = max(max_score, match_result["score"])
+
+                if match_result["highlights"]:
+                    highlights[field_path] = match_result["highlights"]
+
+        # Apply negation
+        if token.negated:
+            return not found_match, 1.0 if not found_match else 0.0, {}, []
+
+        return found_match, max_score, highlights, matched_fields
+
+    def _match_value(
+        self,
+        value: Any,
+        search_text: str,
+        exact_phrase: bool,
+        highlight: bool
+    ) -> Dict[str, Any]:
+        """
+        Match a search term against a value with wildcard support.
+
+        Args:
+            value: Value to search in
+            search_text: Text to search for (may contain wildcards)
+            exact_phrase: Whether to require exact phrase match
+            highlight: Whether to generate highlights
+
+        Returns:
+            Dict with 'matched', 'score', 'highlights' keys
+        """
+        result = {"matched": False, "score": 0.0, "highlights": []}
+
+        # Convert value to searchable strings
+        text_values = self._value_to_strings(value)
+
+        # Check for wildcards
+        has_wildcards = '*' in search_text or '?' in search_text
+
+        for text in text_values:
+            if not text:
+                continue
+
+            text_lower = text.lower()
+            search_lower = search_text.lower()
+
+            matched = False
+            score = 0.0
+
+            if has_wildcards:
+                # Convert wildcard pattern to regex
+                pattern = self._wildcard_to_regex(search_lower)
+                if re.search(pattern, text_lower):
+                    matched = True
+                    score = 0.85  # Slightly lower score for wildcard matches
+
+            elif exact_phrase:
+                # Exact phrase match
+                if search_lower == text_lower:
+                    matched = True
+                    score = 1.0
+                elif search_lower in text_lower:
+                    matched = True
+                    score = 0.95
+
+            else:
+                # Regular substring match
+                if search_lower in text_lower:
+                    matched = True
+                    if text_lower == search_lower:
+                        score = 1.0
+                    elif text_lower.startswith(search_lower):
+                        score = 0.9
+                    else:
+                        score = 0.7
+
+            if matched:
+                result["matched"] = True
+                result["score"] = max(result["score"], score)
+
+                if highlight:
+                    snippet = self._generate_highlight(text, search_text)
+                    if snippet and snippet not in result["highlights"]:
+                        result["highlights"].append(snippet)
+
+        return result
+
+    def _wildcard_to_regex(self, pattern: str) -> str:
+        """
+        Convert a wildcard pattern to a regex pattern.
+
+        Args:
+            pattern: Pattern with * and ? wildcards
+
+        Returns:
+            Regex pattern string
+        """
+        # Escape special regex characters except * and ?
+        escaped = re.escape(pattern)
+        # Convert wildcards
+        escaped = escaped.replace(r'\*', '.*')
+        escaped = escaped.replace(r'\?', '.')
+        return f'^{escaped}$'
+
+    def _get_field_value(
+        self,
+        profile: Dict[str, Any],
+        field_path: str
+    ) -> Optional[Any]:
+        """
+        Get a field value from a profile using dot notation.
+
+        Args:
+            profile: Entity profile data
+            field_path: Dot-separated field path (e.g., 'core.name')
+
+        Returns:
+            Field value or None
+        """
+        parts = field_path.split('.')
+        current = profile
+
+        for part in parts:
+            if isinstance(current, dict) and part in current:
+                current = current[part]
+            else:
+                return None
+
+        return current
 
     async def _fulltext_search(
         self,

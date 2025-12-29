@@ -47,14 +47,19 @@ class Neo4jHandler:
                 "CREATE CONSTRAINT IF NOT EXISTS FOR (p:Project) REQUIRE p.safe_name IS UNIQUE",
                 "CREATE CONSTRAINT IF NOT EXISTS FOR (p:Person) REQUIRE p.id IS UNIQUE",
                 "CREATE CONSTRAINT IF NOT EXISTS FOR (f:File) REQUIRE f.id IS UNIQUE",
+                "CREATE CONSTRAINT IF NOT EXISTS FOR (o:OrphanData) REQUIRE o.id IS UNIQUE",
                 "CREATE INDEX IF NOT EXISTS FOR (p:Project) ON (p.name)",
                 "CREATE INDEX IF NOT EXISTS FOR (p:Person) ON (p.created_at)",
                 "CREATE INDEX IF NOT EXISTS FOR (s:Section) ON (s.id)",
                 "CREATE INDEX IF NOT EXISTS FOR (f:Field) ON (f.id)",
+                "CREATE INDEX IF NOT EXISTS FOR (o:OrphanData) ON (o.identifier_type)",
+                "CREATE INDEX IF NOT EXISTS FOR (o:OrphanData) ON (o.identifier_value)",
+                "CREATE INDEX IF NOT EXISTS FOR (o:OrphanData) ON (o.linked)",
+                "CREATE INDEX IF NOT EXISTS FOR (o:OrphanData) ON (o.created_at)",
                 # Add relationship type existence check
                 "CREATE INDEX IF NOT EXISTS FOR ()-[r:HAS_FILE]-() ON (r.section_id, r.field_id)"
             ]
-            
+
             for constraint in constraints:
                 try:
                     session.run(constraint)
@@ -1942,3 +1947,421 @@ class Neo4jHandler:
             "forward": forward,
             "reverse": reverse
         }
+
+    # =============================================================================
+    # Orphan Data Methods
+    # =============================================================================
+
+    def create_orphan_data(self, project_id, orphan_data):
+        """
+        Create an OrphanData node in the database.
+
+        Args:
+            project_id: The project ID (safe_name)
+            orphan_data: Dict containing orphan data properties (identifier_type,
+                        identifier_value, source_file, source_location, tags, etc.)
+
+        Returns:
+            Dict with created orphan node properties including generated id
+        """
+        orphan_id = orphan_data.get("id", str(uuid4()))
+        now = datetime.now().isoformat()
+
+        # Prepare properties
+        props = {
+            "id": orphan_id,
+            "identifier_type": orphan_data.get("identifier_type", ""),
+            "identifier_value": orphan_data.get("identifier_value", ""),
+            "source_file": orphan_data.get("source_file", ""),
+            "source_location": orphan_data.get("source_location", ""),
+            "context": orphan_data.get("context", ""),
+            "created_at": orphan_data.get("created_at", now),
+            "updated_at": now,
+            "linked": orphan_data.get("linked", False),
+            "notes": orphan_data.get("notes", "")
+        }
+
+        # Handle tags as a list
+        tags = orphan_data.get("tags", [])
+        if not isinstance(tags, list):
+            tags = [tags] if tags else []
+        props["tags"] = tags
+
+        # Add any additional metadata
+        if "metadata" in orphan_data:
+            props["metadata"] = json.dumps(orphan_data["metadata"])
+
+        with self.driver.session() as session:
+            # Verify project exists
+            project = session.run("""
+                MATCH (p:Project {safe_name: $project_id})
+                RETURN p
+            """, project_id=project_id).single()
+
+            if not project:
+                return None
+
+            # Create orphan node and link to project
+            result = session.run("""
+                MATCH (project:Project {safe_name: $project_id})
+                CREATE (orphan:OrphanData)
+                SET orphan = $props
+                CREATE (project)-[:HAS_ORPHAN]->(orphan)
+                RETURN orphan
+            """, project_id=project_id, props=self.clean_data(props))
+
+            record = result.single()
+            if record:
+                orphan_node = dict(record["orphan"])
+                # Parse metadata back to dict
+                if "metadata" in orphan_node and isinstance(orphan_node["metadata"], str):
+                    try:
+                        orphan_node["metadata"] = json.loads(orphan_node["metadata"])
+                    except json.JSONDecodeError:
+                        pass
+                return orphan_node
+            return None
+
+    def get_orphan_data(self, project_id, orphan_id):
+        """
+        Get an orphan data node by ID.
+
+        Args:
+            project_id: The project ID (safe_name)
+            orphan_id: The orphan node ID
+
+        Returns:
+            Dict with orphan node properties or None if not found
+        """
+        with self.driver.session() as session:
+            result = session.run("""
+                MATCH (project:Project {safe_name: $project_id})-[:HAS_ORPHAN]->(orphan:OrphanData {id: $orphan_id})
+                OPTIONAL MATCH (orphan)-[:LINKED_TO]->(entity:Person)
+                RETURN orphan, collect(entity.id) as linked_entity_ids
+            """, project_id=project_id, orphan_id=orphan_id)
+
+            record = result.single()
+            if not record:
+                return None
+
+            orphan_data = dict(record["orphan"])
+            linked_entity_ids = [eid for eid in record["linked_entity_ids"] if eid]
+
+            # Parse metadata back to dict
+            if "metadata" in orphan_data and isinstance(orphan_data["metadata"], str):
+                try:
+                    orphan_data["metadata"] = json.loads(orphan_data["metadata"])
+                except json.JSONDecodeError:
+                    pass
+
+            if linked_entity_ids:
+                orphan_data["linked_entity_ids"] = linked_entity_ids
+
+            return orphan_data
+
+    def list_orphan_data(self, project_id, filters=None, limit=100, offset=0):
+        """
+        List orphan data nodes with optional filters and pagination.
+
+        Args:
+            project_id: The project ID (safe_name)
+            filters: Dict with filter criteria:
+                - identifier_type: Filter by identifier type
+                - tags: List of tags (ANY match)
+                - linked: Boolean to filter by linked status
+                - date_from: Filter created_at >= date_from
+                - date_to: Filter created_at <= date_to
+            limit: Maximum number of results (default 100)
+            offset: Number of results to skip (default 0)
+
+        Returns:
+            List of orphan data dicts
+        """
+        if filters is None:
+            filters = {}
+
+        # Build WHERE clauses
+        where_clauses = []
+        params = {"project_id": project_id, "limit": limit, "offset": offset}
+
+        if filters.get("identifier_type"):
+            where_clauses.append("orphan.identifier_type = $identifier_type")
+            params["identifier_type"] = filters["identifier_type"]
+
+        if filters.get("tags"):
+            where_clauses.append("ANY(tag IN $tags WHERE tag IN orphan.tags)")
+            params["tags"] = filters["tags"] if isinstance(filters["tags"], list) else [filters["tags"]]
+
+        if "linked" in filters:
+            where_clauses.append("orphan.linked = $linked")
+            params["linked"] = filters["linked"]
+
+        if filters.get("date_from"):
+            where_clauses.append("orphan.created_at >= $date_from")
+            params["date_from"] = filters["date_from"]
+
+        if filters.get("date_to"):
+            where_clauses.append("orphan.created_at <= $date_to")
+            params["date_to"] = filters["date_to"]
+
+        where_clause = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
+
+        query = f"""
+            MATCH (project:Project {{safe_name: $project_id}})-[:HAS_ORPHAN]->(orphan:OrphanData)
+            {where_clause}
+            RETURN orphan
+            ORDER BY orphan.created_at DESC
+            SKIP $offset
+            LIMIT $limit
+        """
+
+        with self.driver.session() as session:
+            result = session.run(query, params)
+
+            orphans = []
+            for record in result:
+                orphan_data = dict(record["orphan"])
+                # Parse metadata back to dict
+                if "metadata" in orphan_data and isinstance(orphan_data["metadata"], str):
+                    try:
+                        orphan_data["metadata"] = json.loads(orphan_data["metadata"])
+                    except json.JSONDecodeError:
+                        pass
+                orphans.append(orphan_data)
+
+            return orphans
+
+    def update_orphan_data(self, project_id, orphan_id, updates):
+        """
+        Update an orphan data node's properties.
+
+        Args:
+            project_id: The project ID (safe_name)
+            orphan_id: The orphan node ID
+            updates: Dict with properties to update
+
+        Returns:
+            Dict with updated orphan node properties or None if not found
+        """
+        # Add updated_at timestamp
+        updates["updated_at"] = datetime.now().isoformat()
+
+        # Handle metadata serialization
+        if "metadata" in updates and isinstance(updates["metadata"], dict):
+            updates["metadata"] = json.dumps(updates["metadata"])
+
+        with self.driver.session() as session:
+            result = session.run("""
+                MATCH (project:Project {safe_name: $project_id})-[:HAS_ORPHAN]->(orphan:OrphanData {id: $orphan_id})
+                SET orphan += $updates
+                RETURN orphan
+            """, project_id=project_id, orphan_id=orphan_id, updates=self.clean_data(updates))
+
+            record = result.single()
+            if record:
+                orphan_data = dict(record["orphan"])
+                # Parse metadata back to dict
+                if "metadata" in orphan_data and isinstance(orphan_data["metadata"], str):
+                    try:
+                        orphan_data["metadata"] = json.loads(orphan_data["metadata"])
+                    except json.JSONDecodeError:
+                        pass
+                return orphan_data
+            return None
+
+    def delete_orphan_data(self, project_id, orphan_id):
+        """
+        Delete an orphan data node.
+
+        Args:
+            project_id: The project ID (safe_name)
+            orphan_id: The orphan node ID
+
+        Returns:
+            True if deleted, False otherwise
+        """
+        with self.driver.session() as session:
+            result = session.run("""
+                MATCH (project:Project {safe_name: $project_id})-[:HAS_ORPHAN]->(orphan:OrphanData {id: $orphan_id})
+                DETACH DELETE orphan
+                RETURN count(orphan) as deleted_count
+            """, project_id=project_id, orphan_id=orphan_id)
+
+            record = result.single()
+            return record is not None and record["deleted_count"] > 0
+
+    def search_orphan_data(self, project_id, query, limit=100):
+        """
+        Full-text search across orphan data fields.
+
+        Searches in identifier_value, source_file, context, and notes fields.
+
+        Args:
+            project_id: The project ID (safe_name)
+            query: Search query string
+            limit: Maximum number of results (default 100)
+
+        Returns:
+            List of matching orphan data dicts
+        """
+        # Use case-insensitive CONTAINS for simple text search
+        with self.driver.session() as session:
+            result = session.run("""
+                MATCH (project:Project {safe_name: $project_id})-[:HAS_ORPHAN]->(orphan:OrphanData)
+                WHERE toLower(orphan.identifier_value) CONTAINS toLower($query)
+                   OR toLower(orphan.source_file) CONTAINS toLower($query)
+                   OR toLower(orphan.context) CONTAINS toLower($query)
+                   OR toLower(orphan.notes) CONTAINS toLower($query)
+                RETURN orphan
+                ORDER BY orphan.created_at DESC
+                LIMIT $limit
+            """, project_id=project_id, query=query, limit=limit)
+
+            orphans = []
+            for record in result:
+                orphan_data = dict(record["orphan"])
+                # Parse metadata back to dict
+                if "metadata" in orphan_data and isinstance(orphan_data["metadata"], str):
+                    try:
+                        orphan_data["metadata"] = json.loads(orphan_data["metadata"])
+                    except json.JSONDecodeError:
+                        pass
+                orphans.append(orphan_data)
+
+            return orphans
+
+    def find_duplicate_orphans(self, project_id):
+        """
+        Find duplicate orphan data nodes by identifier_value.
+
+        Groups orphans by identifier_value and returns groups with 2+ members.
+
+        Args:
+            project_id: The project ID (safe_name)
+
+        Returns:
+            List of duplicate groups, each containing orphan nodes with the same identifier_value
+        """
+        with self.driver.session() as session:
+            result = session.run("""
+                MATCH (project:Project {safe_name: $project_id})-[:HAS_ORPHAN]->(orphan:OrphanData)
+                WHERE orphan.identifier_value IS NOT NULL AND orphan.identifier_value <> ''
+                WITH orphan.identifier_value as identifier_value, collect(orphan) as orphans
+                WHERE size(orphans) > 1
+                RETURN identifier_value, orphans
+                ORDER BY size(orphans) DESC
+            """, project_id=project_id)
+
+            duplicates = []
+            for record in result:
+                orphan_nodes = []
+                for node in record["orphans"]:
+                    orphan_data = dict(node)
+                    # Parse metadata back to dict
+                    if "metadata" in orphan_data and isinstance(orphan_data["metadata"], str):
+                        try:
+                            orphan_data["metadata"] = json.loads(orphan_data["metadata"])
+                        except json.JSONDecodeError:
+                            pass
+                    orphan_nodes.append(orphan_data)
+
+                duplicates.append({
+                    "identifier_value": record["identifier_value"],
+                    "count": len(orphan_nodes),
+                    "orphans": orphan_nodes
+                })
+
+            return duplicates
+
+    def link_orphan_to_entity(self, orphan_id, entity_id):
+        """
+        Create a LINKED_TO relationship between an orphan node and an entity (Person).
+
+        Args:
+            orphan_id: The orphan node ID
+            entity_id: The entity (Person) ID
+
+        Returns:
+            Dict with relationship info or None if failed
+        """
+        with self.driver.session() as session:
+            # Verify both nodes exist
+            verify = session.run("""
+                MATCH (orphan:OrphanData {id: $orphan_id})
+                MATCH (entity:Person {id: $entity_id})
+                RETURN orphan, entity
+            """, orphan_id=orphan_id, entity_id=entity_id)
+
+            if not verify.single():
+                return None
+
+            # Create the relationship and update linked status
+            result = session.run("""
+                MATCH (orphan:OrphanData {id: $orphan_id})
+                MATCH (entity:Person {id: $entity_id})
+                MERGE (orphan)-[r:LINKED_TO]->(entity)
+                ON CREATE SET r.created_at = $timestamp
+                SET orphan.linked = true,
+                    orphan.updated_at = $timestamp
+                RETURN orphan, entity, r
+            """, orphan_id=orphan_id, entity_id=entity_id, timestamp=datetime.now().isoformat())
+
+            record = result.single()
+            if record:
+                return {
+                    "orphan_id": orphan_id,
+                    "entity_id": entity_id,
+                    "linked_at": dict(record["r"]).get("created_at")
+                }
+            return None
+
+    def count_orphan_data(self, project_id, filters=None):
+        """
+        Count orphan data nodes with optional filters.
+
+        Args:
+            project_id: The project ID (safe_name)
+            filters: Dict with filter criteria (same as list_orphan_data)
+
+        Returns:
+            Integer count of matching orphan nodes
+        """
+        if filters is None:
+            filters = {}
+
+        # Build WHERE clauses (same logic as list_orphan_data)
+        where_clauses = []
+        params = {"project_id": project_id}
+
+        if filters.get("identifier_type"):
+            where_clauses.append("orphan.identifier_type = $identifier_type")
+            params["identifier_type"] = filters["identifier_type"]
+
+        if filters.get("tags"):
+            where_clauses.append("ANY(tag IN $tags WHERE tag IN orphan.tags)")
+            params["tags"] = filters["tags"] if isinstance(filters["tags"], list) else [filters["tags"]]
+
+        if "linked" in filters:
+            where_clauses.append("orphan.linked = $linked")
+            params["linked"] = filters["linked"]
+
+        if filters.get("date_from"):
+            where_clauses.append("orphan.created_at >= $date_from")
+            params["date_from"] = filters["date_from"]
+
+        if filters.get("date_to"):
+            where_clauses.append("orphan.created_at <= $date_to")
+            params["date_to"] = filters["date_to"]
+
+        where_clause = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
+
+        query = f"""
+            MATCH (project:Project {{safe_name: $project_id}})-[:HAS_ORPHAN]->(orphan:OrphanData)
+            {where_clause}
+            RETURN count(orphan) AS count
+        """
+
+        with self.driver.session() as session:
+            result = session.run(query, params)
+            record = result.single()
+            return record["count"] if record else 0
