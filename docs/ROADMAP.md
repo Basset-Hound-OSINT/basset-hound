@@ -1985,10 +1985,166 @@ See [23-PHASE23-SAVED-SEARCH-CONFIGURATIONS.md](docs/findings/23-PHASE23-SAVED-S
 
 ---
 
-### Next Steps (Phase 24+)
+---
+
+## Performance Philosophy: No Artificial Limits
+
+Basset Hound is designed with a **no artificial rate limiting** philosophy:
+
+### What This Means
+
+1. **No API Rate Limiting**: Internal API endpoints have NO rate limits. Your queries, searches, analytics, and data operations are only limited by your hardware capabilities and database performance.
+
+2. **Scale With Your Hardware**: If you have a powerful machine with lots of RAM and a fast SSD, Basset Hound will use it. If you're on a laptop, it will still work - just slower.
+
+3. **Database is the Bottleneck, Not the App**: The only real limits are what Neo4j and your storage can handle. Basset Hound never artificially restricts throughput.
+
+### The Only Exception: Outbound Rate Limiting
+
+The **only** rate limiting in Basset Hound applies to **outbound requests to external services**:
+
+- **Webhook Deliveries**: Limited to ~10 requests/second by default to avoid overwhelming external webhook endpoints
+- **External API Calls**: Any future integrations with external services will include polite rate limiting
+
+This protects third-party services from being spammed, not the user.
+
+### Why This Matters
+
+- **OSINT workflows are bursty**: You might import 10,000 records, then do nothing for an hour
+- **Local-first means local resources**: You're running on your own machine, not a shared server
+- **Research requires speed**: When investigating, waiting for artificial throttling is counterproductive
+
+---
+
+### Phase 24: Webhook Integrations - ✅ COMPLETED (2025-12-29)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| Webhook Service | ✅ Done | CRUD, HMAC signatures, retry logic, delivery tracking |
+| 20+ Event Types | ✅ Done | Entity, relationship, search, report, import/export, project, system |
+| Outbound Throttling | ✅ Done | 10 req/sec to protect external services (ONLY rate limiting in app) |
+| Webhook API Router | ✅ Done | 13 endpoints for webhook management and delivery tracking |
+| Project-scoped Webhooks | ✅ Done | Filter webhooks by project, project-scoped endpoints |
+| Comprehensive Tests | ✅ Done | 71 tests, all passing |
+| Documentation | ✅ Done | Full Phase 24 findings documented |
+
+**Key Features:**
+
+1. **Webhook Service** (`api/services/webhook_service.py`)
+   - Full CRUD for webhook configurations
+   - HMAC-SHA256 signature verification
+   - Retry logic with exponential backoff
+   - Delivery logging and status tracking (PENDING, SENDING, SUCCESS, FAILED, RETRYING)
+   - LRU eviction for delivery records
+
+2. **Event Types** (20+)
+   - Entity: created, updated, deleted
+   - Relationship: created, updated, deleted
+   - Search: executed, saved_search_executed
+   - Report: generated, scheduled
+   - Import/Export: started, completed, failed, export_completed
+   - Project: created, deleted
+   - Orphan: created, linked
+   - System: health, rate_limit_exceeded
+
+3. **Outbound Throttling**
+   - Default: 10 requests/second
+   - Protects external webhook endpoints from being spammed
+   - This is the ONLY rate limiting in Basset Hound
+
+4. **REST API Endpoints** (`api/routers/webhooks.py`)
+   - POST /webhooks - Create webhook
+   - GET /webhooks - List webhooks
+   - GET /webhooks/events - List event types
+   - GET /webhooks/stats - Get statistics
+   - GET /webhooks/{id} - Get specific webhook
+   - PUT /webhooks/{id} - Update webhook
+   - DELETE /webhooks/{id} - Delete webhook
+   - POST /webhooks/{id}/test - Send test event
+   - GET /webhooks/{id}/deliveries - Get delivery history
+   - GET /webhooks/deliveries/{id} - Get specific delivery
+   - POST /webhooks/deliveries/{id}/retry - Retry failed delivery
+   - GET/POST /projects/{project}/webhooks - Project-scoped endpoints
+
+**Files Created:**
+- `api/services/webhook_service.py` - Webhook service (~760 lines)
+- `api/routers/webhooks.py` - REST API endpoints (~720 lines)
+- `tests/test_phase24_webhooks.py` - 71 tests
+
+See [24-PHASE24-WEBHOOK-INTEGRATIONS.md](docs/findings/24-PHASE24-WEBHOOK-INTEGRATIONS.md) for full details.
+
+---
+
+### Phase 25: Entity Deduplication & Data Quality Engine - ✅ COMPLETED (2025-12-29)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| Data Quality Service | ✅ Done | 6 quality dimensions, source reliability, letter grades |
+| Deduplication Service | ✅ Done | 7 match types, 7 merge strategies, conflict resolution |
+| Data Quality API Router | ✅ Done | 10 endpoints for scoring, config, reports, compare |
+| Deduplication API Router | ✅ Done | 11 endpoints for find, merge, preview, history |
+| Project-scoped Endpoints | ✅ Done | Quality reports and dedup reports per project |
+| Comprehensive Tests | ✅ Done | 70 tests, all passing |
+| Documentation | ✅ Done | Full Phase 25 findings documented |
+
+**Key Features:**
+
+1. **Data Quality Service** (`api/services/data_quality.py`)
+   - 6 quality dimensions: Completeness, Freshness, Accuracy, Consistency, Uniqueness, Validity
+   - 11 data sources with reliability ratings (manual_entry: 0.90, maltego: 0.85, shodan: 0.85, etc.)
+   - Letter grades (A-F) based on weighted dimension scores
+   - Field-level quality scoring with recommendations
+   - Project quality reports with grade distribution
+   - Quality comparison between entities
+   - LRU caching for performance
+
+2. **Deduplication Service** (`api/services/deduplication.py`)
+   - 7 match types: exact, case_insensitive, fuzzy, phonetic, normalized, partial, token_set
+   - 7 merge strategies: keep_primary, keep_duplicate, keep_newest, keep_oldest, keep_longest, keep_all, manual
+   - Levenshtein similarity for fuzzy matching
+   - Phonetic matching (Soundex-like algorithm)
+   - Merge preview with conflict detection
+   - Merge history and undo support
+   - Duplicate reports per project
+
+3. **Data Quality API** (`api/routers/data_quality.py`)
+   - POST /data-quality/score - Score single entity
+   - POST /data-quality/score/batch - Score multiple entities
+   - GET /data-quality/config - Get quality config
+   - PUT /data-quality/config - Update config
+   - GET /data-quality/sources - List sources with reliability
+   - PUT /data-quality/sources/{source} - Update source reliability
+   - POST /data-quality/compare - Compare two entities
+   - GET /data-quality/stats - Service statistics
+   - POST /data-quality/clear-cache - Clear cache
+   - GET /projects/{project}/data-quality/report - Project quality report
+
+4. **Deduplication API** (`api/routers/deduplication.py`)
+   - POST /deduplication/find - Find duplicates for entity
+   - POST /deduplication/find-all - Find all project duplicates
+   - POST /deduplication/preview - Preview merge
+   - POST /deduplication/merge - Execute merge
+   - POST /deduplication/undo/{merge_id} - Undo merge
+   - GET /deduplication/history - Get merge history
+   - GET /deduplication/config - Get config
+   - PUT /deduplication/config - Update config
+   - GET /deduplication/stats - Service statistics
+   - POST /deduplication/clear-cache - Clear cache
+   - GET /projects/{project}/deduplication/report - Project dedup report
+
+**Files Created:**
+- `api/services/data_quality.py` - Data quality service (~900 lines)
+- `api/services/deduplication.py` - Deduplication service (~900 lines)
+- `api/routers/data_quality.py` - Data quality API (~550 lines)
+- `api/routers/deduplication.py` - Deduplication API (~500 lines)
+- `tests/test_phase25_deduplication_quality.py` - 70 tests
+
+See [25-PHASE25-DEDUPLICATION-DATA-QUALITY.md](docs/findings/25-PHASE25-DEDUPLICATION-DATA-QUALITY.md) for full details.
+
+---
+
+### Next Steps (Phase 26+)
 
 #### Future Considerations (Lower Priority)
-- API rate limiting (if exposed publicly)
 - Plugin architecture for custom analyzers
 - Redis backend for query cache
-- Webhook integrations for external notifications

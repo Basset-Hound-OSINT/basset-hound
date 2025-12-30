@@ -229,6 +229,53 @@ from .saved_search import (
     reset_saved_search_service,
 )
 
+# Webhook Service (Phase 24: Webhook Integrations)
+from .webhook_service import (
+    WebhookService,
+    WebhookConfig,
+    Webhook,
+    WebhookEvent,
+    WebhookDelivery,
+    DeliveryStatus,
+    RetryConfig,
+    get_webhook_service,
+    set_webhook_service,
+    reset_webhook_service,
+)
+
+# Data Quality Service (Phase 25: Deduplication & Data Quality)
+from .data_quality import (
+    DataQualityService,
+    DataSource,
+    QualityConfig,
+    QualityDimension,
+    QualityScore,
+    FieldQuality,
+    DimensionScore,
+    ProjectQualityReport,
+    get_data_quality_service,
+    set_data_quality_service,
+    reset_data_quality_service,
+)
+
+# Deduplication Service (Phase 25: Deduplication & Data Quality)
+from .deduplication import (
+    DeduplicationService,
+    DeduplicationConfig,
+    DuplicateCandidate,
+    MergeStrategy,
+    MergePreview,
+    MergeResult,
+    DeduplicationReport,
+    MatchType as DeduplicationMatchType,
+    FieldConflictResolution,
+    MatchResult,
+    FieldConflict,
+    get_deduplication_service,
+    set_deduplication_service,
+    reset_deduplication_service,
+)
+
 # Fuzzy matcher imports - gracefully handle if rapidfuzz not installed
 try:
     from .fuzzy_matcher import (
@@ -439,4 +486,42 @@ __all__ = [
     "get_saved_search_service",
     "set_saved_search_service",
     "reset_saved_search_service",
+    # Webhook Service exports (Phase 24)
+    "WebhookService",
+    "WebhookConfig",
+    "Webhook",
+    "WebhookEvent",
+    "WebhookDelivery",
+    "DeliveryStatus",
+    "RetryConfig",
+    "get_webhook_service",
+    "set_webhook_service",
+    "reset_webhook_service",
+    # Data Quality Service exports (Phase 25)
+    "DataQualityService",
+    "DataSource",
+    "QualityConfig",
+    "QualityDimension",
+    "QualityScore",
+    "FieldQuality",
+    "DimensionScore",
+    "ProjectQualityReport",
+    "get_data_quality_service",
+    "set_data_quality_service",
+    "reset_data_quality_service",
+    # Deduplication Service exports (Phase 25)
+    "DeduplicationService",
+    "DeduplicationConfig",
+    "DuplicateCandidate",
+    "MergeStrategy",
+    "MergePreview",
+    "MergeResult",
+    "DeduplicationReport",
+    "DeduplicationMatchType",
+    "FieldConflictResolution",
+    "MatchResult",
+    "FieldConflict",
+    "get_deduplication_service",
+    "set_deduplication_service",
+    "reset_deduplication_service",
 ]

@@ -33,6 +33,9 @@ This module provides RESTful API endpoints for managing:
 - Entity Types: Entity type UI configuration, icons, colors, and form fields
 - Graph Analytics: Advanced graph analytics (community detection, similarity, influence, temporal patterns)
 - Saved Searches: Saved search configurations for reusable queries
+- Webhooks: Webhook integrations for external notifications
+- Data Quality: Entity data quality assessment and scoring
+- Deduplication: Duplicate detection and resolution
 """
 
 from fastapi import APIRouter
@@ -74,6 +77,9 @@ from .import_mapping import router as import_mapping_router
 from .llm_export import router as llm_export_router
 from .graph_format import router as graph_format_router
 from .saved_search import router as saved_search_router, project_saved_search_router
+from .webhooks import router as webhooks_router, project_webhooks_router
+from .data_quality import router as data_quality_router, project_data_quality_router
+from .deduplication import router as deduplication_router, project_dedup_router
 
 # Create main API router
 api_router = APIRouter()
@@ -128,6 +134,12 @@ api_router.include_router(llm_export_router)
 api_router.include_router(graph_format_router)
 api_router.include_router(saved_search_router)
 api_router.include_router(project_saved_search_router)
+api_router.include_router(webhooks_router)
+api_router.include_router(project_webhooks_router)
+api_router.include_router(data_quality_router)
+api_router.include_router(project_data_quality_router)
+api_router.include_router(deduplication_router)
+api_router.include_router(project_dedup_router)
 
 __all__ = [
     "api_router",
@@ -180,4 +192,10 @@ __all__ = [
     "graph_format_router",
     "saved_search_router",
     "project_saved_search_router",
+    "webhooks_router",
+    "project_webhooks_router",
+    "data_quality_router",
+    "project_data_quality_router",
+    "deduplication_router",
+    "project_dedup_router",
 ]
