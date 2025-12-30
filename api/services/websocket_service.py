@@ -40,6 +40,20 @@ class NotificationType(str, Enum):
     RELATIONSHIP_ADDED = "relationship_added"
     RELATIONSHIP_REMOVED = "relationship_removed"
 
+    # Graph visualization events
+    GRAPH_NODE_ADDED = "graph_node_added"
+    GRAPH_NODE_UPDATED = "graph_node_updated"
+    GRAPH_NODE_DELETED = "graph_node_deleted"
+    GRAPH_EDGE_ADDED = "graph_edge_added"
+    GRAPH_EDGE_UPDATED = "graph_edge_updated"
+    GRAPH_EDGE_DELETED = "graph_edge_deleted"
+    GRAPH_LAYOUT_CHANGED = "graph_layout_changed"
+    GRAPH_CLUSTER_DETECTED = "graph_cluster_detected"
+
+    # Import events
+    IMPORT_PROGRESS = "import_progress"
+    IMPORT_COMPLETE = "import_complete"
+
     # Async operation events
     SEARCH_COMPLETED = "search_completed"
     REPORT_READY = "report_ready"
@@ -125,6 +139,299 @@ class WebSocketMessage:
         return cls.from_dict(data)
 
 
+class GraphAction(str, Enum):
+    """Actions that can be performed on graph elements."""
+    ADDED = "added"
+    UPDATED = "updated"
+    DELETED = "deleted"
+
+
+@dataclass
+class GraphNodeUpdate:
+    """
+    Represents an update to a graph node.
+
+    Attributes:
+        node_id: Unique identifier for the node
+        entity_type: Type of entity (person, organization, etc.)
+        action: The action performed (added, updated, deleted)
+        position: Optional x,y coordinates for the node position
+        properties: Optional properties of the node
+    """
+    node_id: str
+    entity_type: str
+    action: GraphAction
+    position: Optional[Dict[str, float]] = None
+    properties: Optional[Dict[str, Any]] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        result = {
+            "node_id": self.node_id,
+            "entity_type": self.entity_type,
+            "action": self.action.value if isinstance(self.action, GraphAction) else self.action,
+        }
+        if self.position is not None:
+            result["position"] = self.position
+        if self.properties is not None:
+            result["properties"] = self.properties
+        return result
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "GraphNodeUpdate":
+        """Create a GraphNodeUpdate from a dictionary."""
+        action = data.get("action")
+        if isinstance(action, str):
+            try:
+                action = GraphAction(action)
+            except ValueError:
+                pass
+        return cls(
+            node_id=data["node_id"],
+            entity_type=data["entity_type"],
+            action=action,
+            position=data.get("position"),
+            properties=data.get("properties"),
+        )
+
+
+@dataclass
+class GraphEdgeUpdate:
+    """
+    Represents an update to a graph edge (relationship).
+
+    Attributes:
+        edge_id: Unique identifier for the edge
+        source: Source node ID
+        target: Target node ID
+        relationship_type: Type of relationship
+        action: The action performed (added, updated, deleted)
+        properties: Optional properties of the edge
+    """
+    edge_id: str
+    source: str
+    target: str
+    relationship_type: str
+    action: GraphAction
+    properties: Optional[Dict[str, Any]] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        result = {
+            "edge_id": self.edge_id,
+            "source": self.source,
+            "target": self.target,
+            "relationship_type": self.relationship_type,
+            "action": self.action.value if isinstance(self.action, GraphAction) else self.action,
+        }
+        if self.properties is not None:
+            result["properties"] = self.properties
+        return result
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "GraphEdgeUpdate":
+        """Create a GraphEdgeUpdate from a dictionary."""
+        action = data.get("action")
+        if isinstance(action, str):
+            try:
+                action = GraphAction(action)
+            except ValueError:
+                pass
+        return cls(
+            edge_id=data["edge_id"],
+            source=data["source"],
+            target=data["target"],
+            relationship_type=data["relationship_type"],
+            action=action,
+            properties=data.get("properties"),
+        )
+
+
+@dataclass
+class GraphLayoutUpdate:
+    """
+    Represents a graph layout change.
+
+    Attributes:
+        layout_type: Type of layout (force-directed, hierarchical, circular, etc.)
+        affected_nodes: List of node IDs affected by the layout change
+        positions: Optional mapping of node_id -> {x, y} positions
+    """
+    layout_type: str
+    affected_nodes: List[str]
+    positions: Optional[Dict[str, Dict[str, float]]] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        result = {
+            "layout_type": self.layout_type,
+            "affected_nodes": self.affected_nodes,
+        }
+        if self.positions is not None:
+            result["positions"] = self.positions
+        return result
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "GraphLayoutUpdate":
+        """Create a GraphLayoutUpdate from a dictionary."""
+        return cls(
+            layout_type=data["layout_type"],
+            affected_nodes=data["affected_nodes"],
+            positions=data.get("positions"),
+        )
+
+
+@dataclass
+class GraphClusterUpdate:
+    """
+    Represents a detected cluster in the graph.
+
+    Attributes:
+        cluster_id: Unique identifier for the cluster
+        node_ids: List of node IDs in the cluster
+        cluster_type: Type/category of the cluster
+        confidence: Optional confidence score for the cluster detection
+        properties: Optional additional properties
+    """
+    cluster_id: str
+    node_ids: List[str]
+    cluster_type: str
+    confidence: Optional[float] = None
+    properties: Optional[Dict[str, Any]] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        result = {
+            "cluster_id": self.cluster_id,
+            "node_ids": self.node_ids,
+            "cluster_type": self.cluster_type,
+        }
+        if self.confidence is not None:
+            result["confidence"] = self.confidence
+        if self.properties is not None:
+            result["properties"] = self.properties
+        return result
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "GraphClusterUpdate":
+        """Create a GraphClusterUpdate from a dictionary."""
+        return cls(
+            cluster_id=data["cluster_id"],
+            node_ids=data["node_ids"],
+            cluster_type=data["cluster_type"],
+            confidence=data.get("confidence"),
+            properties=data.get("properties"),
+        )
+
+
+@dataclass
+class ImportProgressUpdate:
+    """
+    Represents progress of a data import operation.
+
+    Attributes:
+        job_id: Unique identifier for the import job
+        progress_percent: Progress percentage (0-100)
+        records_processed: Number of records processed so far
+        current_phase: Current phase of the import (parsing, validating, importing, etc.)
+        total_records: Optional total number of records
+        errors_count: Optional count of errors encountered
+        message: Optional status message
+    """
+    job_id: str
+    progress_percent: float
+    records_processed: int
+    current_phase: str
+    total_records: Optional[int] = None
+    errors_count: Optional[int] = None
+    message: Optional[str] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        result = {
+            "job_id": self.job_id,
+            "progress_percent": self.progress_percent,
+            "records_processed": self.records_processed,
+            "current_phase": self.current_phase,
+        }
+        if self.total_records is not None:
+            result["total_records"] = self.total_records
+        if self.errors_count is not None:
+            result["errors_count"] = self.errors_count
+        if self.message is not None:
+            result["message"] = self.message
+        return result
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "ImportProgressUpdate":
+        """Create an ImportProgressUpdate from a dictionary."""
+        return cls(
+            job_id=data["job_id"],
+            progress_percent=data["progress_percent"],
+            records_processed=data["records_processed"],
+            current_phase=data["current_phase"],
+            total_records=data.get("total_records"),
+            errors_count=data.get("errors_count"),
+            message=data.get("message"),
+        )
+
+
+@dataclass
+class SubscriptionType:
+    """
+    Represents subscription types for WebSocket connections.
+    """
+    GRAPH = "graph"
+    IMPORT_PROGRESS = "import_progress"
+    ALL = "all"
+
+
+@dataclass
+class ConnectionQuality:
+    """
+    Tracks connection quality metrics.
+
+    Attributes:
+        latency_ms: Current latency in milliseconds
+        latency_history: List of recent latency measurements
+        last_ping_sent: Timestamp of last ping sent
+        last_pong_received: Timestamp of last pong received
+        messages_sent: Number of messages sent on this connection
+        messages_received: Number of messages received on this connection
+        errors_count: Number of errors on this connection
+    """
+    latency_ms: Optional[float] = None
+    latency_history: List[float] = field(default_factory=list)
+    last_ping_sent: Optional[str] = None
+    last_pong_received: Optional[str] = None
+    messages_sent: int = 0
+    messages_received: int = 0
+    errors_count: int = 0
+
+    def record_latency(self, latency_ms: float, max_history: int = 10) -> None:
+        """Record a new latency measurement."""
+        self.latency_ms = latency_ms
+        self.latency_history.append(latency_ms)
+        if len(self.latency_history) > max_history:
+            self.latency_history = self.latency_history[-max_history:]
+
+    def get_average_latency(self) -> Optional[float]:
+        """Get average latency from recent measurements."""
+        if not self.latency_history:
+            return None
+        return sum(self.latency_history) / len(self.latency_history)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            "latency_ms": self.latency_ms,
+            "average_latency_ms": self.get_average_latency(),
+            "messages_sent": self.messages_sent,
+            "messages_received": self.messages_received,
+            "errors_count": self.errors_count,
+        }
+
+
 @dataclass
 class WebSocketConnection:
     """
@@ -134,16 +441,20 @@ class WebSocketConnection:
         connection_id: Unique identifier for this connection
         websocket: The FastAPI WebSocket instance
         project_subscriptions: Set of project IDs this connection is subscribed to
+        subscription_types: Set of subscription types (graph, import_progress, all)
         connected_at: Timestamp when the connection was established
         last_activity: Timestamp of last activity on this connection
         metadata: Optional metadata about the connection
+        quality: Connection quality metrics
     """
     connection_id: str
     websocket: WebSocket
     project_subscriptions: Set[str] = field(default_factory=set)
+    subscription_types: Set[str] = field(default_factory=lambda: {SubscriptionType.ALL})
     connected_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     last_activity: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     metadata: Dict[str, Any] = field(default_factory=dict)
+    quality: ConnectionQuality = field(default_factory=ConnectionQuality)
 
     def update_activity(self) -> None:
         """Update the last activity timestamp."""
@@ -176,6 +487,44 @@ class WebSocketConnection:
     def is_subscribed_to(self, project_id: str) -> bool:
         """Check if subscribed to a project."""
         return project_id in self.project_subscriptions
+
+    def subscribe_to_type(self, subscription_type: str) -> bool:
+        """
+        Subscribe to a specific event type.
+
+        Args:
+            subscription_type: Type of events to subscribe to (graph, import_progress, all)
+
+        Returns:
+            True if newly subscribed, False if already subscribed.
+        """
+        if subscription_type in self.subscription_types:
+            return False
+        self.subscription_types.add(subscription_type)
+        return True
+
+    def unsubscribe_from_type(self, subscription_type: str) -> bool:
+        """
+        Unsubscribe from a specific event type.
+
+        Args:
+            subscription_type: Type of events to unsubscribe from
+
+        Returns:
+            True if unsubscribed, False if wasn't subscribed.
+        """
+        if subscription_type not in self.subscription_types:
+            return False
+        self.subscription_types.discard(subscription_type)
+        return True
+
+    def is_subscribed_to_type(self, subscription_type: str) -> bool:
+        """Check if subscribed to a specific event type."""
+        return SubscriptionType.ALL in self.subscription_types or subscription_type in self.subscription_types
+
+    def get_quality_info(self) -> Dict[str, Any]:
+        """Get connection quality information."""
+        return self.quality.to_dict()
 
 
 class ConnectionManager:
@@ -526,6 +875,362 @@ class ConnectionManager:
             WebSocketMessage(type=NotificationType.PONG)
         )
 
+    async def subscribe_to_type(
+        self,
+        connection_id: str,
+        subscription_type: str
+    ) -> bool:
+        """
+        Subscribe a connection to a specific event type.
+
+        Args:
+            connection_id: The connection ID
+            subscription_type: The type of events to subscribe to (graph, import_progress, all)
+
+        Returns:
+            True if subscribed successfully, False if connection not found
+        """
+        async with self._lock:
+            connection = self._connections.get(connection_id)
+            if connection is None:
+                return False
+
+            connection.subscribe_to_type(subscription_type)
+            logger.debug(f"Connection {connection_id} subscribed to type {subscription_type}")
+
+        # Send subscription confirmation
+        await self._send_to_connection(
+            connection,
+            WebSocketMessage(
+                type=NotificationType.SUBSCRIBED,
+                data={"subscription_type": subscription_type}
+            )
+        )
+
+        return True
+
+    async def unsubscribe_from_type(
+        self,
+        connection_id: str,
+        subscription_type: str
+    ) -> bool:
+        """
+        Unsubscribe a connection from a specific event type.
+
+        Args:
+            connection_id: The connection ID
+            subscription_type: The type of events to unsubscribe from
+
+        Returns:
+            True if unsubscribed successfully, False if connection not found
+        """
+        async with self._lock:
+            connection = self._connections.get(connection_id)
+            if connection is None:
+                return False
+
+            connection.unsubscribe_from_type(subscription_type)
+            logger.debug(f"Connection {connection_id} unsubscribed from type {subscription_type}")
+
+        # Send unsubscription confirmation
+        await self._send_to_connection(
+            connection,
+            WebSocketMessage(
+                type=NotificationType.UNSUBSCRIBED,
+                data={"subscription_type": subscription_type}
+            )
+        )
+
+        return True
+
+    async def broadcast_to_project_with_type(
+        self,
+        project_id: str,
+        message: WebSocketMessage,
+        subscription_type: str,
+        exclude: Optional[Set[str]] = None
+    ) -> int:
+        """
+        Broadcast a message to connections subscribed to a project AND a specific type.
+
+        Args:
+            project_id: The project ID
+            message: The message to broadcast
+            subscription_type: The subscription type to filter by
+            exclude: Optional set of connection IDs to exclude
+
+        Returns:
+            Number of connections the message was successfully sent to
+        """
+        exclude = exclude or set()
+        sent_count = 0
+        failed_connections: List[str] = []
+
+        # Get snapshot of project subscribers
+        subscriber_ids = self._project_subscribers.get(project_id, set()).copy()
+
+        for connection_id in subscriber_ids:
+            if connection_id in exclude:
+                continue
+
+            connection = self._connections.get(connection_id)
+            if connection is None:
+                failed_connections.append(connection_id)
+                continue
+
+            # Check if connection is subscribed to this type
+            if not connection.is_subscribed_to_type(subscription_type):
+                continue
+
+            success = await self._send_to_connection(connection, message)
+            if success:
+                sent_count += 1
+            else:
+                failed_connections.append(connection_id)
+
+        # Cleanup failed connections
+        for connection_id in failed_connections:
+            await self.disconnect(connection_id)
+
+        logger.debug(f"Broadcast to project {project_id} (type: {subscription_type}): {sent_count} connections")
+        return sent_count
+
+    async def broadcast_node_change(
+        self,
+        project_id: str,
+        node_update: "GraphNodeUpdate"
+    ) -> int:
+        """
+        Broadcast a graph node change to all subscribers.
+
+        Args:
+            project_id: The project ID
+            node_update: The node update payload
+
+        Returns:
+            Number of connections the message was sent to
+        """
+        # Determine the notification type based on the action
+        action_to_type = {
+            GraphAction.ADDED: NotificationType.GRAPH_NODE_ADDED,
+            GraphAction.UPDATED: NotificationType.GRAPH_NODE_UPDATED,
+            GraphAction.DELETED: NotificationType.GRAPH_NODE_DELETED,
+        }
+        notification_type = action_to_type.get(
+            node_update.action,
+            NotificationType.GRAPH_NODE_UPDATED
+        )
+
+        message = WebSocketMessage(
+            type=notification_type,
+            project_id=project_id,
+            entity_id=node_update.node_id,
+            data=node_update.to_dict(),
+        )
+
+        return await self.broadcast_to_project_with_type(
+            project_id,
+            message,
+            SubscriptionType.GRAPH
+        )
+
+    async def broadcast_edge_change(
+        self,
+        project_id: str,
+        edge_update: "GraphEdgeUpdate"
+    ) -> int:
+        """
+        Broadcast a graph edge change to all subscribers.
+
+        Args:
+            project_id: The project ID
+            edge_update: The edge update payload
+
+        Returns:
+            Number of connections the message was sent to
+        """
+        # Determine the notification type based on the action
+        action_to_type = {
+            GraphAction.ADDED: NotificationType.GRAPH_EDGE_ADDED,
+            GraphAction.UPDATED: NotificationType.GRAPH_EDGE_UPDATED,
+            GraphAction.DELETED: NotificationType.GRAPH_EDGE_DELETED,
+        }
+        notification_type = action_to_type.get(
+            edge_update.action,
+            NotificationType.GRAPH_EDGE_UPDATED
+        )
+
+        message = WebSocketMessage(
+            type=notification_type,
+            project_id=project_id,
+            data=edge_update.to_dict(),
+        )
+
+        return await self.broadcast_to_project_with_type(
+            project_id,
+            message,
+            SubscriptionType.GRAPH
+        )
+
+    async def broadcast_layout_change(
+        self,
+        project_id: str,
+        layout_update: "GraphLayoutUpdate"
+    ) -> int:
+        """
+        Broadcast a graph layout change to all subscribers.
+
+        Args:
+            project_id: The project ID
+            layout_update: The layout update payload
+
+        Returns:
+            Number of connections the message was sent to
+        """
+        message = WebSocketMessage(
+            type=NotificationType.GRAPH_LAYOUT_CHANGED,
+            project_id=project_id,
+            data=layout_update.to_dict(),
+        )
+
+        return await self.broadcast_to_project_with_type(
+            project_id,
+            message,
+            SubscriptionType.GRAPH
+        )
+
+    async def broadcast_cluster_detected(
+        self,
+        project_id: str,
+        cluster_update: "GraphClusterUpdate"
+    ) -> int:
+        """
+        Broadcast a cluster detection event to all subscribers.
+
+        Args:
+            project_id: The project ID
+            cluster_update: The cluster update payload
+
+        Returns:
+            Number of connections the message was sent to
+        """
+        message = WebSocketMessage(
+            type=NotificationType.GRAPH_CLUSTER_DETECTED,
+            project_id=project_id,
+            data=cluster_update.to_dict(),
+        )
+
+        return await self.broadcast_to_project_with_type(
+            project_id,
+            message,
+            SubscriptionType.GRAPH
+        )
+
+    async def broadcast_import_progress(
+        self,
+        project_id: str,
+        progress_update: "ImportProgressUpdate"
+    ) -> int:
+        """
+        Broadcast import progress to all subscribers.
+
+        Args:
+            project_id: The project ID
+            progress_update: The import progress payload
+
+        Returns:
+            Number of connections the message was sent to
+        """
+        message = WebSocketMessage(
+            type=NotificationType.IMPORT_PROGRESS,
+            project_id=project_id,
+            data=progress_update.to_dict(),
+        )
+
+        return await self.broadcast_to_project_with_type(
+            project_id,
+            message,
+            SubscriptionType.IMPORT_PROGRESS
+        )
+
+    async def broadcast_import_complete(
+        self,
+        project_id: str,
+        job_id: str,
+        total_records: int,
+        success_count: int,
+        error_count: int,
+        errors: Optional[List[str]] = None
+    ) -> int:
+        """
+        Broadcast import completion to all subscribers.
+
+        Args:
+            project_id: The project ID
+            job_id: The import job ID
+            total_records: Total number of records processed
+            success_count: Number of successfully imported records
+            error_count: Number of errors
+            errors: Optional list of error messages
+
+        Returns:
+            Number of connections the message was sent to
+        """
+        message = WebSocketMessage(
+            type=NotificationType.IMPORT_COMPLETE,
+            project_id=project_id,
+            data={
+                "job_id": job_id,
+                "total_records": total_records,
+                "success_count": success_count,
+                "error_count": error_count,
+                "errors": errors or [],
+            },
+        )
+
+        return await self.broadcast_to_project_with_type(
+            project_id,
+            message,
+            SubscriptionType.IMPORT_PROGRESS
+        )
+
+    def get_connection_quality(self, connection_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get connection quality metrics for a specific connection.
+
+        Args:
+            connection_id: The connection ID
+
+        Returns:
+            Dictionary with quality metrics or None if connection not found
+        """
+        connection = self._connections.get(connection_id)
+        if connection is None:
+            return None
+        return connection.get_quality_info()
+
+    async def record_latency(
+        self,
+        connection_id: str,
+        latency_ms: float
+    ) -> bool:
+        """
+        Record a latency measurement for a connection.
+
+        Args:
+            connection_id: The connection ID
+            latency_ms: The latency in milliseconds
+
+        Returns:
+            True if recorded successfully, False if connection not found
+        """
+        connection = self._connections.get(connection_id)
+        if connection is None:
+            return False
+
+        connection.quality.record_latency(latency_ms)
+        return True
+
     def get_stats(self) -> Dict[str, Any]:
         """
         Get connection manager statistics.
@@ -744,6 +1449,192 @@ class NotificationService:
         )
         return await self.manager.send_personal(connection_id, message)
 
+    # Graph-specific notification methods
+
+    async def notify_graph_node_added(
+        self,
+        project_id: str,
+        node_id: str,
+        entity_type: str,
+        position: Optional[Dict[str, float]] = None,
+        properties: Optional[Dict[str, Any]] = None
+    ) -> int:
+        """Notify subscribers that a graph node was added."""
+        node_update = GraphNodeUpdate(
+            node_id=node_id,
+            entity_type=entity_type,
+            action=GraphAction.ADDED,
+            position=position,
+            properties=properties,
+        )
+        return await self.manager.broadcast_node_change(project_id, node_update)
+
+    async def notify_graph_node_updated(
+        self,
+        project_id: str,
+        node_id: str,
+        entity_type: str,
+        position: Optional[Dict[str, float]] = None,
+        properties: Optional[Dict[str, Any]] = None
+    ) -> int:
+        """Notify subscribers that a graph node was updated."""
+        node_update = GraphNodeUpdate(
+            node_id=node_id,
+            entity_type=entity_type,
+            action=GraphAction.UPDATED,
+            position=position,
+            properties=properties,
+        )
+        return await self.manager.broadcast_node_change(project_id, node_update)
+
+    async def notify_graph_node_deleted(
+        self,
+        project_id: str,
+        node_id: str,
+        entity_type: str
+    ) -> int:
+        """Notify subscribers that a graph node was deleted."""
+        node_update = GraphNodeUpdate(
+            node_id=node_id,
+            entity_type=entity_type,
+            action=GraphAction.DELETED,
+        )
+        return await self.manager.broadcast_node_change(project_id, node_update)
+
+    async def notify_graph_edge_added(
+        self,
+        project_id: str,
+        edge_id: str,
+        source: str,
+        target: str,
+        relationship_type: str,
+        properties: Optional[Dict[str, Any]] = None
+    ) -> int:
+        """Notify subscribers that a graph edge was added."""
+        edge_update = GraphEdgeUpdate(
+            edge_id=edge_id,
+            source=source,
+            target=target,
+            relationship_type=relationship_type,
+            action=GraphAction.ADDED,
+            properties=properties,
+        )
+        return await self.manager.broadcast_edge_change(project_id, edge_update)
+
+    async def notify_graph_edge_updated(
+        self,
+        project_id: str,
+        edge_id: str,
+        source: str,
+        target: str,
+        relationship_type: str,
+        properties: Optional[Dict[str, Any]] = None
+    ) -> int:
+        """Notify subscribers that a graph edge was updated."""
+        edge_update = GraphEdgeUpdate(
+            edge_id=edge_id,
+            source=source,
+            target=target,
+            relationship_type=relationship_type,
+            action=GraphAction.UPDATED,
+            properties=properties,
+        )
+        return await self.manager.broadcast_edge_change(project_id, edge_update)
+
+    async def notify_graph_edge_deleted(
+        self,
+        project_id: str,
+        edge_id: str,
+        source: str,
+        target: str,
+        relationship_type: str
+    ) -> int:
+        """Notify subscribers that a graph edge was deleted."""
+        edge_update = GraphEdgeUpdate(
+            edge_id=edge_id,
+            source=source,
+            target=target,
+            relationship_type=relationship_type,
+            action=GraphAction.DELETED,
+        )
+        return await self.manager.broadcast_edge_change(project_id, edge_update)
+
+    async def notify_graph_layout_changed(
+        self,
+        project_id: str,
+        layout_type: str,
+        affected_nodes: List[str],
+        positions: Optional[Dict[str, Dict[str, float]]] = None
+    ) -> int:
+        """Notify subscribers that the graph layout has changed."""
+        layout_update = GraphLayoutUpdate(
+            layout_type=layout_type,
+            affected_nodes=affected_nodes,
+            positions=positions,
+        )
+        return await self.manager.broadcast_layout_change(project_id, layout_update)
+
+    async def notify_graph_cluster_detected(
+        self,
+        project_id: str,
+        cluster_id: str,
+        node_ids: List[str],
+        cluster_type: str,
+        confidence: Optional[float] = None,
+        properties: Optional[Dict[str, Any]] = None
+    ) -> int:
+        """Notify subscribers that a new cluster was detected."""
+        cluster_update = GraphClusterUpdate(
+            cluster_id=cluster_id,
+            node_ids=node_ids,
+            cluster_type=cluster_type,
+            confidence=confidence,
+            properties=properties,
+        )
+        return await self.manager.broadcast_cluster_detected(project_id, cluster_update)
+
+    async def notify_import_progress(
+        self,
+        project_id: str,
+        job_id: str,
+        progress_percent: float,
+        records_processed: int,
+        current_phase: str,
+        total_records: Optional[int] = None,
+        errors_count: Optional[int] = None,
+        message: Optional[str] = None
+    ) -> int:
+        """Notify subscribers of import progress."""
+        progress_update = ImportProgressUpdate(
+            job_id=job_id,
+            progress_percent=progress_percent,
+            records_processed=records_processed,
+            current_phase=current_phase,
+            total_records=total_records,
+            errors_count=errors_count,
+            message=message,
+        )
+        return await self.manager.broadcast_import_progress(project_id, progress_update)
+
+    async def notify_import_complete(
+        self,
+        project_id: str,
+        job_id: str,
+        total_records: int,
+        success_count: int,
+        error_count: int,
+        errors: Optional[List[str]] = None
+    ) -> int:
+        """Notify subscribers that an import has completed."""
+        return await self.manager.broadcast_import_complete(
+            project_id=project_id,
+            job_id=job_id,
+            total_records=total_records,
+            success_count=success_count,
+            error_count=error_count,
+            errors=errors,
+        )
+
 
 # Global instances
 _connection_manager: Optional[ConnectionManager] = None
@@ -785,3 +1676,471 @@ def reset_websocket_services() -> None:
     global _connection_manager, _notification_service
     _connection_manager = None
     _notification_service = None
+
+
+# ============================================================================
+# Integration Hooks
+# ============================================================================
+# These hooks can be called from entity/relationship services to automatically
+# broadcast changes through WebSocket connections.
+
+
+class GraphUpdateHooks:
+    """
+    Integration hooks for broadcasting graph updates from entity/relationship services.
+
+    Usage:
+        from api.services.websocket_service import graph_hooks
+
+        # In your entity service after creating an entity:
+        await graph_hooks.on_entity_created(project_id, entity_id, entity_type, properties)
+
+        # In your relationship service after creating a relationship:
+        await graph_hooks.on_relationship_created(
+            project_id, relationship_id, source_id, target_id, rel_type
+        )
+    """
+
+    def __init__(self):
+        """Initialize the graph update hooks."""
+        self._enabled = True
+
+    @property
+    def enabled(self) -> bool:
+        """Check if hooks are enabled."""
+        return self._enabled
+
+    def enable(self) -> None:
+        """Enable the hooks."""
+        self._enabled = True
+
+    def disable(self) -> None:
+        """Disable the hooks (useful during bulk operations)."""
+        self._enabled = False
+
+    async def on_entity_created(
+        self,
+        project_id: str,
+        entity_id: str,
+        entity_type: str,
+        properties: Optional[Dict[str, Any]] = None,
+        position: Optional[Dict[str, float]] = None
+    ) -> int:
+        """
+        Hook to call when an entity is created.
+
+        Args:
+            project_id: The project ID
+            entity_id: The entity ID
+            entity_type: Type of entity
+            properties: Optional entity properties
+            position: Optional position for graph visualization
+
+        Returns:
+            Number of clients notified
+        """
+        if not self._enabled:
+            return 0
+
+        notification_service = get_notification_service()
+
+        # Send entity created notification (existing functionality)
+        await notification_service.notify_entity_created(
+            project_id, entity_id, properties
+        )
+
+        # Send graph node added notification (new functionality)
+        return await notification_service.notify_graph_node_added(
+            project_id=project_id,
+            node_id=entity_id,
+            entity_type=entity_type,
+            position=position,
+            properties=properties,
+        )
+
+    async def on_entity_updated(
+        self,
+        project_id: str,
+        entity_id: str,
+        entity_type: str,
+        changes: Optional[Dict[str, Any]] = None,
+        position: Optional[Dict[str, float]] = None
+    ) -> int:
+        """
+        Hook to call when an entity is updated.
+
+        Args:
+            project_id: The project ID
+            entity_id: The entity ID
+            entity_type: Type of entity
+            changes: Optional dictionary of changes
+            position: Optional updated position
+
+        Returns:
+            Number of clients notified
+        """
+        if not self._enabled:
+            return 0
+
+        notification_service = get_notification_service()
+
+        # Send entity updated notification (existing functionality)
+        await notification_service.notify_entity_updated(
+            project_id, entity_id, changes
+        )
+
+        # Send graph node updated notification (new functionality)
+        return await notification_service.notify_graph_node_updated(
+            project_id=project_id,
+            node_id=entity_id,
+            entity_type=entity_type,
+            position=position,
+            properties=changes,
+        )
+
+    async def on_entity_deleted(
+        self,
+        project_id: str,
+        entity_id: str,
+        entity_type: str
+    ) -> int:
+        """
+        Hook to call when an entity is deleted.
+
+        Args:
+            project_id: The project ID
+            entity_id: The entity ID
+            entity_type: Type of entity
+
+        Returns:
+            Number of clients notified
+        """
+        if not self._enabled:
+            return 0
+
+        notification_service = get_notification_service()
+
+        # Send entity deleted notification (existing functionality)
+        await notification_service.notify_entity_deleted(project_id, entity_id)
+
+        # Send graph node deleted notification (new functionality)
+        return await notification_service.notify_graph_node_deleted(
+            project_id=project_id,
+            node_id=entity_id,
+            entity_type=entity_type,
+        )
+
+    async def on_relationship_created(
+        self,
+        project_id: str,
+        relationship_id: str,
+        source_entity_id: str,
+        target_entity_id: str,
+        relationship_type: str,
+        properties: Optional[Dict[str, Any]] = None
+    ) -> int:
+        """
+        Hook to call when a relationship is created.
+
+        Args:
+            project_id: The project ID
+            relationship_id: The relationship ID
+            source_entity_id: Source entity ID
+            target_entity_id: Target entity ID
+            relationship_type: Type of relationship
+            properties: Optional relationship properties
+
+        Returns:
+            Number of clients notified
+        """
+        if not self._enabled:
+            return 0
+
+        notification_service = get_notification_service()
+
+        # Send relationship added notification (existing functionality)
+        await notification_service.notify_relationship_added(
+            project_id=project_id,
+            source_entity_id=source_entity_id,
+            target_entity_id=target_entity_id,
+            relationship_type=relationship_type,
+            relationship_data=properties,
+        )
+
+        # Send graph edge added notification (new functionality)
+        return await notification_service.notify_graph_edge_added(
+            project_id=project_id,
+            edge_id=relationship_id,
+            source=source_entity_id,
+            target=target_entity_id,
+            relationship_type=relationship_type,
+            properties=properties,
+        )
+
+    async def on_relationship_updated(
+        self,
+        project_id: str,
+        relationship_id: str,
+        source_entity_id: str,
+        target_entity_id: str,
+        relationship_type: str,
+        properties: Optional[Dict[str, Any]] = None
+    ) -> int:
+        """
+        Hook to call when a relationship is updated.
+
+        Args:
+            project_id: The project ID
+            relationship_id: The relationship ID
+            source_entity_id: Source entity ID
+            target_entity_id: Target entity ID
+            relationship_type: Type of relationship
+            properties: Optional updated properties
+
+        Returns:
+            Number of clients notified
+        """
+        if not self._enabled:
+            return 0
+
+        notification_service = get_notification_service()
+
+        # Send graph edge updated notification
+        return await notification_service.notify_graph_edge_updated(
+            project_id=project_id,
+            edge_id=relationship_id,
+            source=source_entity_id,
+            target=target_entity_id,
+            relationship_type=relationship_type,
+            properties=properties,
+        )
+
+    async def on_relationship_deleted(
+        self,
+        project_id: str,
+        relationship_id: str,
+        source_entity_id: str,
+        target_entity_id: str,
+        relationship_type: str
+    ) -> int:
+        """
+        Hook to call when a relationship is deleted.
+
+        Args:
+            project_id: The project ID
+            relationship_id: The relationship ID
+            source_entity_id: Source entity ID
+            target_entity_id: Target entity ID
+            relationship_type: Type of relationship
+
+        Returns:
+            Number of clients notified
+        """
+        if not self._enabled:
+            return 0
+
+        notification_service = get_notification_service()
+
+        # Send relationship removed notification (existing functionality)
+        await notification_service.notify_relationship_removed(
+            project_id=project_id,
+            source_entity_id=source_entity_id,
+            target_entity_id=target_entity_id,
+            relationship_type=relationship_type,
+        )
+
+        # Send graph edge deleted notification (new functionality)
+        return await notification_service.notify_graph_edge_deleted(
+            project_id=project_id,
+            edge_id=relationship_id,
+            source=source_entity_id,
+            target=target_entity_id,
+            relationship_type=relationship_type,
+        )
+
+    async def on_layout_changed(
+        self,
+        project_id: str,
+        layout_type: str,
+        affected_nodes: List[str],
+        positions: Optional[Dict[str, Dict[str, float]]] = None
+    ) -> int:
+        """
+        Hook to call when graph layout changes.
+
+        Args:
+            project_id: The project ID
+            layout_type: Type of layout applied
+            affected_nodes: List of affected node IDs
+            positions: Optional mapping of node_id -> position
+
+        Returns:
+            Number of clients notified
+        """
+        if not self._enabled:
+            return 0
+
+        notification_service = get_notification_service()
+        return await notification_service.notify_graph_layout_changed(
+            project_id=project_id,
+            layout_type=layout_type,
+            affected_nodes=affected_nodes,
+            positions=positions,
+        )
+
+    async def on_cluster_detected(
+        self,
+        project_id: str,
+        cluster_id: str,
+        node_ids: List[str],
+        cluster_type: str,
+        confidence: Optional[float] = None,
+        properties: Optional[Dict[str, Any]] = None
+    ) -> int:
+        """
+        Hook to call when a new cluster is detected.
+
+        Args:
+            project_id: The project ID
+            cluster_id: Unique cluster identifier
+            node_ids: List of node IDs in the cluster
+            cluster_type: Type/category of the cluster
+            confidence: Optional confidence score
+            properties: Optional additional properties
+
+        Returns:
+            Number of clients notified
+        """
+        if not self._enabled:
+            return 0
+
+        notification_service = get_notification_service()
+        return await notification_service.notify_graph_cluster_detected(
+            project_id=project_id,
+            cluster_id=cluster_id,
+            node_ids=node_ids,
+            cluster_type=cluster_type,
+            confidence=confidence,
+            properties=properties,
+        )
+
+
+class ImportProgressHooks:
+    """
+    Integration hooks for broadcasting import progress updates.
+
+    Usage:
+        from api.services.websocket_service import import_hooks
+
+        # During import:
+        await import_hooks.on_progress(
+            project_id, job_id, progress_percent=50,
+            records_processed=500, current_phase="importing"
+        )
+
+        # When import completes:
+        await import_hooks.on_complete(
+            project_id, job_id, total_records=1000,
+            success_count=990, error_count=10
+        )
+    """
+
+    def __init__(self):
+        """Initialize the import progress hooks."""
+        self._enabled = True
+
+    @property
+    def enabled(self) -> bool:
+        """Check if hooks are enabled."""
+        return self._enabled
+
+    def enable(self) -> None:
+        """Enable the hooks."""
+        self._enabled = True
+
+    def disable(self) -> None:
+        """Disable the hooks."""
+        self._enabled = False
+
+    async def on_progress(
+        self,
+        project_id: str,
+        job_id: str,
+        progress_percent: float,
+        records_processed: int,
+        current_phase: str,
+        total_records: Optional[int] = None,
+        errors_count: Optional[int] = None,
+        message: Optional[str] = None
+    ) -> int:
+        """
+        Hook to call to report import progress.
+
+        Args:
+            project_id: The project ID
+            job_id: The import job ID
+            progress_percent: Progress percentage (0-100)
+            records_processed: Number of records processed
+            current_phase: Current phase description
+            total_records: Optional total record count
+            errors_count: Optional error count
+            message: Optional status message
+
+        Returns:
+            Number of clients notified
+        """
+        if not self._enabled:
+            return 0
+
+        notification_service = get_notification_service()
+        return await notification_service.notify_import_progress(
+            project_id=project_id,
+            job_id=job_id,
+            progress_percent=progress_percent,
+            records_processed=records_processed,
+            current_phase=current_phase,
+            total_records=total_records,
+            errors_count=errors_count,
+            message=message,
+        )
+
+    async def on_complete(
+        self,
+        project_id: str,
+        job_id: str,
+        total_records: int,
+        success_count: int,
+        error_count: int,
+        errors: Optional[List[str]] = None
+    ) -> int:
+        """
+        Hook to call when import completes.
+
+        Args:
+            project_id: The project ID
+            job_id: The import job ID
+            total_records: Total records processed
+            success_count: Successful imports
+            error_count: Failed imports
+            errors: Optional list of error messages
+
+        Returns:
+            Number of clients notified
+        """
+        if not self._enabled:
+            return 0
+
+        notification_service = get_notification_service()
+        return await notification_service.notify_import_complete(
+            project_id=project_id,
+            job_id=job_id,
+            total_records=total_records,
+            success_count=success_count,
+            error_count=error_count,
+            errors=errors,
+        )
+
+
+# Global hook instances
+graph_hooks = GraphUpdateHooks()
+import_hooks = ImportProgressHooks()

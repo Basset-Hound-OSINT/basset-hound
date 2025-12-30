@@ -32,6 +32,8 @@ from ..models.orphan import (
     OrphanDataList,
     OrphanLinkRequest,
     OrphanLinkResponse,
+    DetachRequest,
+    DetachResponse,
 )
 
 
@@ -790,11 +792,24 @@ async def link_orphan_to_entity(
         #
         # return result
 
-        # Placeholder response
-        raise HTTPException(
-            status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail="Orphan service implementation pending"
+        # Import and use orphan service
+        from ..services.orphan_service import get_orphan_service
+        service = get_orphan_service(neo4j_handler)
+        result = service.link_to_entity(
+            project_id=project_id,
+            orphan_id=orphan_id,
+            entity_id=link_request.entity_id,
+            merge=link_request.merge_to_entity,
+            delete=link_request.delete_orphan
         )
+
+        if not result.success:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=result.message
+            )
+
+        return result
 
     except HTTPException:
         raise
@@ -807,6 +822,71 @@ async def link_orphan_to_entity(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to link orphan data: {str(e)}"
+        )
+
+
+@router.post(
+    "/detach",
+    response_model=DetachResponse,
+    summary="Detach data from entity to orphan",
+    description="""
+    Detach a field value from an entity and convert it to orphan data.
+
+    This enables "soft delete" functionality - data is never truly lost,
+    just moved from an entity to orphan status. This supports bidirectional
+    data flow between entities and orphan data.
+
+    Options:
+    - **keep_in_entity**: If true, copies the value to orphan but keeps it in entity
+    - **reason**: Optional explanation for the detachment
+
+    The orphan record will contain metadata about its origin for provenance tracking.
+    """,
+    responses={
+        200: {"description": "Data successfully detached and converted to orphan"},
+        400: {"description": "Detach operation failed"},
+        404: {"description": "Entity or project not found"},
+        422: {"description": "Invalid detach request"},
+    }
+)
+async def detach_from_entity(
+    project_id: str,
+    detach_request: DetachRequest,
+    neo4j_handler=Depends(get_neo4j_handler)
+):
+    """
+    Detach data from an entity and convert to orphan.
+
+    - **project_id**: Project ID or safe_name
+    - **detach_request**: Detach configuration including entity_id, field_path, field_value
+    """
+    # Verify project exists
+    project = _verify_project_exists(neo4j_handler, project_id)
+
+    try:
+        from ..services.orphan_service import get_orphan_service
+        service = get_orphan_service(neo4j_handler)
+        result = service.detach_from_entity(project_id, detach_request)
+
+        if not result.success:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=result.message
+            )
+
+        return result
+
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to detach data: {str(e)}"
         )
 
 

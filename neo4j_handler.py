@@ -44,20 +44,37 @@ class Neo4jHandler:
         """Set up constraints to ensure uniqueness and indexing."""
         with self.driver.session() as session:
             constraints = [
+                # Uniqueness constraints (also create indexes)
                 "CREATE CONSTRAINT IF NOT EXISTS FOR (p:Project) REQUIRE p.safe_name IS UNIQUE",
                 "CREATE CONSTRAINT IF NOT EXISTS FOR (p:Person) REQUIRE p.id IS UNIQUE",
                 "CREATE CONSTRAINT IF NOT EXISTS FOR (f:File) REQUIRE f.id IS UNIQUE",
                 "CREATE CONSTRAINT IF NOT EXISTS FOR (o:OrphanData) REQUIRE o.id IS UNIQUE",
+
+                # Basic single-property indexes
                 "CREATE INDEX IF NOT EXISTS FOR (p:Project) ON (p.name)",
                 "CREATE INDEX IF NOT EXISTS FOR (p:Person) ON (p.created_at)",
                 "CREATE INDEX IF NOT EXISTS FOR (s:Section) ON (s.id)",
                 "CREATE INDEX IF NOT EXISTS FOR (f:Field) ON (f.id)",
+
+                # OrphanData indexes
                 "CREATE INDEX IF NOT EXISTS FOR (o:OrphanData) ON (o.identifier_type)",
                 "CREATE INDEX IF NOT EXISTS FOR (o:OrphanData) ON (o.identifier_value)",
                 "CREATE INDEX IF NOT EXISTS FOR (o:OrphanData) ON (o.linked)",
                 "CREATE INDEX IF NOT EXISTS FOR (o:OrphanData) ON (o.created_at)",
-                # Add relationship type existence check
-                "CREATE INDEX IF NOT EXISTS FOR ()-[r:HAS_FILE]-() ON (r.section_id, r.field_id)"
+
+                # Phase 20: Performance optimization indexes
+                # FieldValue composite index for efficient field lookups
+                "CREATE INDEX IF NOT EXISTS FOR (fv:FieldValue) ON (fv.section_id, fv.field_id)",
+
+                # OrphanData composite index for common filter patterns
+                "CREATE INDEX IF NOT EXISTS FOR (o:OrphanData) ON (o.identifier_type, o.linked)",
+
+                # Person profile index for search optimization
+                "CREATE INDEX IF NOT EXISTS FOR (p:Person) ON (p.profile)",
+
+                # Relationship property indexes
+                "CREATE INDEX IF NOT EXISTS FOR ()-[r:HAS_FILE]-() ON (r.section_id, r.field_id)",
+                "CREATE INDEX IF NOT EXISTS FOR ()-[r:TAGGED]-() ON (r.relationship_type)",
             ]
 
             for constraint in constraints:
@@ -2021,6 +2038,132 @@ class Neo4jHandler:
                         pass
                 return orphan_node
             return None
+
+    def create_orphan_data_batch(self, project_id, orphan_data_list):
+        """
+        Create multiple OrphanData nodes in a single batch operation.
+
+        Uses UNWIND for efficient batch creation, reducing network roundtrips
+        from O(n) to O(1).
+
+        Args:
+            project_id: The project ID (safe_name)
+            orphan_data_list: List of dicts containing orphan data properties
+
+        Returns:
+            Dict with:
+                - created: List of created orphan IDs
+                - failed: List of failed items with error messages
+                - total: Total items processed
+        """
+        if not orphan_data_list:
+            return {"created": [], "failed": [], "total": 0}
+
+        now = datetime.now().isoformat()
+        prepared_data = []
+
+        for orphan_data in orphan_data_list:
+            orphan_id = orphan_data.get("id", str(uuid4()))
+
+            # Prepare properties
+            props = {
+                "id": orphan_id,
+                "identifier_type": orphan_data.get("identifier_type", ""),
+                "identifier_value": orphan_data.get("identifier_value", ""),
+                "source_file": orphan_data.get("source_file", ""),
+                "source_location": orphan_data.get("source_location", ""),
+                "context": orphan_data.get("context", ""),
+                "created_at": orphan_data.get("created_at", now),
+                "updated_at": now,
+                "linked": orphan_data.get("linked", False),
+                "notes": orphan_data.get("notes", "")
+            }
+
+            # Handle tags as a list
+            tags = orphan_data.get("tags", [])
+            if not isinstance(tags, list):
+                tags = [tags] if tags else []
+            props["tags"] = tags
+
+            # Add any additional metadata
+            if "metadata" in orphan_data:
+                props["metadata"] = json.dumps(orphan_data["metadata"])
+
+            prepared_data.append(self.clean_data(props))
+
+        with self.driver.session() as session:
+            # Verify project exists
+            project = session.run("""
+                MATCH (p:Project {safe_name: $project_id})
+                RETURN p
+            """, project_id=project_id).single()
+
+            if not project:
+                return {
+                    "created": [],
+                    "failed": [{"error": "Project not found", "count": len(orphan_data_list)}],
+                    "total": len(orphan_data_list)
+                }
+
+            # Batch create all orphan nodes using UNWIND
+            result = session.run("""
+                MATCH (project:Project {safe_name: $project_id})
+                UNWIND $orphan_data AS od
+                CREATE (orphan:OrphanData)
+                SET orphan = od
+                CREATE (project)-[:HAS_ORPHAN]->(orphan)
+                RETURN orphan.id AS created_id
+            """, project_id=project_id, orphan_data=prepared_data)
+
+            created_ids = [record["created_id"] for record in result]
+
+            return {
+                "created": created_ids,
+                "failed": [],
+                "total": len(orphan_data_list)
+            }
+
+    def link_orphan_data_batch(self, project_id, links):
+        """
+        Link multiple orphan data items to entities in a single batch operation.
+
+        Uses UNWIND for efficient batch linking.
+
+        Args:
+            project_id: The project ID (safe_name)
+            links: List of dicts with orphan_id, entity_id, and optional field_mapping
+
+        Returns:
+            Dict with:
+                - linked: Number of successfully linked items
+                - failed: List of failed links with error messages
+                - total: Total items processed
+        """
+        if not links:
+            return {"linked": 0, "failed": [], "total": 0}
+
+        with self.driver.session() as session:
+            # Batch link using UNWIND
+            result = session.run("""
+                UNWIND $links AS link
+                MATCH (project:Project {safe_name: $project_id})
+                MATCH (project)-[:HAS_ORPHAN]->(orphan:OrphanData {id: link.orphan_id})
+                MATCH (project)-[:HAS_PERSON]->(entity:Person {id: link.entity_id})
+                MERGE (orphan)-[r:LINKED_TO]->(entity)
+                SET orphan.linked = true,
+                    orphan.linked_entity_id = link.entity_id,
+                    orphan.linked_at = $now,
+                    r.field_mapping = link.field_mapping
+                RETURN orphan.id AS orphan_id, entity.id AS entity_id
+            """, project_id=project_id, links=links, now=datetime.now().isoformat())
+
+            linked_count = len(list(result))
+
+            return {
+                "linked": linked_count,
+                "failed": [],
+                "total": len(links)
+            }
 
     def get_orphan_data(self, project_id, orphan_id):
         """

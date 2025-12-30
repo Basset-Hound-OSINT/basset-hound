@@ -37,8 +37,9 @@ reports/
 *.sqlite
 
 # Claude
-.claude/
+**/.claude/
 
 # Temporary
 *.tmp
 *.bak
+**/.pytest_cache/

@@ -411,3 +411,104 @@ class OrphanLinkResponse(BaseModel):
             }
         }
     )
+
+
+class DetachRequest(BaseModel):
+    """
+    Model for detaching a field value from an entity and converting it to orphan data.
+
+    This enables "soft delete" - data is never truly lost, just moved to orphan state.
+    Supports bidirectional data flow between entities and orphan data.
+    """
+
+    entity_id: str = Field(
+        ...,
+        description="ID of the entity to detach data from",
+        examples=["entity-550e8400-e29b-41d4-a716-446655440000"]
+    )
+    field_path: str = Field(
+        ...,
+        description="Dot-notation path to field (e.g., 'core.email', 'contact.phone')",
+        examples=["core.email", "contact.phone", "online.username"]
+    )
+    field_value: str = Field(
+        ...,
+        min_length=1,
+        description="The specific value to detach (entities can have multiple values per field)",
+        examples=["john@example.com", "+1-555-0100"]
+    )
+    reason: Optional[str] = Field(
+        default=None,
+        max_length=1000,
+        description="Optional reason for detachment",
+        examples=["Email belongs to different person", "Phone number is outdated"]
+    )
+    keep_in_entity: bool = Field(
+        default=False,
+        description="If True, copy to orphan but don't remove from entity"
+    )
+
+    @field_validator("field_path")
+    @classmethod
+    def validate_field_path(cls, v: str) -> str:
+        """Ensure field path is in valid dot-notation format."""
+        if not v or not v.strip():
+            raise ValueError("field_path cannot be empty")
+        v = v.strip()
+        if "." not in v:
+            raise ValueError("field_path must be in dot-notation (e.g., 'core.email')")
+        parts = v.split(".")
+        if len(parts) < 2:
+            raise ValueError("field_path must have at least section.field format")
+        return v
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "entity_id": "entity-550e8400-e29b-41d4-a716-446655440000",
+                "field_path": "core.email",
+                "field_value": "old.email@example.com",
+                "reason": "Email belongs to a different person",
+                "keep_in_entity": False
+            }
+        }
+    )
+
+
+class DetachResponse(BaseModel):
+    """
+    Model for detach operation response.
+    """
+
+    success: bool = Field(
+        ...,
+        description="Whether the detach operation succeeded"
+    )
+    entity_id: str = Field(
+        ...,
+        description="ID of the entity data was detached from"
+    )
+    orphan_id: Optional[str] = Field(
+        default=None,
+        description="ID of the created orphan data"
+    )
+    removed_from_entity: bool = Field(
+        ...,
+        description="Whether the value was removed from the entity"
+    )
+    message: str = Field(
+        ...,
+        description="Status message"
+    )
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "success": True,
+                "entity_id": "entity-550e8400-e29b-41d4-a716-446655440000",
+                "orphan_id": "orphan-660e8400-e29b-41d4-a716-446655440001",
+                "removed_from_entity": True,
+                "message": "Data successfully detached and converted to orphan"
+            }
+        }
+    )

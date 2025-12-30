@@ -27,6 +27,12 @@ This module provides RESTful API endpoints for managing:
 - Jobs: Background job execution and management
 - Audit: Change tracking for debugging and audit purposes
 - Graph: Graph visualization API for D3.js, vis.js, and Cytoscape
+- Visualization: Advanced graph visualization with layouts, exports, and statistics
+- Import Data: Import data from OSINT tools (Maltego, SpiderFoot, TheHarvester, Shodan, HIBP)
+- Timeline Visualization: Temporal graph visualization for entity and relationship evolution
+- Entity Types: Entity type UI configuration, icons, colors, and form fields
+- Graph Analytics: Advanced graph analytics (community detection, similarity, influence, temporal patterns)
+- Saved Searches: Saved search configurations for reusable queries
 """
 
 from fastapi import APIRouter
@@ -58,6 +64,16 @@ from .ml_analytics import router as ml_analytics_router
 from .jobs import router as jobs_router, schedule_jobs_router
 from .audit import router as audit_router, project_audit_router, entity_audit_router
 from .graph import router as graph_router
+from .visualization import router as visualization_router
+from .import_data import router as import_data_router, formats_router as import_formats_router
+from .timeline_visualization import router as timeline_visualization_router
+from .entity_types import router as entity_types_router, project_entity_types_router
+from .frontend_components import router as frontend_components_router
+from .graph_analytics import router as graph_analytics_router
+from .import_mapping import router as import_mapping_router
+from .llm_export import router as llm_export_router
+from .graph_format import router as graph_format_router
+from .saved_search import router as saved_search_router, project_saved_search_router
 
 # Create main API router
 api_router = APIRouter()
@@ -99,6 +115,19 @@ api_router.include_router(audit_router)
 api_router.include_router(project_audit_router)
 api_router.include_router(entity_audit_router)
 api_router.include_router(graph_router)
+api_router.include_router(visualization_router)
+api_router.include_router(import_data_router)
+api_router.include_router(import_formats_router)
+api_router.include_router(timeline_visualization_router)
+api_router.include_router(entity_types_router)
+api_router.include_router(project_entity_types_router)
+api_router.include_router(frontend_components_router)
+api_router.include_router(graph_analytics_router)
+api_router.include_router(import_mapping_router)
+api_router.include_router(llm_export_router)
+api_router.include_router(graph_format_router)
+api_router.include_router(saved_search_router)
+api_router.include_router(project_saved_search_router)
 
 __all__ = [
     "api_router",
@@ -138,4 +167,17 @@ __all__ = [
     "project_audit_router",
     "entity_audit_router",
     "graph_router",
+    "visualization_router",
+    "import_data_router",
+    "import_formats_router",
+    "timeline_visualization_router",
+    "entity_types_router",
+    "project_entity_types_router",
+    "frontend_components_router",
+    "graph_analytics_router",
+    "import_mapping_router",
+    "llm_export_router",
+    "graph_format_router",
+    "saved_search_router",
+    "project_saved_search_router",
 ]

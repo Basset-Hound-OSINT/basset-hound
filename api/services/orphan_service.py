@@ -27,6 +27,8 @@ from api.models.orphan import (
     OrphanDataList,
     OrphanLinkRequest,
     OrphanLinkResponse,
+    DetachRequest,
+    DetachResponse,
 )
 
 # Try to import fuzzy matcher for auto-linking
@@ -93,6 +95,29 @@ class OrphanService:
         IdentifierType.URL: ["online.url", "social.profile_url"],
         IdentifierType.MAC_ADDRESS: ["technical.mac_address", "network.mac"],
         IdentifierType.IMEI: ["device.imei", "technical.imei"],
+    }
+
+    # Reverse mapping: field path to identifier type (for detach operations)
+    FIELD_PATH_TO_IDENTIFIER_TYPE = {
+        "core.email": IdentifierType.EMAIL,
+        "contact.email": IdentifierType.EMAIL,
+        "online.email": IdentifierType.EMAIL,
+        "core.phone": IdentifierType.PHONE,
+        "contact.phone": IdentifierType.PHONE,
+        "online.username": IdentifierType.USERNAME,
+        "social.username": IdentifierType.USERNAME,
+        "financial.crypto_address": IdentifierType.CRYPTO_ADDRESS,
+        "blockchain.address": IdentifierType.CRYPTO_ADDRESS,
+        "technical.ip_address": IdentifierType.IP_ADDRESS,
+        "network.ip": IdentifierType.IP_ADDRESS,
+        "online.domain": IdentifierType.DOMAIN,
+        "website.domain": IdentifierType.DOMAIN,
+        "online.url": IdentifierType.URL,
+        "social.profile_url": IdentifierType.URL,
+        "technical.mac_address": IdentifierType.MAC_ADDRESS,
+        "network.mac": IdentifierType.MAC_ADDRESS,
+        "device.imei": IdentifierType.IMEI,
+        "technical.imei": IdentifierType.IMEI,
     }
 
     def __init__(self, neo4j_handler):
@@ -775,6 +800,172 @@ class OrphanService:
                 merged=False,
                 deleted=False,
                 message=f"Linking failed: {str(e)}"
+            )
+
+    def detach_from_entity(
+        self,
+        project_id: str,
+        request: DetachRequest
+    ) -> DetachResponse:
+        """
+        Detach a field value from an entity and convert it to orphan data.
+
+        This enables "soft delete" functionality where data is never truly lost,
+        just moved from an entity to orphan status. Supports bidirectional data
+        flow between entities and orphan data.
+
+        Args:
+            project_id: Project ID
+            request: DetachRequest containing entity_id, field_path, field_value, etc.
+
+        Returns:
+            DetachResponse with operation results
+
+        Example:
+            >>> request = DetachRequest(
+            ...     entity_id="entity-123",
+            ...     field_path="core.email",
+            ...     field_value="old@example.com",
+            ...     reason="Email belongs to different person"
+            ... )
+            >>> result = service.detach_from_entity("project-123", request)
+            >>> if result.success:
+            ...     print(f"Created orphan: {result.orphan_id}")
+        """
+        try:
+            # Get project
+            project = self._get_project_by_id(project_id)
+            if not project:
+                return DetachResponse(
+                    success=False,
+                    entity_id=request.entity_id,
+                    orphan_id=None,
+                    removed_from_entity=False,
+                    message=f"Project {project_id} not found"
+                )
+
+            project_safe_name = project.get("safe_name")
+
+            # Get entity
+            entity = self.neo4j.get_person(project_safe_name, request.entity_id)
+            if not entity:
+                return DetachResponse(
+                    success=False,
+                    entity_id=request.entity_id,
+                    orphan_id=None,
+                    removed_from_entity=False,
+                    message=f"Entity {request.entity_id} not found"
+                )
+
+            # Parse field path
+            parts = request.field_path.split('.')
+            if len(parts) < 2:
+                return DetachResponse(
+                    success=False,
+                    entity_id=request.entity_id,
+                    orphan_id=None,
+                    removed_from_entity=False,
+                    message=f"Invalid field path: {request.field_path}"
+                )
+
+            section_id = parts[0]
+            field_id = '.'.join(parts[1:])
+
+            # Check if value exists in entity
+            profile = entity.get("profile", {})
+            current_values = self._extract_field_values(profile, request.field_path)
+
+            if request.field_value not in current_values:
+                return DetachResponse(
+                    success=False,
+                    entity_id=request.entity_id,
+                    orphan_id=None,
+                    removed_from_entity=False,
+                    message=f"Value '{request.field_value}' not found in {request.field_path}"
+                )
+
+            # Determine identifier type from field path
+            identifier_type = self.FIELD_PATH_TO_IDENTIFIER_TYPE.get(
+                request.field_path,
+                IdentifierType.OTHER
+            )
+
+            # Create orphan data from the detached value
+            orphan_id = f"orphan-{uuid4()}"
+            now = datetime.now().isoformat()
+
+            # Build provenance metadata
+            metadata = {
+                "detached_from_entity": request.entity_id,
+                "detached_from_field": request.field_path,
+                "detached_at": now,
+                "detach_reason": request.reason,
+                "original_entity_name": self._extract_entity_preview(entity).get("name", "Unknown"),
+            }
+
+            # Create orphan in Neo4j
+            orphan_data = OrphanDataCreate(
+                id=orphan_id,
+                identifier_type=identifier_type,
+                identifier_value=request.field_value,
+                source=f"Detached from entity {request.entity_id}",
+                notes=request.reason or f"Detached from {request.field_path}",
+                tags=["detached", "soft-delete"],
+                confidence_score=1.0,  # High confidence since it came from an entity
+                metadata=metadata,
+                discovered_date=now,
+            )
+
+            created_orphan = self.create_orphan(project_id, orphan_data)
+            if not created_orphan:
+                return DetachResponse(
+                    success=False,
+                    entity_id=request.entity_id,
+                    orphan_id=None,
+                    removed_from_entity=False,
+                    message="Failed to create orphan data record"
+                )
+
+            # Remove value from entity (unless keep_in_entity is True)
+            removed_from_entity = False
+            if not request.keep_in_entity:
+                # Filter out the value
+                new_values = [v for v in current_values if v != request.field_value]
+
+                # Update entity field
+                self.neo4j.set_person_field(
+                    request.entity_id,
+                    section_id,
+                    field_id,
+                    new_values if new_values else None
+                )
+                removed_from_entity = True
+
+            message = "Data successfully detached and converted to orphan"
+            if not removed_from_entity:
+                message += " (value kept in entity)"
+
+            logger.info(
+                f"Detached {request.field_value} from entity {request.entity_id} "
+                f"to orphan {orphan_id} (removed: {removed_from_entity})"
+            )
+
+            return DetachResponse(
+                success=True,
+                entity_id=request.entity_id,
+                orphan_id=orphan_id,
+                removed_from_entity=removed_from_entity,
+                message=message
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to detach from entity {request.entity_id}: {e}")
+            return DetachResponse(
+                success=False,
+                entity_id=request.entity_id,
+                orphan_id=None,
+                removed_from_entity=False,
+                message=f"Detach failed: {str(e)}"
             )
 
     # =========================================================================

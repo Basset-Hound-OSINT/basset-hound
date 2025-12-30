@@ -1,25 +1,42 @@
 # Basset Hound Development Roadmap
 
-## Project Vision & Scope Clarification
+## Project Vision & Philosophy
 
 ### What Basset Hound IS
 
-**Basset Hound is a configurable entity relationship management system** designed for:
+**Basset Hound is a lightweight, API-first entity relationship engine** inspired by [BloodHound](https://github.com/BloodHoundAD/BloodHound), designed for:
 
-1. **OSINT Investigations** - Original use case for tracking people, organizations, and their connections
-2. **Generic Entity Relationship Management** - Extensible to ANY domain requiring relationship tracking
-3. **Rapid Data Ingestion API** - Fast storage of structured information with custom schemas
-4. **Graph-Based Analysis** - Leveraging Neo4j for complex relationship queries and traversal
+1. **OSINT Investigations** - Tracking people, organizations, and their connections
+2. **Integration Backend** - API/MCP server for LLMs, AI agents, and other tools
+3. **Graph-Based Analysis** - Neo4j-powered relationship queries and pattern discovery
+4. **Data Ingestion** - Import from various OSINT tools and formats
+
+### Design Principles
+
+| Principle | Description |
+|-----------|-------------|
+| **Lightweight** | Core features only - no enterprise bloat |
+| **Integration-First** | Built to be consumed by other applications via API/MCP |
+| **Local-First** | Runs on a laptop, scales with hardware |
+| **Graph-Powered** | Neo4j for relationship traversal and pattern discovery |
+| **Simple but Powerful** | Few features done well > many features done poorly |
+
+### What Basset Hound is NOT
+
+- ❌ A full-featured enterprise reporting platform
+- ❌ A multi-user collaborative application
+- ❌ A replacement for specialized OSINT tools
+- ❌ A UI-first application (API-first, UI is secondary)
 
 ### Core Value Proposition
 
-> **"Configure once, relate anything"** - Define custom entity types with arbitrary identifiers, then track relationships between them using a graph database.
+> **"Store now, connect later"** - Capture data fragments immediately, discover relationships as your investigation progresses.
 
-This differs from a traditional database because:
-- **Schema is runtime-configurable** via YAML, not code changes
-- **Relationships are first-class citizens** with bidirectional and transitive support
-- **Identifiers are domain-specific** - any field can become an identifier
-- **File attachments and reports** are integrated directly with entities
+Key differentiators from traditional databases:
+- **Orphan data workflow** - Store identifiers before knowing who they belong to
+- **Relationships are first-class** - Not just foreign keys, but typed, weighted, and queryable
+- **Schema is runtime-configurable** via YAML
+- **Built for AI integration** - API and MCP server for LLM consumption
 
 ---
 
@@ -1426,10 +1443,552 @@ Basset Hound is a **local-first, single-user tool** for security researchers:
 
 ---
 
-### Next Steps (Phase 15+)
+### Phase 15: Orphan Data Management & Data Normalization - ✅ COMPLETED (2025-12-29)
 
-#### Phase 15: Enhanced Visualization & Analysis
-1. **UI for Multi-Entity Types** - Frontend support for creating/viewing different entity types
-2. **Graph Visualization Enhancements** - Visual display of cross-project links, timeline view
-3. **Advanced Reporting** - More export formats, custom templates
-4. **Data Import Connectors** - Import from common OSINT tools and formats
+| Task | Status | Notes |
+|------|--------|-------|
+| Orphan data Pydantic models | ✅ Done | 15 identifier types, CRUD models, link/detach models |
+| Orphan data service layer | ✅ Done | Full CRUD, search, auto-linking, bulk operations |
+| Orphan data REST API | ✅ Done | 10+ endpoints for orphan management |
+| Neo4j orphan data methods | ✅ Done | Constraints, indexes, relationship queries |
+| Bidirectional orphan data flow | ✅ Done | Link orphan→entity AND detach entity→orphan |
+| Data normalization service | ✅ Done | Phone, email, username, domain, URL, IP, crypto, MAC |
+| Detach endpoint | ✅ Done | Soft-delete: move entity data to orphan status |
+| Comprehensive tests | ✅ Done | Normalizer tests with all identifier types |
+
+#### Orphan Data Management
+
+Orphan data represents unlinked identifiers (emails, phones, crypto addresses, usernames, IPs, etc.) that haven't been tied to entities yet. This is critical for OSINT work where data is collected before entity relationships are established.
+
+**Identifier Types Supported:**
+- EMAIL, PHONE, CRYPTO_ADDRESS, USERNAME, IP_ADDRESS
+- DOMAIN, URL, SOCIAL_MEDIA, LICENSE_PLATE, PASSPORT
+- SSN, ACCOUNT_NUMBER, MAC_ADDRESS, IMEI, OTHER
+
+**Bidirectional Data Flow:**
+- **Link to Entity**: Move orphan data into an entity's profile (`POST /orphans/{id}/link`)
+- **Detach from Entity**: Move entity field data to orphan status (`POST /orphans/detach`)
+- Data is never truly deleted - just moved between states (soft delete)
+
+**API Endpoints:**
+- `POST /projects/{id}/orphans` - Create orphan
+- `GET /projects/{id}/orphans` - List/search orphans
+- `GET /projects/{id}/orphans/{id}` - Get by ID
+- `PUT /projects/{id}/orphans/{id}` - Update
+- `DELETE /projects/{id}/orphans/{id}` - Delete
+- `GET /projects/{id}/orphans/{id}/suggestions` - Entity match suggestions
+- `POST /projects/{id}/orphans/{id}/link` - Link to entity
+- `POST /projects/{id}/orphans/detach` - Detach data from entity
+- `POST /projects/{id}/orphans/batch` - Bulk import
+- `GET /projects/{id}/orphans/duplicates` - Find duplicates
+
+#### Data Normalization Service
+
+Standardizes data formats before storage to make searching consistent and reliable.
+
+**Phone Normalization:**
+- `(555) 123-4567` → `5551234567`
+- `+1-555-123-4567` → `+15551234567` (preserves country code)
+- Extracts: `country_code`, `local_number`, `has_country_code`
+
+**Email Normalization:**
+- `User@EXAMPLE.COM` → `user@example.com`
+- Plus-addressing: `service+support@gmail.com` stores both:
+  - Normalized: `service+support@gmail.com`
+  - Alternative: `service@gmail.com` (base email)
+- Extracts: `user`, `domain`, `tag` (if plus-addressing)
+
+**Username Normalization:**
+- `@JohnDoe` → `johndoe`
+- Removes leading @, lowercases
+
+**Domain Normalization:**
+- `https://WWW.Example.COM/` → `example.com`
+- Removes protocol, www prefix, trailing slashes
+
+**URL Normalization:**
+- `HTTP://WWW.Example.COM/Path/Page` → `http://example.com/Path/Page`
+- Lowercases domain, preserves path case
+
+**IP Normalization:**
+- `192.168.001.001` → `192.168.1.1` (removes leading zeros)
+- IPv6: `::1` → `0000:0000:0000:0000:0000:0000:0000:0001`
+
+**Crypto Address Normalization:**
+- Trims whitespace, preserves case (checksum-sensitive)
+- Auto-detects: Bitcoin, Ethereum, Litecoin, Ripple, Monero, Dogecoin, etc.
+
+**MAC Address Normalization:**
+- `00-1A-2B-3C-4D-5E` → `00:1a:2b:3c:4d:5e`
+- Standardizes to colon-separated lowercase
+
+#### Files Created
+
+```
+api/models/
+└── orphan.py                    # Pydantic models (DetachRequest, DetachResponse, etc.)
+
+api/services/
+├── orphan_service.py            # OrphanService with bidirectional flow
+└── normalizer.py                # DataNormalizer for all identifier types
+
+api/routers/
+└── orphan.py                    # REST API endpoints with detach support
+
+tests/
+└── test_normalizer.py           # Comprehensive normalizer tests
+```
+
+---
+
+### Phase 16: Enhanced Visualization & Data Import - COMPLETED (2025-12-29)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| Graph Visualization Service | ✅ Done | 5 layout algorithms, 4 export formats, graph metrics |
+| Layout algorithms | ✅ Done | Force-directed, Hierarchical, Circular, Radial, Grid |
+| Export formats | ✅ Done | D3.js JSON, Cytoscape.js JSON, GraphML, DOT |
+| Graph metrics | ✅ Done | Degree centrality, betweenness centrality, node degrees |
+| Data Import Connectors | ✅ Done | 7 connectors for OSINT tools |
+| Maltego connector | ✅ Done | CSV entity exports with type mapping |
+| SpiderFoot connector | ✅ Done | JSON scan results with module attribution |
+| TheHarvester connector | ✅ Done | JSON email/domain/IP discovery |
+| Shodan connector | ✅ Done | JSON host exports with service data |
+| HIBP connector | ✅ Done | JSON breach data import |
+| Generic CSV/JSON connectors | ✅ Done | Flexible import with column mapping |
+| Auto type detection | ✅ Done | Email, phone, IP, domain, URL, username, crypto, MAC |
+| Visualization API endpoints | ✅ Done | Project graph, entity neighborhood, clusters, export |
+| Import API endpoints | ✅ Done | Per-tool import, formats list, validate |
+
+#### Graph Visualization Features
+
+- **Layout Algorithms:**
+  - Force-Directed (Fruchterman-Reingold) - physics-based spring simulation
+  - Hierarchical - tree-like level arrangement
+  - Circular - nodes on a circle
+  - Radial - concentric circles based on distance from center
+  - Grid - simple grid arrangement
+
+- **Export Formats:**
+  - D3.js JSON - force-simulation compatible
+  - Cytoscape.js JSON - graph library format
+  - GraphML - XML-based standard
+  - DOT - Graphviz format
+
+- **Graph Metrics:**
+  - Degree centrality (normalized connection count)
+  - Betweenness centrality (path importance)
+  - Node degrees (in/out connection counts)
+
+#### Data Import Connectors
+
+- **Supported Tools:**
+  - Maltego (CSV) - entity exports with links
+  - SpiderFoot (JSON) - 20+ data types
+  - TheHarvester (JSON) - email/subdomain discovery
+  - Shodan (JSON) - host/service data
+  - HIBP (JSON) - breach data
+  - Generic CSV - configurable mapping
+  - Generic JSON - flexible import
+
+- **Features:**
+  - Auto type detection for 10+ identifier types
+  - Dry-run validation mode
+  - ImportResult with success/error/warning tracking
+  - Entity and orphan creation support
+  - Relationship preservation from source tools
+
+#### Files Created
+
+```
+api/models/
+├── visualization.py         # Pydantic models (enums, graph data)
+└── data_import.py          # Import models (formats, results)
+
+api/services/
+├── graph_visualization.py   # 1900+ lines - layouts, metrics, exporters
+└── data_import.py          # 2000+ lines - 7 import connectors
+
+api/routers/
+├── visualization.py        # Visualization endpoints
+└── import_data.py          # Import endpoints
+
+docs/findings/
+└── 16-PHASE16-ENHANCED-VISUALIZATION-DATA-IMPORT.md
+```
+
+See [16-PHASE16-ENHANCED-VISUALIZATION-DATA-IMPORT.md](docs/findings/16-PHASE16-ENHANCED-VISUALIZATION-DATA-IMPORT.md) for full details.
+
+---
+
+### Phase 17: Frontend Integration & UI Enhancements - ✅ COMPLETED (2025-12-29)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| Timeline Visualization Service | ✅ Done | Entity/relationship timelines, heatmaps, snapshots, evolution tracking |
+| Timeline Visualization API | ✅ Done | 6 endpoints for temporal graph analysis |
+| Entity Type UI Service | ✅ Done | UI configuration for all 6 entity types |
+| Entity Type UI API | ✅ Done | 8 endpoints for type configs, icons, colors, fields, validation |
+| Frontend Components API | ✅ Done | Component specifications for React/Vue/vanilla JS |
+| WebSocket Enhancements | ✅ Done | 10 new notification types for real-time graph updates |
+| Comprehensive tests | ✅ Done | 49 Phase 17 integration tests, 60 entity type tests |
+
+#### Timeline Visualization Features
+
+- **Entity Timeline**: Track all events for an entity (creation, updates, relationships)
+- **Relationship Timeline**: Track changes between two specific entities
+- **Activity Heatmap**: Aggregate events by hour/day/week/month for heatmap visualization
+- **Temporal Snapshots**: Reconstruct graph state at any point in time
+- **Entity Evolution**: Track version history of entity profiles with change diffs
+- **Period Comparison**: Compare graph statistics between two time periods
+
+**API Endpoints:**
+- `GET /timeline-viz/{project}/entity/{entity_id}` - Entity timeline events
+- `GET /timeline-viz/{project}/relationship/{entity1}/{entity2}` - Relationship timeline
+- `GET /timeline-viz/{project}/activity` - Activity heatmap data
+- `GET /timeline-viz/{project}/snapshot` - Temporal graph snapshot
+- `GET /timeline-viz/{project}/entity/{entity_id}/evolution` - Entity evolution history
+- `POST /timeline-viz/{project}/compare` - Compare time periods
+
+#### Entity Type UI Features
+
+- **Type Configurations**: Icons, colors, labels for Person, Organization, Device, Location, Event, Document
+- **Form Field Definitions**: Type-specific fields with validation rules
+- **Cross-Type Relationships**: Valid relationship types between entity types
+- **Entity Validation**: Validate data against type schemas
+- **Type Statistics**: Per-project entity type distribution
+
+**API Endpoints:**
+- `GET /entity-types` - List all entity types
+- `GET /entity-types/{type}` - Get specific type config
+- `GET /entity-types/{type}/icon` - Get type icon
+- `GET /entity-types/{type}/color` - Get type color
+- `GET /entity-types/{type}/fields` - Get form fields
+- `GET /entity-types/{source}/relationships/{target}` - Cross-type relationships
+- `POST /entity-types/{type}/validate` - Validate entity data
+- `GET /projects/{project}/entity-types/stats` - Entity type statistics
+
+#### Frontend Components API Features
+
+Component specifications for building frontend applications:
+
+- **GraphViewer** - D3.js graph visualization with layouts, zoom, real-time updates
+- **EntityCard** - Entity summary cards with actions
+- **TimelineViewer** - Temporal event visualization
+- **ImportWizard** - Multi-step import flow
+- **SearchBar** - Search with autocomplete and filters
+
+**API Endpoints:**
+- `GET /frontend/components` - All component specs
+- `GET /frontend/components/{type}` - Specific component spec
+- `GET /frontend/typescript` - TypeScript definitions
+- `GET /frontend/css-variables` - CSS custom properties
+- `GET /frontend/dependencies` - NPM dependencies
+- `GET /frontend/frameworks` - Supported frameworks
+
+#### WebSocket Enhancements
+
+New notification types for real-time graph updates:
+
+```python
+GRAPH_NODE_ADDED     # New node added
+GRAPH_NODE_UPDATED   # Node modified
+GRAPH_NODE_DELETED   # Node removed
+GRAPH_EDGE_ADDED     # New edge added
+GRAPH_EDGE_UPDATED   # Edge modified
+GRAPH_EDGE_DELETED   # Edge removed
+GRAPH_LAYOUT_CHANGED # Layout changed
+GRAPH_CLUSTER_DETECTED  # Cluster identified
+IMPORT_PROGRESS      # Import progress
+IMPORT_COMPLETE      # Import complete
+```
+
+#### Files Created
+
+```
+api/services/
+├── timeline_visualization.py   # ~900 lines - temporal graph visualization
+├── entity_type_ui.py          # ~600 lines - entity type UI config
+└── frontend_components.py     # ~800 lines - frontend component specs
+
+api/models/
+└── entity_type_ui.py          # ~645 lines - entity type UI models
+
+api/routers/
+├── timeline_visualization.py  # ~900 lines - timeline visualization API
+├── entity_types.py           # ~750 lines - entity types API
+└── frontend_components.py    # ~190 lines - frontend components API
+
+tests/
+└── test_phase17_integration.py # 49 comprehensive tests
+```
+
+See [17-PHASE17-FRONTEND-INTEGRATION-UI-ENHANCEMENTS.md](docs/findings/17-PHASE17-FRONTEND-INTEGRATION-UI-ENHANCEMENTS.md) for full details.
+
+---
+
+### Phase 18: Advanced Graph Analytics ✅ COMPLETE
+
+**Completed:** December 2024
+
+Focus on graph-powered discovery - the core value proposition.
+
+**Implemented:**
+1. ✅ **Community Detection** - Louvain/Label Propagation for finding entity clusters
+2. ✅ **Influence Propagation** - PageRank, influence spread simulation, key entity detection
+3. ✅ **Similarity Scoring** - Jaccard, Cosine, Common Neighbors, SimRank
+4. ✅ **Temporal Patterns** - Burst detection, trend analysis, cyclical patterns, anomalies
+5. ✅ **Graph Analytics API** - REST endpoints for all graph analytics features
+
+**Files Created:**
+- `api/services/community_detection.py` - Community detection algorithms
+- `api/services/influence_service.py` - Influence propagation & key entity detection
+- `api/services/similarity_service.py` - Entity similarity scoring
+- `api/services/temporal_patterns.py` - Temporal pattern detection
+- `api/routers/graph_analytics.py` - REST API endpoints
+
+**Test Coverage:** 56 tests, all passing
+
+See [18-PHASE18-ADVANCED-GRAPH-ANALYTICS.md](findings/18-PHASE18-ADVANCED-GRAPH-ANALYTICS.md) for full details.
+
+---
+
+### Phase 19: Deployment & Infrastructure - ✅ COMPLETED (2025-12-29)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| Dockerfile multi-stage build | ✅ Done | Python 3.12-slim, non-root user, health checks |
+| docker-compose.yml full stack | ✅ Done | Neo4j 5.28 + GDS, Redis, Celery worker/beat |
+| Native Ubuntu 22.04 install script | ✅ Done | install.sh with Python 3.12, Neo4j 5.x, GDS plugin |
+| Neo4j GDS guaranteed | ✅ Done | GDS plugin auto-installed in both deployment options |
+| Pydantic v2 deprecation fixes | ✅ Done | Fixed influence_service.py model configs |
+| Documentation cleanup | ✅ Done | Updated service docstrings to reflect GDS guarantee |
+
+**Philosophy:** Two deployment paths, both fully supported:
+1. **Docker** - Single command deployment with all dependencies pre-configured
+2. **Native Ubuntu 22.04** - Direct installation with venv for development/customization
+
+**Key Changes:**
+- Neo4j GDS is now guaranteed via deployment (not optional)
+- Python fallback implementations kept for testing/in-memory analysis only
+- Docker exposes API (port 8000), Neo4j Browser (port 7474), Redis (port 6379)
+- install.sh handles Python 3.12, Neo4j 5.x, GDS plugin, Redis
+
+**Files Created/Updated:**
+- `Dockerfile` - Multi-stage build with libmagic, non-root user
+- `docker-compose.yml` - Full stack: Neo4j + GDS, Redis, FastAPI, Celery
+- `install.sh` - Native Ubuntu 22.04 installation script (24KB)
+- `api/services/community_detection.py` - Updated documentation
+- `api/services/influence_service.py` - Fixed Pydantic deprecation warnings
+
+See [19-PHASE19-DEPLOYMENT-INFRASTRUCTURE.md](docs/findings/19-PHASE19-DEPLOYMENT-INFRASTRUCTURE.md) for full details.
+
+---
+
+### Phase 20: Query & Performance Optimization - ✅ COMPLETED (2025-12-29)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| Query Cache Service | ✅ Done | Decorator-based caching with TTL per query type |
+| Neo4j Index Optimization | ✅ Done | Composite indexes for FieldValue, OrphanData |
+| Batch Orphan Operations | ✅ Done | UNWIND-based batch create and link |
+| Result Streaming | ✅ Done | ChunkedIterator, AsyncResultStream, pagination |
+| Performance Tests | ✅ Done | 36 comprehensive tests |
+
+**Key Features:**
+
+1. **Query Cache Service** (`api/services/query_cache.py`)
+   - `@cached_query` decorator for automatic caching
+   - 10 query types with configurable TTLs (2 min to 1 hour)
+   - Project and entity-aware cache invalidation
+   - LRU eviction, statistics tracking
+
+2. **Neo4j Index Optimization**
+   - FieldValue composite index: `(section_id, field_id)`
+   - OrphanData composite index: `(identifier_type, linked)`
+   - Person profile index for search
+   - TAGGED relationship index
+
+3. **Batch Operations**
+   - `create_orphan_data_batch()` - O(n) to O(1) query reduction
+   - `link_orphan_data_batch()` - Bulk linking with UNWIND
+
+4. **Result Streaming** (`api/services/result_streaming.py`)
+   - `PaginatedResult` for API responses
+   - `ChunkedIterator` for memory-efficient processing
+   - `AsyncResultStream` for streaming large datasets
+   - `process_in_batches()` for parallel processing
+
+**Files Created/Updated:**
+- `api/services/query_cache.py` - Query cache service (350+ lines)
+- `api/services/result_streaming.py` - Streaming utilities (350+ lines)
+- `neo4j_handler.py` - Batch orphan ops, new indexes
+- `tests/test_phase20_performance.py` - 36 tests
+
+See [20-PHASE20-QUERY-PERFORMANCE-OPTIMIZATION.md](docs/findings/20-PHASE20-QUERY-PERFORMANCE-OPTIMIZATION.md) for full details.
+
+---
+
+### Phase 21: Import/Export Flexibility - ✅ COMPLETED (2025-12-29)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| Import Mapping Service | ✅ Done | 18 transformation types, reusable configs, validation |
+| LLM Export Service | ✅ Done | 5 formats, token estimation, intelligent truncation |
+| Graph Format Converter | ✅ Done | 8 formats: GraphML, GEXF, D3, Cytoscape, DOT, Pajek |
+| Comprehensive Tests | ✅ Done | 39 tests, all passing |
+| Documentation | ✅ Done | Full Phase 21 findings documented |
+
+**Key Features:**
+
+1. **Import Mapping Service** (`api/services/import_mapping.py`)
+   - 18 transformation types (direct, uppercase, lowercase, trim, replace, regex, split, join, concat, default, date format, extract, hash, template, JSON path, lookup, custom, conditional)
+   - Reusable mapping configurations with CRUD operations
+   - Validation and preview before applying mappings
+   - Apply mappings to transform imported data
+
+2. **LLM Export Service** (`api/services/llm_export.py`)
+   - 5 export formats: Markdown, JSON, YAML, Plain Text, XML
+   - Token estimation using GPT-family approximation
+   - Intelligent truncation to fit context limits
+   - Configurable context (entities, relationships, timeline, stats)
+   - Export types: single entity, project summary, entity context, investigation brief
+
+3. **Graph Format Converter** (`api/services/graph_format_converter.py`)
+   - 8 graph formats supported:
+     - GraphML (XML-based, widely supported)
+     - GEXF (Gephi format)
+     - JSON Graph (JSON-based structure)
+     - Cytoscape (Cytoscape.js format)
+     - D3 (D3.js force layout)
+     - DOT (Graphviz format)
+     - Pajek (network format)
+     - Adjacency List (simple text)
+   - Format auto-detection and validation
+   - Property preservation and direction handling
+   - Internal graph representation for conversions
+
+**Files Created:**
+- `api/services/import_mapping.py` - Import mapping service (~500 lines)
+- `api/services/llm_export.py` - LLM export service (~580 lines)
+- `api/services/graph_format_converter.py` - Graph format converter (~660 lines)
+- `tests/test_phase21_import_export.py` - 39 tests
+
+See [21-PHASE21-IMPORT-EXPORT-FLEXIBILITY.md](docs/findings/21-PHASE21-IMPORT-EXPORT-FLEXIBILITY.md) for full details.
+
+---
+
+### Phase 22: API Endpoints for Phase 21 Services - ✅ COMPLETED (2025-12-29)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| Import Mapping Router | ✅ Done | 8 endpoints for CRUD, apply, validate, preview |
+| LLM Export Router | ✅ Done | 6 endpoints for entity/project exports, token estimation |
+| Graph Format Router | ✅ Done | 6 endpoints for convert, detect, validate, list formats |
+| Router Integration | ✅ Done | All routers registered in api_router |
+| Comprehensive Tests | ✅ Done | 41 tests, all passing |
+| Documentation | ✅ Done | Full Phase 22 findings documented |
+
+**Key Features:**
+
+1. **Import Mapping Router** (`api/routers/import_mapping.py`)
+   - POST /import-mappings - Create mapping
+   - GET /import-mappings - List mappings
+   - GET /import-mappings/{id} - Get mapping
+   - PUT /import-mappings/{id} - Update mapping
+   - DELETE /import-mappings/{id} - Delete mapping
+   - POST /import-mappings/{id}/apply - Apply mapping to data
+   - POST /import-mappings/validate - Validate config
+   - POST /import-mappings/preview - Preview transformation
+
+2. **LLM Export Router** (`api/routers/llm_export.py`)
+   - POST /projects/{project}/llm-export/entity/{id} - Export entity
+   - POST /projects/{project}/llm-export/summary - Export project summary
+   - POST /projects/{project}/llm-export/entity/{id}/context - Export with context
+   - POST /projects/{project}/llm-export/investigation-brief - Export investigation
+   - POST /llm-export/estimate-tokens - Estimate tokens
+   - GET /llm-export/formats - List formats
+
+3. **Graph Format Router** (`api/routers/graph_format.py`)
+   - POST /graph-format/convert - Convert between formats
+   - POST /graph-format/convert-raw - Convert and download file
+   - POST /graph-format/detect - Auto-detect format
+   - POST /graph-format/validate - Validate format
+   - GET /graph-format/formats - List all formats
+   - GET /graph-format/formats/{format} - Get format details
+
+**Files Created:**
+- `api/routers/import_mapping.py` - Import mapping endpoints (~650 lines)
+- `api/routers/llm_export.py` - LLM export endpoints (~627 lines)
+- `api/routers/graph_format.py` - Graph format endpoints (~530 lines)
+- `tests/test_phase22_api_endpoints.py` - 41 tests
+
+See [22-PHASE22-API-ENDPOINTS-PHASE21-SERVICES.md](docs/findings/22-PHASE22-API-ENDPOINTS-PHASE21-SERVICES.md) for full details.
+
+---
+
+### Phase 23: Saved Search Configurations - ✅ COMPLETED (2025-12-29)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| Saved Search Service | ✅ Done | Full CRUD, scopes, categories, tags, favorites |
+| Search Execution | ✅ Done | Execute saved searches with parameter overrides |
+| Saved Search Router | ✅ Done | 17 endpoints for management and execution |
+| Project-scoped Searches | ✅ Done | Project and global search scope support |
+| Usage Tracking | ✅ Done | Execution count, last executed, recent/popular |
+| Comprehensive Tests | ✅ Done | 50 tests, all passing |
+| Documentation | ✅ Done | Full Phase 23 findings documented |
+
+**Key Features:**
+
+1. **Saved Search Service** (`api/services/saved_search.py`)
+   - Save search configurations with name, description, query
+   - Three scopes: GLOBAL, PROJECT, USER
+   - Six categories: GENERAL, INVESTIGATION, MONITORING, COMPLIANCE, RISK, CUSTOM
+   - Tag-based organization with usage counts
+   - Favorites, recent, and popular searches
+   - Duplicate and clone searches
+   - Search through saved searches by name/description
+
+2. **Search Execution**
+   - Execute saved searches with stored parameters
+   - Override any parameter at execution time (query, limit, project, etc.)
+   - Track execution time, count, and last execution
+   - Integration with existing SearchService
+
+3. **REST API Endpoints** (`api/routers/saved_search.py`)
+   - POST /saved-searches - Create saved search
+   - GET /saved-searches - List with filtering
+   - GET /saved-searches/{id} - Get specific search
+   - PUT /saved-searches/{id} - Update search
+   - DELETE /saved-searches/{id} - Delete search
+   - POST /saved-searches/{id}/execute - Execute search
+   - POST /saved-searches/{id}/duplicate - Clone search
+   - POST /saved-searches/{id}/toggle-favorite - Toggle favorite
+   - GET /saved-searches/favorites - Get favorites
+   - GET /saved-searches/recent - Get recently executed
+   - GET /saved-searches/popular - Get most popular
+   - GET /saved-searches/tags - Get all tags with counts
+   - GET /saved-searches/by-category/{category} - Filter by category
+   - GET /saved-searches/by-tag/{tag} - Filter by tag
+   - GET /saved-searches/search - Search saved searches
+   - GET/POST /projects/{project}/saved-searches - Project-scoped endpoints
+
+**Files Created:**
+- `api/services/saved_search.py` - Saved search service (~600 lines)
+- `api/routers/saved_search.py` - REST API endpoints (~650 lines)
+- `tests/test_phase23_saved_search.py` - 50 tests
+
+**Combined Tests:** 130 tests (Phase 21-23), all passing
+
+See [23-PHASE23-SAVED-SEARCH-CONFIGURATIONS.md](docs/findings/23-PHASE23-SAVED-SEARCH-CONFIGURATIONS.md) for full details.
+
+---
+
+### Next Steps (Phase 24+)
+
+#### Future Considerations (Lower Priority)
+- API rate limiting (if exposed publicly)
+- Plugin architecture for custom analyzers
+- Redis backend for query cache
+- Webhook integrations for external notifications

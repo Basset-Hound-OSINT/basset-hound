@@ -1,9 +1,9 @@
-# Basset Hound OSINT Platform
+# Basset Hound
 
 <div align="center">
 <img src="static/imgs/basset_hound_osint_logo.png" width="200">
 
-**A configurable entity relationship management system for OSINT investigations**
+**A lightweight, graph-based entity relationship engine for OSINT investigations**
 
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-green.svg)](https://fastapi.tiangolo.com/)
@@ -14,7 +14,31 @@
 
 ## What is Basset Hound?
 
-Basset Hound is a **local-first, graph-based OSINT intelligence platform** designed for security researchers and investigators. Unlike traditional databases, Basset Hound treats relationships as first-class citizens and allows you to:
+Basset Hound is a **focused, API-first entity relationship engine** inspired by [BloodHound](https://github.com/BloodHoundAD/BloodHound), but designed for general OSINT work. It's meant to be **integrated into other applications** - not a standalone enterprise platform.
+
+### Design Philosophy
+
+| Principle | What It Means |
+|-----------|---------------|
+| **Lightweight** | Core functionality only - no bloat, no enterprise features |
+| **Integration-First** | Built to be consumed by LLMs, AI agents, and other tools via API/MCP |
+| **Local-First** | Runs on your laptop, scales with more hardware |
+| **Graph-Powered** | Neo4j for relationship traversal and pattern discovery |
+| **Simple but Powerful** | Few features done well, not many features done poorly |
+
+### What Basset Hound IS
+- An entity relationship storage and query engine
+- A graph analysis backend for path finding, clustering, and centrality
+- An API/MCP server for AI tool integration
+- A data ingestion pipeline from OSINT tools
+
+### What Basset Hound is NOT
+- A full-featured reporting platform (reports exist for LLM context, not end-users)
+- A multi-user enterprise application
+- A replacement for specialized OSINT tools
+- A UI-first application (API-first, UI is secondary)
+
+Unlike traditional databases, Basset Hound treats relationships as first-class citizens and allows you to:
 
 - **Store unlinked data** (emails, phones, addresses) before you know who they belong to
 - **Build entity profiles** from scattered information across multiple sources
@@ -272,17 +296,20 @@ Build knowledge graphs for academic research or family trees
 
 See [docs/ROADMAP.md](docs/ROADMAP.md) for detailed development plans.
 
-**Recently Completed:**
-- ✅ FastAPI migration (Phases 1-14)
-- ✅ Multi-entity type support
-- ✅ Advanced relationship features
-- ✅ ML-powered analytics
+**Core Features (Completed):**
+- ✅ Entity relationship storage with Neo4j
+- ✅ Multi-entity type support (Person, Org, Device, Location, Event, Document)
+- ✅ Graph analysis (path finding, clustering, centrality)
+- ✅ Orphan data management (store-now, link-later workflow)
+- ✅ Data import connectors (Maltego, SpiderFoot, Shodan, HIBP, etc.)
+- ✅ API + MCP server for AI integration
+- ✅ WebSocket real-time notifications
 
-**In Progress (Phase 15):**
-- 🚧 Orphan data management
-- 🚧 Graph visualization API
-- 🚧 Advanced search operators
-- 🚧 Frontend UI enhancements
+**Priority Focus Areas:**
+- 🎯 Graph analytics (community detection, influence propagation)
+- 🎯 Query optimization for large datasets
+- 🎯 Import/export flexibility
+- 🎯 API stability and documentation
 
 ---
 
@@ -300,13 +327,13 @@ Basset Hound is open source and welcomes contributions! Please see [CONTRIBUTING
 
 ## Credits
 
-Inspired by BloodhoundAD's approach to relationship mapping, adapted for OSINT investigations.
+Inspired by [BloodHound](https://github.com/BloodHoundAD/BloodHound)'s approach to graph-based relationship analysis, adapted for general OSINT investigations with a focus on simplicity and integration.
 
 Built with:
 - [FastAPI](https://fastapi.tiangolo.com/) - Modern Python web framework
-- [Neo4j](https://neo4j.com/) - Graph database
+- [Neo4j](https://neo4j.com/) - Graph database for relationship storage
 - [Pydantic](https://pydantic-docs.helpmanual.io/) - Data validation
-- [MCP](https://modelcontextprotocol.io/) - AI tool integration
+- [MCP](https://modelcontextprotocol.io/) - AI tool integration protocol
 
 ---
 
