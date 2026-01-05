@@ -63,9 +63,9 @@ def ethereum_addresses():
 def litecoin_addresses():
     """Valid Litecoin addresses of various types."""
     return {
-        # Real Litecoin addresses with valid checksums
-        "p2pkh": "LVg2kJoFNg45Nbpy53h7Fe1wKyeXVRhMH9",  # Valid LTC P2PKH
-        "p2sh": "MJKDHn2VbC8iXV1FNq4EkZqTwrUdXwS8fn",  # Valid LTC P2SH
+        # Generated valid Litecoin addresses with proper Base58Check checksums
+        "p2pkh": "LanMaxB2DnDe8m7tC5sqw6uxJDYEv7SxvB",  # Valid LTC P2PKH
+        "p2sh": "MR1oVF4DZ9qrMiwXeDddsMweTvfvTwH6CM",  # Valid LTC P2SH
         "bech32": "ltc1qw508d6qejxtdg4y5r3zarvary0c5xw7kgmn4n9",
     }
 
@@ -74,9 +74,9 @@ def litecoin_addresses():
 def dogecoin_addresses():
     """Valid Dogecoin addresses."""
     return {
-        # Real Dogecoin addresses with valid checksums
-        "p2pkh": "DJkn6rAEMPvJsYPr6fxvDCz7e4pFgqZfTG",  # Valid DOGE P2PKH
-        "p2sh": "A9YYRKqAr3MN9oWB3HMGbSLJNR3NJDQ9jb",  # Valid DOGE P2SH
+        # Generated valid Dogecoin addresses with proper Base58Check checksums
+        "p2pkh": "DPoyj9P5GZGnb9hGZ84R8rz2nY8rS52LNG",  # Valid DOGE P2PKH
+        "p2sh": "ACfPnMHPW8GEdn83m4V2DsHrfCh6zUXj14",  # Valid DOGE P2SH
     }
 
 
@@ -84,8 +84,9 @@ def dogecoin_addresses():
 def xrp_addresses():
     """Valid XRP/Ripple addresses."""
     return {
-        # Real XRP addresses with valid checksums
-        "classic": "rDsbeomae4FXwgQTJp9Rs64Qg9vDiTCdBv",  # Valid XRP Classic
+        # XRP uses different checksum algorithm - these are format-valid addresses
+        # Note: XRP checksum validation not implemented (uses different algorithm than Bitcoin)
+        "classic": "rN7n3473SaZBCG4dFL83w7a1RXtXtbk2D9",  # Format-valid XRP Classic
         "x_address": "X7gJ5YK8abHf2eTPWPFHAAot8Knck11QGqmQ7a6a3Z8PJvk",
     }
 
