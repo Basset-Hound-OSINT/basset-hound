@@ -435,6 +435,8 @@ class CryptoAddressDetector:
     }
 
     # Mapping of address types to their checksum validators
+    # Note: Only include cryptocurrencies that use standard Bitcoin-compatible Base58Check
+    # XRP uses a different checksum algorithm and is NOT compatible
     CHECKSUM_VALIDATORS = {
         # Bitcoin Base58Check addresses
         "P2PKH (Legacy)": ("Base58Check", Base58CheckValidator),
@@ -444,17 +446,16 @@ class CryptoAddressDetector:
         "Bech32m (Taproot)": ("Bech32m", Bech32Validator),
         # Ethereum EIP-55
         "EVM Address": ("EIP-55", EIP55Validator),
-        # Litecoin
+        # Litecoin (uses Bitcoin-compatible Base58Check)
         "P2PKH": ("Base58Check", Base58CheckValidator),  # Litecoin legacy
         "P2SH": ("Base58Check", Base58CheckValidator),  # Litecoin P2SH
         "P2SH (SegWit)": ("Base58Check", Base58CheckValidator),
-        # Dogecoin
+        # Dogecoin (uses Bitcoin-compatible Base58Check)
         # "P2PKH": already mapped above
-        # Tron
+        # Tron (uses Bitcoin-compatible Base58Check)
         "Base58Check": ("Base58Check", Base58CheckValidator),
-        # Ripple
-        "Classic": ("Base58Check", Base58CheckValidator),
-        # Zcash transparent
+        # Note: XRP/Ripple uses a different checksum algorithm - NOT included here
+        # Zcash transparent (uses Bitcoin-compatible Base58Check)
         "Transparent (t-addr)": ("Base58Check", Base58CheckValidator),
         "Transparent (t3-addr)": ("Base58Check", Base58CheckValidator),
         # Dash

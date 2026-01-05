@@ -2446,12 +2446,63 @@ See [SESSION-2026-01-05-PART3.md](docs/findings/SESSION-2026-01-05-PART3.md) for
 
 ---
 
+### Phase 36: Cryptocurrency Address Checksum Validation - ✅ COMPLETE
+
+| Task | Status | Notes |
+|------|--------|-------|
+| Implement Base58Check validator | ✅ Complete | Bitcoin, Litecoin, Dogecoin, Tron, Dash, Zcash |
+| Implement Bech32/Bech32m validator | ✅ Complete | Bitcoin SegWit and Taproot addresses |
+| Implement EIP-55 validator | ✅ Complete | Ethereum mixed-case checksum |
+| Update crypto detector with checksum | ✅ Complete | Confidence adjusted based on checksum validity |
+| Update detect_evm with checksum | ✅ Complete | EIP-55 validation for all EVM chains |
+| Update detect_all_possible with checksum | ✅ Complete | Checksum info in all results |
+| Add comprehensive checksum tests | ✅ Complete | 113 crypto detector tests passing |
+| Fix test fixtures with valid addresses | ✅ Complete | Generated addresses with proper checksums |
+
+**Purpose:** Add cryptographic checksum validation to cryptocurrency address detection for improved confidence.
+**Completed:** 2026-01-05
+
+**Checksum Validators Implemented:**
+
+1. **Base58CheckValidator**
+   - Standard Bitcoin Base58Check validation (double SHA-256)
+   - Supports: Bitcoin (P2PKH, P2SH), Litecoin, Dogecoin, Tron, Dash, Zcash transparent
+   - Uses `base58` library for decoding
+
+2. **Bech32Validator**
+   - BIP-173 (Bech32) and BIP-350 (Bech32m) support
+   - Supports: Bitcoin SegWit (bc1q...), Bitcoin Taproot (bc1p...), Litecoin SegWit
+   - Implements polymod checksum verification
+
+3. **EIP55Validator**
+   - Ethereum EIP-55 mixed-case checksum validation
+   - Uses Keccak-256 hash (via pycryptodome)
+   - All-lowercase and all-uppercase bypass checksum (per EIP-55 spec)
+
+**Confidence Score Adjustments:**
+- Valid checksum: +0.03 to confidence (max 0.99)
+- Invalid checksum: -0.30 to confidence (min 0.10)
+- Unknown checksum: No adjustment
+
+**Notes:**
+- XRP/Ripple uses a different checksum algorithm - NOT supported (different from Bitcoin)
+- Installed dependencies: `base58==2.1.1`, `pycryptodome==3.23.0`
+
+**Tests:**
+- 113 crypto detector tests passing
+- 40 verification service tests passing
+- New test classes: TestChecksumValidation, TestBase58CheckValidator, TestBech32Validator, TestEIP55Validator
+
+See [SESSION-2026-01-05-PART4.md](docs/findings/SESSION-2026-01-05-PART4.md) for full details.
+
+---
+
 ### Future Work (Prioritized)
 
 **Priority 1 - High Impact:**
 - ~~Integrate `phonenumbers` library for phone validation~~ ✅ (Phase 35)
 - ~~Expand disposable email detection~~ ✅ (Phase 35 - 9 → 450+ domains)
-- Add crypto address checksum validation (coinaddrvalidator, base58, eth-utils)
+- ~~Add crypto address checksum validation~~ ✅ (Phase 36 - Base58Check, Bech32, EIP-55)
 - Add tests for graph_service.py
 
 **Priority 2 - Medium Impact:**
