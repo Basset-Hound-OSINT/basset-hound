@@ -235,13 +235,16 @@
                 const data = await response.json();
                 
                 if (data.success) {
-                    // Set the project ID globally before redirecting
+                    // Set the project ID and safe name globally before redirecting
                     window.currentProjectId = data.project_id;
-                    console.log("Project ID set to:", window.currentProjectId); // Debug
-                    
+                    window.currentProjectSafeName = data.project_safe_name;
+                    console.log("Project ID set to:", window.currentProjectId);
+                    console.log("Project safe name set to:", window.currentProjectSafeName);
+
                     // Store in sessionStorage for page reloads
                     sessionStorage.setItem('currentProjectId', data.project_id);
-                    
+                    sessionStorage.setItem('currentProjectSafeName', data.project_safe_name);
+
                     window.location.href = data.redirect;
                 } else {
                     showNotification(data.error || 'Failed to open project');

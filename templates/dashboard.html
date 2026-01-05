@@ -12,8 +12,10 @@
 <body>
     <script>
         // Fallback in case the ID wasn't set via JavaScript
-        window.currentProjectId = window.currentProjectId || "{{ current_project_id }}";
+        window.currentProjectId = window.currentProjectId || sessionStorage.getItem('currentProjectId') || "{{ current_project_id }}";
+        window.currentProjectSafeName = window.currentProjectSafeName || sessionStorage.getItem('currentProjectSafeName') || "{{ current_project_safe_name }}";
         console.log("Template-confirmed project ID:", window.currentProjectId);
+        console.log("Template-confirmed project safe name:", window.currentProjectSafeName);
     </script>
 
     <div class="container-fluid">

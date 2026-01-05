@@ -2143,8 +2143,325 @@ See [25-PHASE25-DEDUPLICATION-DATA-QUALITY.md](docs/findings/25-PHASE25-DEDUPLIC
 
 ---
 
-### Next Steps (Phase 26+)
+### Phase 26: Data Verification Service - 📋 PLANNED
 
-#### Future Considerations (Lower Priority)
+| Task | Status | Notes |
+|------|--------|-------|
+| Add DataProvenance model | 📋 Planned | Track source_type, source_url, source_date, captured_by |
+| Format validators | 📋 Planned | Email, phone, crypto, domain format validation |
+| DNS/MX verification | 📋 Planned | Server-side email domain verification |
+| Blockchain verification | 📋 Planned | Check crypto address existence on-chain |
+| Phone number parsing | 📋 Planned | libphonenumber integration for validation |
+| WHOIS/RDAP lookup | 📋 Planned | Domain registration verification |
+| Verification API endpoints | 📋 Planned | POST /verify/email, /verify/phone, /verify/crypto, /verify/domain |
+| Integration with orphan creation | 📋 Planned | Optional verification before ingest |
+
+**Purpose:** Verify that ingested data is plausible and exists before storing.
+
+**New Dependencies:**
+- `phonenumbers>=8.13.0`
+- `dnspython>=2.4.0`
+- `httpx>=0.27.0` (for blockchain APIs)
+
+**Key Features:**
+1. **DataProvenance Model** - Track where data comes from (human entry vs website)
+2. **Format Validators** - Client-compatible validation (regex, checksum)
+3. **Network Validators** - Server-side MX record, DNS verification
+4. **Blockchain Validators** - Check if crypto addresses have on-chain activity
+5. **Verification API** - REST endpoints for data verification
+
+See [INTEGRATION-RESEARCH-2026-01-04.md](docs/findings/INTEGRATION-RESEARCH-2026-01-04.md) for details.
+
+---
+
+### Phase 27: Integration with autofill-extension - 📋 PLANNED
+
+| Task | Status | Notes |
+|------|--------|-------|
+| Accept provenance in orphan API | 📋 Planned | Enhance POST /orphans to include provenance |
+| Verification-gated ingestion | 📋 Planned | Block ingestion if verification fails (configurable) |
+| WebSocket notifications for extension | 📋 Planned | Real-time sync status updates |
+| Bulk ingest endpoint | 📋 Planned | POST /orphans/batch with provenance |
+
+**Purpose:** Enable autofill-extension to send detected data with full provenance.
+
+---
+
+### Phase 28: Integration with basset-hound-browser - 📋 PLANNED
+
+| Task | Status | Notes |
+|------|--------|-------|
+| OSINT agent API design | 📋 Planned | Endpoints optimized for automated investigation |
+| Evidence storage | 📋 Planned | Store screenshots, HTML, metadata as files |
+| Investigation workflow support | 📋 Planned | Track investigation steps and findings |
+| Relationship discovery automation | 📋 Planned | Auto-link entities from same source |
+
+**Purpose:** Enable OSINT agents to store investigation findings with full provenance.
+
+---
+
+### Phase 29: Graph Visualization Enhancements - ✅ COMPLETE
+
+| Task | Status | Notes |
+|------|--------|-------|
+| Center graph on current entity | ✅ Complete | COSE layout with cy.animate({center}) after layoutstop |
+| Entity-centric view mode | ✅ Complete | Shows N-hop ego network from current entity |
+| Highlight current entity | ✅ Complete | Orange color, larger node size, bold label |
+| Navigation from graph | ✅ Complete | Click node to navigate to that entity's profile |
+| Relationship filtering | 📋 Planned | Filter edges by relationship type |
+| Depth control | ✅ Complete | URL parameter ?depth=N (default 2) |
+
+**Purpose:** When viewing a profile, the relationship map should center on that profile.
+**Completed:** 2026-01-04/05 - Graph now centers on current entity with visual highlighting.
+
+---
+
+### Phase 30: MCP Server Modularization - ✅ COMPLETE
+
+| Task | Status | Notes |
+|------|--------|-------|
+| Split MCP server into modules | ✅ Complete | 10 module files totaling 1,842 lines |
+| Schema tools module | ✅ Complete | 6 tools: get_schema, get_sections, get_identifiers, etc. |
+| Entity tools module | ✅ Complete | 5 tools: create_entity, get_entity, update_entity, etc. |
+| Relationship tools module | ✅ Complete | 7 tools: link_entities, get_related, etc. |
+| Search tools module | ✅ Complete | 2 tools: search_entities, search_by_identifier |
+| Analysis tools module | ✅ Complete | 4 tools: find_path, analyze_connections, etc. |
+| Auto-linking tools module | ✅ Complete | 4 tools: find_duplicates, merge_entities, etc. |
+| Projects tools module | ✅ Complete | 3 tools: create_project, list_projects, get_project |
+| Reports tools module | ✅ Complete | 2 tools: create_report, get_reports |
+
+**Purpose:** Make the MCP server easier to maintain and extend.
+**Completed:** 2026-01-04/05 - All 33 tools split into 8 logical modules.
+
+**Final Structure:**
+```
+basset_mcp/
+├── server.py           # Main entry point (28 lines)
+├── __init__.py         # Package exports
+├── tools/
+│   ├── __init__.py     # Registration hub (45 lines)
+│   ├── base.py         # Shared utilities (102 lines)
+│   ├── schema.py       # 6 schema tools (350 lines)
+│   ├── entities.py     # 5 entity tools (183 lines)
+│   ├── relationships.py # 7 relationship tools (407 lines)
+│   ├── search.py       # 2 search tools (142 lines)
+│   ├── projects.py     # 3 project tools (84 lines)
+│   ├── reports.py      # 2 report tools (141 lines)
+│   ├── analysis.py     # 4 analysis tools (161 lines)
+│   └── auto_linking.py # 4 auto-linking tools (227 lines)
+```
+
+---
+
+### Phase 31: Verification & OSINT Agent Integration - ✅ COMPLETE
+
+| Task | Status | Notes |
+|------|--------|-------|
+| Verification Service | ✅ Complete | Multi-level verification (format, network, external) |
+| Verification Router | ✅ Complete | 9 endpoints for email, phone, domain, IP, crypto, etc. |
+| DataProvenance Model | ✅ Complete | Full provenance tracking with chain of custody |
+| OSINT Router | ✅ Complete | Ingest, investigate, extract endpoints |
+| Batch Verification | ✅ Complete | Verify up to 100 identifiers in parallel |
+
+**Purpose:** Enable OSINT agents and browser extensions to verify and ingest data with provenance.
+**Completed:** 2026-01-05
+
+**New Files Created:**
+- `api/services/verification_service.py` - Verification logic (~650 lines)
+- `api/routers/verification.py` - REST endpoints (~350 lines)
+- `api/models/provenance.py` - Provenance models (~330 lines)
+- `api/routers/osint.py` - OSINT integration endpoints (~450 lines)
+
+**Verification Capabilities:**
+| Type | Format | Network | External |
+|------|--------|---------|----------|
+| Email | RFC 5322, disposable detection | MX lookup | - |
+| Phone | E.164, country extraction | - | - |
+| Domain | Format validation | DNS A lookup | - |
+| IP | IPv4/IPv6, private range detection | - | - |
+| URL | Format, component extraction | - | - |
+| Crypto | 20+ coins, address type detection | - | Blockchain APIs (planned) |
+| Username | Format validation | - | - |
+
+**OSINT Integration Endpoints:**
+- `POST /api/v1/osint/ingest` - Ingest identifiers with provenance
+- `POST /api/v1/osint/investigate` - Start OSINT investigation job
+- `POST /api/v1/osint/extract` - Extract identifiers from HTML
+- `GET /api/v1/osint/capabilities` - List supported types
+- `GET /api/v1/osint/stats` - Get ingestion statistics
+
+---
+
+### Phase 32: Comprehensive Testing & Code Cleanup - ✅ COMPLETE
+
+| Task | Status | Notes |
+|------|--------|-------|
+| Verification Service Tests | ✅ Complete | 39 tests covering email, phone, domain, IP, URL, crypto, username |
+| OSINT Router Tests | ✅ Complete | Tests for ingest, investigate, extract, capabilities, stats endpoints |
+| Provenance Model Tests | ✅ Complete | Tests for all enums, DataProvenance, ProvenanceCreate, ProvenanceChain |
+| Dead Code Analysis | ✅ Complete | Identified unused normalizer_v2.py, unused imports |
+| Code Cleanup | ✅ Complete | Removed 5 unused imports from app.py |
+
+**Purpose:** Comprehensive test coverage for new verification/OSINT features and codebase cleanup.
+**Completed:** 2026-01-05
+
+**Test Files Created:**
+- `tests/test_verification_service.py` - 39 tests for multi-level verification
+- `tests/test_osint_router.py` - OSINT endpoint tests with FastAPI TestClient
+- `tests/test_provenance_models.py` - Full model validation tests
+
+**Dead Code Identified:**
+- `api/services/normalizer_v2.py` (1289 lines) - Never imported anywhere in codebase
+- Unused imports in `app.py`: pprint, defaultdict, hashlib, uuid4, initialize_person_data
+
+**Code Cleanup Actions:**
+- Removed 5 unused imports from `app.py`
+- Created [CODE-CLEANUP-2026-01-05.md](docs/findings/CODE-CLEANUP-2026-01-05.md) documenting findings
+
+**Test Summary:**
+- Total: 64 new tests passing
+- Coverage: Verification service, OSINT router, Provenance models
+
+---
+
+### Phase 33: User Override for Verification - ✅ COMPLETE
+
+| Task | Status | Notes |
+|------|--------|-------|
+| User override fields in DataProvenance | ✅ Complete | user_verified, user_override, override_reason, override_at |
+| USER_OVERRIDE verification state | ✅ Complete | New enum value for user-confirmed data |
+| Advisory flags in VerificationResult | ✅ Complete | allows_override, override_hint fields |
+| Enhanced IP verification | ✅ Complete | Advisory warnings with override hints for private/loopback IPs |
+| Updated API response models | ✅ Complete | VerifyResponse includes override advisory fields |
+| Tests for user override | ✅ Complete | 2 new tests for override functionality |
+
+**Purpose:** Verification is ADVISORY, not authoritative. Users can override any verification result.
+**Completed:** 2026-01-05
+
+**Philosophy:**
+Verification helps catch typos and obvious errors, but the user is the ultimate authority:
+- Private IP (10.x.x.x) might be valid on an internal network
+- User might be on a VPN where public/private distinctions differ
+- Some data might appear invalid but be correct in context
+
+**New Fields in DataProvenance:**
+```python
+user_verified: bool       # User explicitly confirmed data is correct
+user_override: bool       # User overrode automatic verification
+override_reason: str      # User's explanation (e.g., "Valid on internal network")
+override_at: datetime     # When override was applied
+```
+
+**New Fields in VerificationResult:**
+```python
+allows_override: bool     # Can user override this result?
+override_hint: str        # Hint explaining when override is appropriate
+```
+
+**Example Override Hints:**
+- Private IP: "Override if this is a valid target on your internal network or VPN"
+- Loopback: "Override if intentionally targeting localhost"
+- Link-local: "Override if this is a known APIPA address on your network"
+
+**Test Summary:**
+- Total: 96 tests passing (verification, OSINT, provenance)
+
+---
+
+### Phase 34: Verification Enhancement Research - ✅ COMPLETE
+
+| Task | Status | Notes |
+|------|--------|-------|
+| Research email verification best practices | ✅ Complete | SPF/DMARC, disposable detection, role-based emails |
+| Research phone validation standards | ✅ Complete | libphonenumber integration recommended |
+| Research crypto address validation | ✅ Complete | Checksum validation, on-chain verification |
+| Research domain/IP reputation | ✅ Complete | RDAP, GeoIP, VirusTotal integration |
+| Test coverage gap analysis | ✅ Complete | 55-60% coverage, critical gaps identified |
+
+**Purpose:** Research best practices for improving verification service.
+**Completed:** 2026-01-05
+
+**Recommended Dependencies to Add:**
+```
+phonenumbers>=8.13.0        # Phone validation (libphonenumber)
+coinaddrvalidator>=1.1.0    # Crypto checksum validation
+base58>=2.1.0               # Base58Check encoding
+eth-utils>=2.0.0            # Ethereum utilities
+geoip2>=4.0.0               # IP geolocation
+```
+
+**Priority Enhancements Identified:**
+1. Replace phone regex with libphonenumber (High)
+2. Expand disposable email list from 9 to 3000+ domains (High)
+3. Add crypto address checksum validation (High)
+4. Add RDAP lookup for domains (Medium)
+5. Add IP geolocation (Medium)
+
+**Test Coverage Gaps Identified:**
+- graph_service.py (Critical - no tests)
+- similarity_service.py (Critical - no tests)
+- community_detection.py (Critical - no tests)
+- neo4j_service.py (Critical - no tests)
+- graph.py router (Critical - no tests)
+
+See [SESSION-2026-01-05-PART2.md](docs/findings/SESSION-2026-01-05-PART2.md) for full details.
+
+---
+
+### Phase 35: Verification Enhancement Implementation - ✅ COMPLETE
+
+| Task | Status | Notes |
+|------|--------|-------|
+| Integrate `phonenumbers` library | ✅ Complete | Enhanced phone validation with libphonenumber |
+| Expand disposable email list | ✅ Complete | 9 → 450+ domains |
+| Update phone verification tests | ✅ Complete | Tests updated for new API |
+| Add phone number type detection test | ✅ Complete | New test for mobile/landline/VOIP detection |
+
+**Purpose:** Implement high-priority enhancements identified in Phase 34 research.
+**Completed:** 2026-01-05
+
+**Phone Validation Enhancements:**
+- Full libphonenumber (phonenumbers) integration
+- E.164, international, and national format output
+- Country code and region detection
+- Number type detection (mobile, landline, VOIP, toll-free, etc.)
+- Carrier detection (when available)
+- Geographic location hints
+- Better validation with is_possible_number and is_valid_number
+- Improved error messages with specific parse failure reasons
+
+**Disposable Email Detection:**
+- Expanded from 9 domains to 450+ domains
+- Covers all major disposable email services
+- Includes variants and subdomains
+- Organized by category (tempmail, mailinator, guerrillamail, etc.)
+
+**Tests Updated:**
+- 40 verification service tests passing
+- 27 provenance model tests passing
+- 30 OSINT router tests passing
+- Total: 97 tests passing
+
+See [SESSION-2026-01-05-PART3.md](docs/findings/SESSION-2026-01-05-PART3.md) for full details.
+
+---
+
+### Future Work (Prioritized)
+
+**Priority 1 - High Impact:**
+- ~~Integrate `phonenumbers` library for phone validation~~ ✅ (Phase 35)
+- ~~Expand disposable email detection~~ ✅ (Phase 35 - 9 → 450+ domains)
+- Add crypto address checksum validation (coinaddrvalidator, base58, eth-utils)
+- Add tests for graph_service.py
+
+**Priority 2 - Medium Impact:**
+- RDAP lookup for domains
+- IP geolocation service (MaxMind GeoLite2)
+- Tests for similarity_service.py, community_detection.py
+- VirusTotal integration for domain reputation
+
+**Priority 3 - Lower Priority:**
 - Plugin architecture for custom analyzers
 - Redis backend for query cache
+- Multi-tenant support (for team usage)
+- Decision on `normalizer_v2.py` (integrate or remove)

@@ -150,7 +150,8 @@ export async function renderPersonDetails(container, person) {
         mapBtn.className = 'btn btn-secondary';
         mapBtn.innerHTML = '<i class="fas fa-map"></i> Map';
         mapBtn.addEventListener('click', () => {
-            window.open(`/map.html?personId=${person.id}`, '_blank');
+            const projectSafeName = window.currentProjectSafeName || 'default';
+            window.open(`/map.html?project=${projectSafeName}&personId=${person.id}`, '_blank');
     });
     actionsCol.appendChild(mapBtn);
 

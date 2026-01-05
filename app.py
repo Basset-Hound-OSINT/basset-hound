@@ -2,12 +2,8 @@ from flask import Flask, render_template, request, redirect, url_for, jsonify, s
 import json
 import os
 from datetime import datetime
-import hashlib
-from collections import defaultdict
 import yaml
-from uuid import uuid4
-from config_loader import load_config, initialize_person_data
-import pprint
+from config_loader import load_config
 import re
 from neo4j_handler import Neo4jHandler
 from reports import reports_bp
@@ -110,7 +106,8 @@ def set_current_project():
     
     return jsonify({
         "success": True,
-        "project_id": current_project_id,  # This is crucial
+        "project_id": current_project_id,
+        "project_safe_name": current_project_safe_name,
         "redirect": url_for('dashboard')
     })
 
@@ -124,11 +121,12 @@ def dashboard():
     if not project:
         return redirect(url_for('index'))
     
-    return render_template('dashboard.html', 
-                        project=project, 
-                        config=CONFIG, 
+    return render_template('dashboard.html',
+                        project=project,
+                        config=CONFIG,
                         person=None,
-                        current_project_id=current_project_id)  # Add this line
+                        current_project_id=current_project_id,
+                        current_project_safe_name=current_project_safe_name)
 
 
 @app.route('/get_config')

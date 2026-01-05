@@ -80,6 +80,8 @@ from .saved_search import router as saved_search_router, project_saved_search_ro
 from .webhooks import router as webhooks_router, project_webhooks_router
 from .data_quality import router as data_quality_router, project_data_quality_router
 from .deduplication import router as deduplication_router, project_dedup_router
+from .verification import router as verification_router
+from .osint import router as osint_router
 
 # Create main API router
 api_router = APIRouter()
@@ -140,6 +142,8 @@ api_router.include_router(data_quality_router)
 api_router.include_router(project_data_quality_router)
 api_router.include_router(deduplication_router)
 api_router.include_router(project_dedup_router)
+api_router.include_router(verification_router)
+api_router.include_router(osint_router)
 
 __all__ = [
     "api_router",
@@ -198,4 +202,6 @@ __all__ = [
     "project_data_quality_router",
     "deduplication_router",
     "project_dedup_router",
+    "verification_router",
+    "osint_router",
 ]

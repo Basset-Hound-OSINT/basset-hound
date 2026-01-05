@@ -3,12 +3,227 @@ Cryptocurrency Address Detection Utility
 
 Automatically detects cryptocurrency type from wallet address format.
 Supports 20+ major cryptocurrencies with comprehensive pattern matching.
+Includes checksum validation for Bitcoin, Ethereum, Litecoin, and other major chains.
 """
 
 import re
 import hashlib
 from dataclasses import dataclass
 from typing import Optional, List, Tuple
+
+# Try to import base58 for Base58Check validation
+try:
+    import base58
+    HAS_BASE58 = True
+except ImportError:
+    HAS_BASE58 = False
+
+
+# =============================================================================
+# Checksum Validators
+# =============================================================================
+
+
+class ChecksumValidator:
+    """Base class for cryptocurrency address checksum validators."""
+
+    @staticmethod
+    def validate(address: str) -> Optional[bool]:
+        """
+        Validate the checksum of an address.
+
+        Returns:
+            True if checksum is valid
+            False if checksum is invalid
+            None if checksum cannot be validated (unsupported format)
+        """
+        raise NotImplementedError
+
+
+class Base58CheckValidator(ChecksumValidator):
+    """
+    Validates Base58Check encoded addresses (Bitcoin, Litecoin, Dogecoin, etc.)
+
+    Base58Check encoding includes a 4-byte checksum at the end which is the
+    first 4 bytes of SHA256(SHA256(version + payload)).
+    """
+
+    @staticmethod
+    def validate(address: str) -> Optional[bool]:
+        """Validate a Base58Check encoded address."""
+        if not HAS_BASE58:
+            return None  # Cannot validate without base58 library
+
+        try:
+            # Decode the Base58 address
+            decoded = base58.b58decode(address)
+
+            # Must have at least 5 bytes (1 version + checksum)
+            if len(decoded) < 5:
+                return False
+
+            # Split into payload (version + data) and checksum
+            payload = decoded[:-4]
+            checksum = decoded[-4:]
+
+            # Calculate expected checksum: first 4 bytes of double SHA256
+            hash1 = hashlib.sha256(payload).digest()
+            hash2 = hashlib.sha256(hash1).digest()
+            expected_checksum = hash2[:4]
+
+            return checksum == expected_checksum
+
+        except Exception:
+            return False
+
+
+class Bech32Validator(ChecksumValidator):
+    """
+    Validates Bech32 and Bech32m encoded addresses (Bitcoin SegWit, Litecoin).
+
+    Implements BIP-173 (Bech32) and BIP-350 (Bech32m) checksum validation.
+    """
+
+    # Bech32 character set
+    CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
+
+    # Generator polynomial for Bech32
+    BECH32_CONST = 1
+    BECH32M_CONST = 0x2bc830a3
+
+    @classmethod
+    def _polymod(cls, values: List[int]) -> int:
+        """Internal function that computes the Bech32 checksum."""
+        generator = [0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3]
+        chk = 1
+        for value in values:
+            top = chk >> 25
+            chk = (chk & 0x1ffffff) << 5 ^ value
+            for i in range(5):
+                chk ^= generator[i] if ((top >> i) & 1) else 0
+        return chk
+
+    @classmethod
+    def _hrp_expand(cls, hrp: str) -> List[int]:
+        """Expand the HRP into values for checksum computation."""
+        return [ord(x) >> 5 for x in hrp] + [0] + [ord(x) & 31 for x in hrp]
+
+    @classmethod
+    def _verify_checksum(cls, hrp: str, data: List[int]) -> Optional[str]:
+        """Verify checksum and return encoding type (bech32 or bech32m)."""
+        const = cls._polymod(cls._hrp_expand(hrp) + data)
+        if const == cls.BECH32_CONST:
+            return "bech32"
+        if const == cls.BECH32M_CONST:
+            return "bech32m"
+        return None
+
+    @classmethod
+    def validate(cls, address: str) -> Optional[bool]:
+        """Validate a Bech32 or Bech32m encoded address."""
+        address = address.lower()
+
+        # Find the separator (last '1' in the address)
+        pos = address.rfind('1')
+        if pos < 1 or pos + 7 > len(address):
+            return False
+
+        # Check that data part uses only valid characters
+        data_part = address[pos + 1:]
+        if not all(c in cls.CHARSET for c in data_part):
+            return False
+
+        # Extract HRP and convert data part to integers
+        hrp = address[:pos]
+        data = [cls.CHARSET.find(c) for c in data_part]
+
+        # Verify checksum
+        encoding = cls._verify_checksum(hrp, data)
+        return encoding is not None
+
+
+class EIP55Validator(ChecksumValidator):
+    """
+    Validates Ethereum EIP-55 mixed-case checksum addresses.
+
+    EIP-55 uses the Keccak-256 hash of the lowercase address to determine
+    which characters should be uppercase.
+    """
+
+    @staticmethod
+    def _keccak256(data: bytes) -> bytes:
+        """
+        Compute Keccak-256 hash.
+
+        Note: Python's sha3_256 is SHA3-256 (FIPS 202), NOT Keccak-256.
+        For EIP-55 we need the original Keccak-256 (pre-standardization).
+        """
+        # Try pycryptodome first (correct Keccak-256)
+        try:
+            from Crypto.Hash import keccak
+            k = keccak.new(digest_bits=256)
+            k.update(data)
+            return k.digest()
+        except ImportError:
+            pass
+
+        # Try pysha3 (pip install pysha3)
+        try:
+            import sha3
+            k = sha3.keccak_256()
+            k.update(data)
+            return k.digest()
+        except ImportError:
+            pass
+
+        # Try eth_hash with pycryptodome backend
+        try:
+            from eth_hash.auto import keccak
+            return keccak.new(data).digest()
+        except ImportError:
+            pass
+
+        # Fallback: cannot validate (do NOT use hashlib.sha3_256 - it's different!)
+        return b""
+
+    @classmethod
+    def validate(cls, address: str) -> Optional[bool]:
+        """
+        Validate an Ethereum address using EIP-55 checksum.
+
+        Note: All-lowercase and all-uppercase addresses are considered valid
+        (they bypass checksum validation per EIP-55 spec).
+        """
+        if not address.startswith("0x"):
+            return False
+
+        addr_body = address[2:]
+
+        # All lowercase or all uppercase bypasses checksum
+        if addr_body.islower() or addr_body.isupper():
+            return True
+
+        # Mixed case - need to validate checksum
+        addr_lower = addr_body.lower()
+        hash_bytes = cls._keccak256(addr_lower.encode('ascii'))
+
+        if not hash_bytes:
+            return None  # Cannot validate without Keccak
+
+        hash_hex = hash_bytes.hex()
+
+        # Check each character
+        for i, char in enumerate(addr_lower):
+            if char in '0123456789':
+                continue
+            # For a-f characters, check if hash nibble >= 8 means uppercase
+            hash_nibble = int(hash_hex[i], 16)
+            expected_upper = hash_nibble >= 8
+            actual_upper = addr_body[i].isupper()
+            if expected_upper != actual_upper:
+                return False
+
+        return True
 
 
 @dataclass
@@ -22,6 +237,9 @@ class CryptoDetectionResult:
     address_type: Optional[str] = None
     confidence: float = 0.0
     explorer_url: Optional[str] = None
+    # Checksum validation fields
+    checksum_valid: Optional[bool] = None  # True/False/None (cannot validate)
+    checksum_type: Optional[str] = None  # "Base58Check", "Bech32", "EIP55", etc.
 
     def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization."""
@@ -34,6 +252,8 @@ class CryptoDetectionResult:
             "address_type": self.address_type,
             "confidence": self.confidence,
             "explorer_url": self.explorer_url,
+            "checksum_valid": self.checksum_valid,
+            "checksum_type": self.checksum_type,
         }
 
 
@@ -214,6 +434,36 @@ class CryptoAddressDetector:
         "BASE": ("Base", "https://basescan.org/address/{address}"),
     }
 
+    # Mapping of address types to their checksum validators
+    CHECKSUM_VALIDATORS = {
+        # Bitcoin Base58Check addresses
+        "P2PKH (Legacy)": ("Base58Check", Base58CheckValidator),
+        "P2SH (SegWit Compatible)": ("Base58Check", Base58CheckValidator),
+        # Bitcoin Bech32/Bech32m addresses
+        "Bech32 (Native SegWit)": ("Bech32", Bech32Validator),
+        "Bech32m (Taproot)": ("Bech32m", Bech32Validator),
+        # Ethereum EIP-55
+        "EVM Address": ("EIP-55", EIP55Validator),
+        # Litecoin
+        "P2PKH": ("Base58Check", Base58CheckValidator),  # Litecoin legacy
+        "P2SH": ("Base58Check", Base58CheckValidator),  # Litecoin P2SH
+        "P2SH (SegWit)": ("Base58Check", Base58CheckValidator),
+        # Dogecoin
+        # "P2PKH": already mapped above
+        # Tron
+        "Base58Check": ("Base58Check", Base58CheckValidator),
+        # Ripple
+        "Classic": ("Base58Check", Base58CheckValidator),
+        # Zcash transparent
+        "Transparent (t-addr)": ("Base58Check", Base58CheckValidator),
+        "Transparent (t3-addr)": ("Base58Check", Base58CheckValidator),
+        # Dash
+        # "P2PKH": already mapped above
+        # NEO
+        "Address": ("Base58Check", Base58CheckValidator),
+        "NEO3": ("Base58Check", Base58CheckValidator),
+    }
+
     def __init__(self):
         """Initialize the detector with compiled regex patterns."""
         self._compiled_patterns = [
@@ -221,15 +471,29 @@ class CryptoAddressDetector:
             for pattern, coin_name, ticker, network, addr_type, confidence, explorer in self.PATTERNS
         ]
 
-    def detect(self, address: str) -> CryptoDetectionResult:
+    def _validate_checksum(self, address: str, address_type: str) -> Tuple[Optional[bool], Optional[str]]:
+        """
+        Validate checksum for an address based on its type.
+
+        Returns:
+            Tuple of (checksum_valid, checksum_type)
+        """
+        if address_type in self.CHECKSUM_VALIDATORS:
+            checksum_type, validator_class = self.CHECKSUM_VALIDATORS[address_type]
+            checksum_valid = validator_class.validate(address)
+            return checksum_valid, checksum_type
+        return None, None
+
+    def detect(self, address: str, validate_checksum: bool = True) -> CryptoDetectionResult:
         """
         Detect cryptocurrency type from address.
 
         Args:
             address: The cryptocurrency address to analyze
+            validate_checksum: Whether to perform checksum validation (default True)
 
         Returns:
-            CryptoDetectionResult with detection details
+            CryptoDetectionResult with detection details including checksum validation
         """
         if not address or not isinstance(address, str):
             return CryptoDetectionResult(
@@ -247,6 +511,17 @@ class CryptoAddressDetector:
             if compiled.match(address):
                 explorer_url = explorer_template.format(address=address) if explorer_template else None
 
+                # Validate checksum if requested
+                checksum_valid = None
+                checksum_type = None
+                if validate_checksum:
+                    checksum_valid, checksum_type = self._validate_checksum(address, addr_type)
+                    # Boost confidence if checksum is valid, reduce if invalid
+                    if checksum_valid is True:
+                        confidence = min(0.99, confidence + 0.03)
+                    elif checksum_valid is False:
+                        confidence = max(0.1, confidence - 0.3)
+
                 result = CryptoDetectionResult(
                     address=address,
                     detected=True,
@@ -256,10 +531,12 @@ class CryptoAddressDetector:
                     address_type=addr_type,
                     confidence=confidence,
                     explorer_url=explorer_url,
+                    checksum_valid=checksum_valid,
+                    checksum_type=checksum_type,
                 )
 
-                # Return immediately if high confidence match
-                if confidence >= 0.95:
+                # Return immediately if high confidence match with valid checksum
+                if confidence >= 0.95 and checksum_valid is not False:
                     return result
 
                 # Keep track of best match
@@ -274,13 +551,14 @@ class CryptoAddressDetector:
             detected=False,
         )
 
-    def detect_evm(self, address: str, chain: str = "ETH") -> CryptoDetectionResult:
+    def detect_evm(self, address: str, chain: str = "ETH", validate_checksum: bool = True) -> CryptoDetectionResult:
         """
         Detect EVM-compatible address with specific chain.
 
         Args:
             address: The 0x address
             chain: Chain ticker (ETH, BNB, MATIC, etc.)
+            validate_checksum: Whether to perform EIP-55 checksum validation
 
         Returns:
             CryptoDetectionResult for the specified chain
@@ -291,9 +569,22 @@ class CryptoAddressDetector:
                 detected=False,
             )
 
+        # Validate EIP-55 checksum if requested
+        checksum_valid = None
+        checksum_type = None
+        confidence_adjustment = 0.0
+        if validate_checksum:
+            checksum_valid = EIP55Validator.validate(address)
+            checksum_type = "EIP-55"
+            if checksum_valid is True:
+                confidence_adjustment = 0.03
+            elif checksum_valid is False:
+                confidence_adjustment = -0.3
+
         chain = chain.upper()
         if chain in self.EVM_CHAINS:
             coin_name, explorer_template = self.EVM_CHAINS[chain]
+            confidence = min(0.99, max(0.1, 0.95 + confidence_adjustment))
             return CryptoDetectionResult(
                 address=address,
                 detected=True,
@@ -301,11 +592,14 @@ class CryptoAddressDetector:
                 coin_ticker=chain,
                 network="mainnet",
                 address_type="EVM Address",
-                confidence=0.95,
+                confidence=confidence,
                 explorer_url=explorer_template.format(address=address),
+                checksum_valid=checksum_valid,
+                checksum_type=checksum_type,
             )
 
         # Default to ETH
+        confidence = min(0.99, max(0.1, 0.85 + confidence_adjustment))
         return CryptoDetectionResult(
             address=address,
             detected=True,
@@ -313,11 +607,13 @@ class CryptoAddressDetector:
             coin_ticker="ETH",
             network="mainnet",
             address_type="EVM Address",
-            confidence=0.85,
+            confidence=confidence,
             explorer_url=f"https://etherscan.io/address/{address}",
+            checksum_valid=checksum_valid,
+            checksum_type=checksum_type,
         )
 
-    def detect_all_possible(self, address: str) -> List[CryptoDetectionResult]:
+    def detect_all_possible(self, address: str, validate_checksum: bool = True) -> List[CryptoDetectionResult]:
         """
         Get all possible cryptocurrency matches for an address.
 
@@ -325,6 +621,7 @@ class CryptoAddressDetector:
 
         Args:
             address: The cryptocurrency address to analyze
+            validate_checksum: Whether to perform checksum validation
 
         Returns:
             List of all possible CryptoDetectionResult matches
@@ -335,6 +632,18 @@ class CryptoAddressDetector:
         for compiled, coin_name, ticker, network, addr_type, confidence, explorer_template in self._compiled_patterns:
             if compiled.match(address):
                 explorer_url = explorer_template.format(address=address) if explorer_template else None
+
+                # Validate checksum if requested
+                checksum_valid = None
+                checksum_type = None
+                if validate_checksum:
+                    checksum_valid, checksum_type = self._validate_checksum(address, addr_type)
+                    # Adjust confidence based on checksum
+                    if checksum_valid is True:
+                        confidence = min(0.99, confidence + 0.03)
+                    elif checksum_valid is False:
+                        confidence = max(0.1, confidence - 0.3)
+
                 results.append(CryptoDetectionResult(
                     address=address,
                     detected=True,
@@ -344,12 +653,25 @@ class CryptoAddressDetector:
                     address_type=addr_type,
                     confidence=confidence,
                     explorer_url=explorer_url,
+                    checksum_valid=checksum_valid,
+                    checksum_type=checksum_type,
                 ))
 
         # If it's an EVM address, add all EVM chain possibilities
         if re.match(r"^0x[a-fA-F0-9]{40}$", address):
+            # Get EIP-55 checksum validation once for all EVM chains
+            evm_checksum_valid = None
+            if validate_checksum:
+                evm_checksum_valid = EIP55Validator.validate(address)
+
             for chain, (coin_name, explorer_template) in self.EVM_CHAINS.items():
                 if chain != "ETH":  # ETH already in results
+                    base_confidence = 0.80
+                    if validate_checksum and evm_checksum_valid is True:
+                        base_confidence = min(0.99, base_confidence + 0.03)
+                    elif validate_checksum and evm_checksum_valid is False:
+                        base_confidence = max(0.1, base_confidence - 0.3)
+
                     results.append(CryptoDetectionResult(
                         address=address,
                         detected=True,
@@ -357,8 +679,10 @@ class CryptoAddressDetector:
                         coin_ticker=chain,
                         network="mainnet",
                         address_type="EVM Address",
-                        confidence=0.80,
+                        confidence=base_confidence,
                         explorer_url=explorer_template.format(address=address),
+                        checksum_valid=evm_checksum_valid if validate_checksum else None,
+                        checksum_type="EIP-55" if validate_checksum else None,
                     ))
 
         # Sort by confidence (highest first)
