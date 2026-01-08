@@ -3,6 +3,18 @@ Basset Hound MCP Tools
 
 This package contains modular tool implementations for the MCP server.
 Each module handles a specific domain of functionality.
+
+Modules:
+- schema: Schema introspection and validation
+- entities: Entity CRUD operations with query support
+- relationships: Entity relationship management
+- search: Full-text and identifier search
+- projects: Project management
+- reports: Report generation
+- analysis: Graph analysis and visualization
+- auto_linking: Duplicate detection and entity merging
+- orphans: Orphan data management (unlinked identifiers)
+- provenance: Data provenance and chain of custody tracking
 """
 
 from .base import (
@@ -21,6 +33,8 @@ from .projects import register_project_tools
 from .reports import register_report_tools
 from .analysis import register_analysis_tools
 from .auto_linking import register_auto_linking_tools
+from .orphans import register_orphan_tools
+from .provenance import register_provenance_tools
 
 
 def register_all_tools(mcp):
@@ -33,6 +47,8 @@ def register_all_tools(mcp):
     register_report_tools(mcp)
     register_analysis_tools(mcp)
     register_auto_linking_tools(mcp)
+    register_orphan_tools(mcp)
+    register_provenance_tools(mcp)
 
 
 __all__ = [

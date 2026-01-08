@@ -2516,3 +2516,299 @@ See [SESSION-2026-01-05-PART4.md](docs/findings/SESSION-2026-01-05-PART4.md) for
 - Redis backend for query cache
 - Multi-tenant support (for team usage)
 - Decision on `normalizer_v2.py` (integrate or remove)
+
+---
+
+## Strategic Vision: Multi-Project Intelligence Platform
+
+### Evolution from OSINT to General-Purpose
+
+**basset-hound** started as an OSINT-focused entity tracker but has evolved into a **general-purpose entity relationship backbone** that can serve multiple domains:
+- Open Source Intelligence (OSINT) investigations
+- Penetration testing target tracking
+- Research and data collection
+- Any domain requiring entity-relationship storage with provenance
+
+### Project Scope Definition
+
+**basset-hound Core Mission:** Entity relationship storage, graph analysis, and data provenance tracking - serving as the **data backbone** for intelligence applications.
+
+| In Scope | Out of Scope |
+|----------|--------------|
+| Entity CRUD with typed fields | Browser automation (→ basset-hound-browser) |
+| Relationship tracking and graph traversal | Form detection/autofill (→ autofill-extension) |
+| Orphan data management | AI agent logic (→ palletai) |
+| Data provenance and chain of custody | Chrome extension features |
+| API/MCP server for external tools | Headless browser operation |
+| Verification and validation services | |
+| Schema-driven entity configuration | User interface (UI is secondary to API) |
+
+### Integration Philosophy
+
+basset-hound exposes an **MCP server** that AI agents (via palletai) treat as a "system tool" - similar to how an agent might use `nmap` or `curl`. The MCP tools are:
+- `create_entity`, `update_entity`, `query_entities`
+- `create_relationship`, `get_entity_graph`
+- `link_orphan`, `record_provenance`
+
+### Related Projects Integration
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                     INTELLIGENCE PLATFORM ECOSYSTEM                  │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │                      palletai (Orchestrator)                   │  │
+│  │   AI agents treat MCP servers as "system tools" like nmap     │  │
+│  └──────────────────────────────┬───────────────────────────────┘  │
+│                                 │                                    │
+│            ┌────────────────────┼────────────────────┐              │
+│            │ MCP Client         │ MCP Client         │ MCP Client   │
+│            ▼                    ▼                    ▼              │
+│  ┌──────────────┐    ┌───────────────────┐    ┌──────────────────┐ │
+│  │ basset-hound │    │ basset-hound-     │    │ autofill-ext     │ │
+│  │ MCP Server   │    │ browser MCP Srvr  │    │ MCP Server       │ │
+│  │ (Data Store) │    │ (Browser Auto)    │    │ (Chrome Plugin)  │ │
+│  └──────────────┘    └───────────────────┘    └──────────────────┘ │
+│         │                      │                        │           │
+│         │         Similar functionality, different deployment:      │
+│         │         - autofill-ext: Quick-start Chrome extension     │
+│         │         - bh-browser: Full-control Electron app          │
+│         │                                                           │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Browser Projects Relationship
+
+**autofill-extension** and **basset-hound-browser** provide similar functionality but serve different user needs:
+
+| Aspect | autofill-extension | basset-hound-browser |
+|--------|-------------------|---------------------|
+| **Deployment** | Chrome Web Store install | Standalone Electron app |
+| **User type** | Quick-start users | Power users |
+| **Customization** | Limited by Chrome APIs | Fully customizable |
+| **Control** | Subject to Chrome restrictions | Full open-source control |
+| **Use case** | Get up and running fast | Deep configuration, boutique setups |
+
+Both projects are developed in parallel and expose similar MCP tools to AI agents.
+
+---
+
+## Proposed Feature Roadmap
+
+### Phase 37: Entity Type Expansion
+
+**Goal:** Expand entity types to support comprehensive OSINT investigations.
+
+| New Entity Type | Description | Use Case |
+|-----------------|-------------|----------|
+| **GOVERNMENT_ENTITY** | Agencies, departments, regulatory bodies | Jurisdiction tracking, inter-agency relationships |
+| **SOCIAL_GROUP** | Religious, tribal, community organizations | Group dynamics, membership analysis |
+| **PHYSICAL_INFRASTRUCTURE** | Buildings, roads, utilities, facilities | Physical attack surface analysis |
+| **DIGITAL_INFRASTRUCTURE** | Websites, servers, APIs, online services | Digital attack surface, hosting relationships |
+
+**Rationale:**
+- A company can operate across multiple physical infrastructures
+- Multiple companies can share digital infrastructure (cloud hosting)
+- Same entity name may exist as both COMPANY and DIGITAL_INFRASTRUCTURE
+- Enables clearer attack vector analysis
+
+**Implementation Tasks:**
+- [ ] Extend EntityType enum in `api/models/entity_types.py`
+- [ ] Add sections to `data_config.yaml` for each new type
+- [ ] Create relationship types for infrastructure connections
+- [ ] Update UI entity type selector
+- [ ] Add tests for new entity types
+
+### Phase 38: Sock Puppet / Undercover Identity Management
+
+**Goal:** Support law enforcement sock puppet account management.
+
+**Background:** Based on industry research from [SANS Institute](https://www.sans.org/blog/what-are-sock-puppets-in-osint) and [SockPuppet.io](https://www.sockpuppet.io/), sock puppets are fictitious online personas used by OSINT investigators for:
+- Accessing information requiring authentication
+- Passive surveillance without identity exposure
+- Infiltrating closed communities
+
+**New Entity Subtype: SOCK_PUPPET (extends PERSON)**
+
+```yaml
+sections:
+  - id: cover_identity
+    fields: [alias_name, backstory, cover_story, nationality, occupation_cover]
+  - id: operational
+    fields: [handler_id, operation_id, created_date, burn_date, status, budget]
+  - id: platform_accounts
+    fields: [platform, username, email, password_encrypted, 2fa_seed, recovery_codes]
+  - id: attribution_config
+    fields: [fingerprint_profile_id, proxy_config, browser_profile_id, phone_number]
+  - id: activity_log
+    fields: [last_active, total_posts, connections_made, incidents]
+```
+
+**New Relationship Types:**
+- `HANDLER_OF` / `HANDLED_BY` - Agent to sock puppet
+- `COVER_FOR` - Sock puppet to real identity
+- `OPERATION_TARGET` - Linking to investigation targets
+- `USED_ON_PLATFORM` - Sock puppet to platform entity
+
+**Implementation Tasks:**
+- [ ] Create SOCK_PUPPET entity subtype
+- [ ] Implement encrypted credential storage
+- [ ] Add handler assignment workflow
+- [ ] Create burn date tracking and alerts
+- [ ] Integrate with basset-hound-browser profiles
+- [ ] Add operation/objective linking
+- [ ] Implement activity logging
+
+### Phase 39: Enhanced Evidence Chain of Custody
+
+**Goal:** Meet law enforcement evidence management standards.
+
+**Industry Reference:** Based on [Axon Evidence](https://www.axon.com/resources/digital-evidence-management-guide) and [Kaseware](https://www.kaseware.com/evidence-management).
+
+**New Models:**
+
+```python
+class EvidenceChainEntry:
+    timestamp: datetime
+    user_id: str
+    action: Literal["created", "viewed", "modified", "exported", "shared", "deleted"]
+    ip_address: str
+    device_fingerprint: str
+    hash_before: Optional[str]
+    hash_after: Optional[str]
+    notes: str
+
+class ForensicMetadata:
+    file_hash_md5: str
+    file_hash_sha256: str
+    acquisition_method: str
+    acquisition_tool: str
+    examiner_id: str
+    case_number: str
+    exhibit_number: str
+    court_jurisdiction: str
+```
+
+**Implementation Tasks:**
+- [ ] Extend DataProvenance with EvidenceChainEntry
+- [ ] Add ForensicMetadata to file attachments
+- [ ] Implement hash verification on every access
+- [ ] Create audit log export for court proceedings
+- [ ] Add CJIS compliance headers
+- [ ] Implement evidence integrity verification API
+
+### Phase 40: MCP Server Enhancement for AI Integration ✅ COMPLETED (2026-01-08)
+
+**Goal:** Full MCP protocol support for AI agent integration via palletai.
+
+**Completed Implementation:**
+
+**New Tool Modules Created:**
+
+1. **Orphan Tools (`basset_mcp/tools/orphans.py`)** - 11 tools
+   - `create_orphan`, `create_orphan_batch` - Create orphan data
+   - `get_orphan`, `list_orphans`, `search_orphans` - Query orphans
+   - `link_orphan`, `link_orphan_batch` - Link to entities
+   - `update_orphan`, `delete_orphan` - CRUD operations
+   - `find_duplicate_orphans`, `count_orphans` - Analysis
+
+2. **Provenance Tools (`basset_mcp/tools/provenance.py`)** - 8 tools
+   - `get_source_types`, `get_capture_methods`, `get_verification_states`
+   - `record_entity_provenance`, `record_field_provenance`
+   - `get_entity_provenance`, `update_verification_state`
+   - `create_provenance_record`
+
+3. **Enhanced Entity Tools**
+   - `query_entities` - Flexible filtering with date ranges, field existence, relationships
+
+4. **Enhanced Analysis Tools**
+   - `get_entity_graph` - Export graph in standard, adjacency, or Cytoscape.js format
+
+**Tool Count:** 54 total MCP tools (was 33, added 21)
+
+**Test Coverage:** 25 tests in `tests/test_mcp_enhanced_tools.py`
+
+**Documentation:** `docs/findings/MCP-ENHANCEMENT-2026-01-08.md`
+
+**Tasks Completed:**
+- [x] Add orphan data management tools (11 tools)
+- [x] Add provenance tracking tools (8 tools)
+- [x] Enhance entity query capabilities (query_entities)
+- [x] Add graph export tool (get_entity_graph with 3 formats)
+- [x] Register new modules in tools/__init__.py
+- [x] Create comprehensive test suite
+- [x] Document implementation findings
+
+**Remaining (Phase 40.5):**
+- [ ] Add sock puppet MCP tools (specialized PERSON subtype)
+- [ ] Add investigation management tools
+- [ ] Add verification tools exposure
+
+### Phase 41: Integration APIs for Browser Automation
+
+**Goal:** Provide APIs for autofill-extension and basset-hound-browser integration.
+
+**New Endpoints:**
+
+```
+# Form Field Mapping
+POST /api/v1/form-mapping/suggest
+  Request: { form_fields: [...], entity_type: "PERSON" }
+  Response: { mappings: [{ field_id: "email", entity_path: "contact.email" }] }
+
+# Entity Auto-Fill Data
+GET /api/v1/entities/{id}/autofill-data
+  Response: { fields: { email: "...", phone: "...", name: { first: "...", last: "..." } } }
+
+# Sock Puppet Credentials (encrypted)
+GET /api/v1/sock-puppets/{id}/credentials?platform=facebook
+  Response: { username: "...", password: "encrypted:...", 2fa_available: true }
+
+# Evidence Capture
+POST /api/v1/evidence/capture
+  Request: { screenshot: "base64...", url: "...", elements: [...], entity_id: "..." }
+  Response: { evidence_id: "...", chain_of_custody_started: true }
+```
+
+**Implementation Tasks:**
+- [ ] Create form-mapping suggestion API
+- [ ] Implement autofill data endpoint
+- [ ] Add encrypted credential retrieval
+- [ ] Create evidence capture endpoint
+- [ ] Add WebSocket subscriptions for real-time sync
+- [ ] Document integration APIs
+
+---
+
+## Database Architecture Notes
+
+### Current: Neo4j 5.28.1
+
+**Strengths:**
+- Native graph traversal for relationship analysis
+- ACID compliance for data integrity
+- Cypher query language well-suited for investigations
+- Graph Data Science library for entity resolution
+
+**Performance Considerations:**
+Based on research from [DataWalk](https://datawalk.com/neo4jalternative/) and [Memgraph](https://memgraph.com/blog/neo4j-alternative-what-are-my-open-source-db-options):
+- Population-level queries can be slow
+- Consider Memgraph (8x faster reads, 50x faster writes) for high-throughput scenarios
+- For billions of entities, consider NebulaGraph or JanusGraph + ScyllaDB
+
+**Recommendation:** Stay with Neo4j unless scaling to billions of entities. Focus on:
+- Proper indexing strategies
+- Query optimization
+- Caching layer (Redis) for frequent queries
+
+---
+
+## Documentation References
+
+See [VISION-RESEARCH-2026-01-08.md](docs/findings/VISION-RESEARCH-2026-01-08.md) for comprehensive research on:
+- Sock puppet management best practices
+- Evidence chain of custody standards
+- Database architecture comparisons
+- Browser fingerprinting techniques
+- MCP integration patterns
