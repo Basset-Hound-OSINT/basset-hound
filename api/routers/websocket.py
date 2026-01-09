@@ -8,8 +8,11 @@ Endpoints:
 - ws /api/v1/ws - Main WebSocket endpoint for general connections
 - ws /api/v1/ws/projects/{project_id} - Project-scoped WebSocket endpoint
 - ws /api/v1/ws/graph/{project_id} - Graph-focused WebSocket endpoint
+- ws /api/v1/ws/import/{project_id} - Import-focused WebSocket endpoint
+- ws /api/v1/ws/suggestions/{project_id} - Suggestions-focused WebSocket endpoint (Phase 45)
 
 Phase 4: Real-time Communication Layer
+Phase 45: WebSocket Real-Time Notifications for Suggestions
 """
 
 import json

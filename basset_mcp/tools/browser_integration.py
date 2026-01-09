@@ -16,13 +16,21 @@ from datetime import datetime
 from typing import Optional, List, Dict
 from uuid import uuid4
 import base64
-import hashlib
+import sys
+import os
 
+# Add parent paths for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+from api.services.file_hash_service import FileHashService
 from .base import get_neo4j_handler, get_project_safe_name
 
 
 def register_browser_integration_tools(mcp):
     """Register browser integration tools with the MCP server."""
+
+    # Initialize hash service
+    hash_service = FileHashService()
 
     # =========================================================================
     # AUTOFILL DATA TOOLS
@@ -364,14 +372,22 @@ def register_browser_integration_tools(mcp):
         # Generate evidence ID
         evidence_id = f"ev_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid4().hex[:8]}"
 
-        # Decode and hash content
+        # Decode and hash content using FileHashService
         try:
             content_bytes = base64.b64decode(content_base64)
-            sha256_hash = hashlib.sha256(content_bytes).hexdigest()
+            sha256_hash = hash_service.compute_hash_from_bytes(content_bytes)
         except Exception as e:
             return {"error": f"Failed to decode content_base64: {str(e)}"}
 
         now = datetime.now().isoformat()
+
+        # Check for duplicate evidence with same hash
+        project = handler.get_project(safe_name)
+        if not project:
+            return {"error": f"Project not found: {project_id}"}
+
+        existing_evidence = project.get("_evidence", [])
+        duplicates = [ev for ev in existing_evidence if ev.get("sha256") == sha256_hash]
 
         # Create evidence record
         evidence_record = {
@@ -397,10 +413,6 @@ def register_browser_integration_tools(mcp):
         }
 
         # Store in project's _evidence section
-        project = handler.get_project(safe_name)
-        if not project:
-            return {"error": f"Project not found: {project_id}"}
-
         if "_evidence" not in project:
             project["_evidence"] = []
 
@@ -415,7 +427,7 @@ def register_browser_integration_tools(mcp):
         # TODO: In production, store actual content_bytes to filesystem or S3
         # For now, just track metadata in Neo4j
 
-        return {
+        response = {
             "success": True,
             "evidence_id": evidence_id,
             "sha256": sha256_hash,
@@ -423,6 +435,17 @@ def register_browser_integration_tools(mcp):
             "chain_of_custody_started": True,
             "stored_at": now
         }
+
+        # Add duplicate warning if found
+        if duplicates:
+            response["duplicate_detected"] = True
+            response["duplicate_count"] = len(duplicates)
+            response["duplicate_evidence_ids"] = [d["id"] for d in duplicates[:5]]
+            response["warning"] = f"This evidence matches {len(duplicates)} existing evidence item(s)"
+        else:
+            response["duplicate_detected"] = False
+
+        return response
 
     @mcp.tool()
     def get_evidence(

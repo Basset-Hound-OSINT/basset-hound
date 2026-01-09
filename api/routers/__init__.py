@@ -61,6 +61,7 @@ from .templates import router as templates_router
 # Use scheduler as the primary scheduling module (schedule.py is deprecated and re-exports from scheduler)
 from .scheduler import router as scheduler_router
 from .websocket import router as websocket_router
+from api.websocket.suggestion_events import router as suggestion_ws_router
 from .report_storage import router as report_storage_router
 from .marketplace import router as marketplace_router
 from .ml_analytics import router as ml_analytics_router
@@ -82,6 +83,7 @@ from .data_quality import router as data_quality_router, project_data_quality_ro
 from .deduplication import router as deduplication_router, project_dedup_router
 from .verification import router as verification_router
 from .osint import router as osint_router
+from .suggestions import router as suggestions_router
 
 # Create main API router
 api_router = APIRouter()
@@ -114,6 +116,7 @@ api_router.include_router(project_analytics_router)
 api_router.include_router(templates_router)
 api_router.include_router(scheduler_router)
 api_router.include_router(websocket_router)
+api_router.include_router(suggestion_ws_router)  # Phase 45: Suggestion WebSocket events
 api_router.include_router(report_storage_router)
 api_router.include_router(marketplace_router)
 api_router.include_router(ml_analytics_router)
@@ -144,6 +147,7 @@ api_router.include_router(deduplication_router)
 api_router.include_router(project_dedup_router)
 api_router.include_router(verification_router)
 api_router.include_router(osint_router)
+api_router.include_router(suggestions_router)
 
 __all__ = [
     "api_router",
@@ -204,4 +208,5 @@ __all__ = [
     "project_dedup_router",
     "verification_router",
     "osint_router",
+    "suggestions_router",
 ]

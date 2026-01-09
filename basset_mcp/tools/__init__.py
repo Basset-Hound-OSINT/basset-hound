@@ -19,6 +19,10 @@ Modules:
 - verification: Identifier verification (email, phone, crypto, etc.)
 - investigations: Investigation lifecycle and case management
 - browser_integration: Browser integration (autofill, evidence capture, session tracking)
+- file_hashing: File hash computation and duplicate detection
+- data_management: Data ID system for smart suggestions (Phase 43.1)
+- suggestions: On-demand suggestion computation for entity relationships (Phase 43.4)
+- linking: Linking actions for acting on suggestions (Phase 43.5)
 """
 
 from .base import (
@@ -43,6 +47,10 @@ from .sock_puppets import register_sock_puppet_tools
 from .verification import register_verification_tools
 from .investigations import register_investigation_tools
 from .browser_integration import register_browser_integration_tools
+from .file_hashing import register_file_hashing_tools
+from .data_management import register_data_management_tools
+from .suggestions import register_suggestion_tools
+from .linking import register_linking_tools
 
 
 def register_all_tools(mcp):
@@ -61,6 +69,10 @@ def register_all_tools(mcp):
     register_verification_tools(mcp)
     register_investigation_tools(mcp)
     register_browser_integration_tools(mcp)
+    register_file_hashing_tools(mcp)
+    register_data_management_tools(mcp)
+    register_suggestion_tools(mcp)
+    register_linking_tools(mcp)
 
 
 __all__ = [

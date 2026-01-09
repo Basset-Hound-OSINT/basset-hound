@@ -254,10 +254,14 @@ class AsyncNeo4jService:
             "CREATE CONSTRAINT IF NOT EXISTS FOR (p:Project) REQUIRE p.safe_name IS UNIQUE",
             "CREATE CONSTRAINT IF NOT EXISTS FOR (p:Person) REQUIRE p.id IS UNIQUE",
             "CREATE CONSTRAINT IF NOT EXISTS FOR (f:File) REQUIRE f.id IS UNIQUE",
+            "CREATE CONSTRAINT IF NOT EXISTS FOR (d:DataItem) REQUIRE d.id IS UNIQUE",
             "CREATE INDEX IF NOT EXISTS FOR (p:Project) ON (p.name)",
             "CREATE INDEX IF NOT EXISTS FOR (p:Person) ON (p.created_at)",
             "CREATE INDEX IF NOT EXISTS FOR (s:Section) ON (s.id)",
             "CREATE INDEX IF NOT EXISTS FOR (f:Field) ON (f.id)",
+            "CREATE INDEX IF NOT EXISTS FOR (d:DataItem) ON (d.hash)",
+            "CREATE INDEX IF NOT EXISTS FOR (d:DataItem) ON (d.normalized_value)",
+            "CREATE INDEX IF NOT EXISTS FOR (d:DataItem) ON (d.type)",
             "CREATE INDEX IF NOT EXISTS FOR ()-[r:HAS_FILE]-() ON (r.section_id, r.field_id)",
         ]
 

@@ -59,6 +59,13 @@ class NotificationType(str, Enum):
     REPORT_READY = "report_ready"
     BULK_IMPORT_COMPLETE = "bulk_import_complete"
 
+    # Phase 45: Suggestion and linking events
+    SUGGESTION_GENERATED = "suggestion_generated"
+    SUGGESTION_DISMISSED = "suggestion_dismissed"
+    ENTITY_MERGED = "entity_merged"
+    DATA_LINKED = "data_linked"
+    ORPHAN_LINKED = "orphan_linked"
+
     # Connection events (internal)
     CONNECTED = "connected"
     DISCONNECTED = "disconnected"
@@ -383,6 +390,8 @@ class SubscriptionType:
     """
     GRAPH = "graph"
     IMPORT_PROGRESS = "import_progress"
+    SUGGESTIONS = "suggestions"  # Phase 45: Suggestion events
+    LINKING_ACTIONS = "linking_actions"  # Phase 45: Linking action events
     ALL = "all"
 
 

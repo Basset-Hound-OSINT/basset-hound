@@ -9,6 +9,7 @@ This module provides data validation and serialization models for:
 - Reports: OSINT investigation reports
 - Config: Dynamic field configuration schema
 - Auth: Authentication and user management
+- DataItems: Individual data pieces with unique IDs (Phase 43.1)
 """
 
 from api.models.project import (
@@ -55,6 +56,10 @@ from api.models.auth import (
     UserCreate,
     User,
 )
+from api.models.data_item import (
+    DataItem,
+    DATA_TYPES,
+)
 
 __all__ = [
     # Project models
@@ -94,4 +99,7 @@ __all__ = [
     "TokenData",
     "UserCreate",
     "User",
+    # DataItem models (Phase 43.1)
+    "DataItem",
+    "DATA_TYPES",
 ]
