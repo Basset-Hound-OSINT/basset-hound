@@ -183,6 +183,37 @@ basset-hound is an **intelligence management system** for OSINT investigations. 
 - ✅ Track session activity (pages visited, evidence captured)
 - ✅ End sessions with summary
 
+### ✅ Smart Suggestions & Data Matching (Phase 43 - Future)
+
+**Data-Level Identity**:
+- ✅ Every piece of data gets unique ID (data_abc123)
+- ✅ Hash-based file identification (SHA-256)
+- ✅ Images, documents, evidence files tracked independently
+- ✅ Data can exist without being linked to entities
+
+**Intelligent Matching**:
+- ✅ Exact hash matching (images, documents) - 1.0 confidence
+- ✅ Exact string matching (email, phone, crypto) - 0.95 confidence
+- ✅ Partial matching (names, addresses) - 0.3-0.9 confidence
+- ✅ Cross-entity duplicate detection
+- ✅ Orphan data to entity matching
+
+**Suggestion System**:
+- ✅ Show "Suggested Tags" section on entity profiles
+- ✅ Suggest potential matches with confidence scores
+- ✅ Human operator reviews and decides (view, link, dismiss)
+- ✅ No automatic linking - always require human verification
+- ✅ Dismissed suggestions hidden permanently
+- ✅ Audit trail for all linking decisions
+
+**Use Cases**:
+- Same image appears in two entities → suggest possible duplicate
+- Same email in entity and orphan data → suggest linking
+- Partial address match → suggest but flag as low confidence
+- Same document hash → highlight potential relationship
+
+**Philosophy**: Assist human operators with intelligent suggestions, but never force deduplication or auto-link. Low-confidence matches (e.g., same street address but different cities) are suggested but easily dismissed.
+
 ---
 
 ## Out of Scope
