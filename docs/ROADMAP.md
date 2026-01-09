@@ -509,7 +509,7 @@ The key insight is that **entity relationship management is the core value**, no
 
 ---
 
-## Implementation Status (Updated: 2025-12-27)
+## Implementation Status (Updated: 2026-01-09)
 
 ### Phase 1: Core Modernization - ✅ COMPLETED
 
@@ -2859,6 +2859,198 @@ class ForensicMetadata:
 - autofill-extension: Phases 14-16 added to roadmap
 - basset-hound-browser: Phases 19-21 added to roadmap
 - palletai: Phases 15-17 added to roadmap
+
+---
+
+### Phase 42: Verification Migration to basset-verify ✅ COMPLETED (2026-01-09)
+
+**Goal:** Extract verification services into standalone basset-verify package for modularity and reusability.
+
+**Migration Summary:**
+- Moved 12 verification MCP tools from basset-hound to basset-verify package
+- Verification services (email, phone, crypto, domain, IP) now in separate package
+- basset-hound maintains core entity/relationship management
+- Clean separation of concerns: data management vs. verification logic
+
+**Tools Migrated to basset-verify:**
+- `verify_email` - Email deliverability verification
+- `verify_phone` - Phone number validity and carrier lookup
+- `verify_crypto_address` - Cryptocurrency address validation
+- `verify_domain` - Domain registration and DNS verification
+- `verify_ip` - IP geolocation and reputation checking
+- `verify_username` - Social media username verification
+- `verify_all_identifiers` - Batch verification of entity identifiers
+- `get_verification_history` - Verification audit trail
+- `get_verification_stats` - Verification statistics
+- `get_verifiable_fields` - List of verifiable field types
+- `recheck_verification` - Re-verify previously checked identifier
+- `clear_verification_cache` - Cache management
+
+**Tool Count Changes:**
+- **Before Phase 42:** 112 MCP tools
+- **After Phase 42:** 100 MCP tools (-12 verification tools migrated)
+
+**basset-verify Package:**
+- Independent PyPI package with its own MCP server
+- Can be used standalone or integrated with basset-hound
+- Documentation: `basset-verify/README.md`
+- Installation: `pip install basset-verify`
+
+**Integration:**
+- basset-hound can optionally use basset-verify as dependency
+- Verification results stored in Neo4j as before
+- Clean API boundary between packages
+
+**Documentation:**
+- Phase 42 planning: `docs/findings/PHASE42-VERIFICATION-MIGRATION-2026-01-09.md`
+
+---
+
+### Phase 43: Smart Suggestions & Data Matching 🔄 IN PROGRESS (2026-01-09)
+
+**Goal:** Intelligent suggestion system to help human operators identify potential matches, duplicates, and related data across entities and orphan data.
+
+**Status:** Phase 43 Planning Complete - Ready for Implementation
+
+**Timeline:** 5 weeks (6 sub-phases: 43.1 through 43.6)
+
+**Core Principle:** Suggest possible matches based on data analysis (hashes, exact matches, partial matches), but **always require human verification** before linking.
+
+#### Overview
+
+The Smart Suggestions system will:
+- **Suggest** entities that might be related based on shared data
+- **Detect** potential duplicates using hash-based matching
+- **Highlight** orphan data that matches entity data
+- **Assist** with deduplication while preventing false positives
+- **Never auto-link** - all suggestions require human operator approval
+
+#### Implementation Sub-Phases
+
+**Phase 43.1: Data ID System (Week 1)**
+- Create `DataItem` model for all entity data
+- Create `(:DataItem)` node type in Neo4j
+- Migrate existing entity attributes to DataItem nodes
+- Generate unique IDs for all data: `data_abc123`
+- Add `[:HAS_DATA]` relationships
+
+**Phase 43.2: Hash Computation (Week 2)**
+- Create `FileHashService` class
+- Compute SHA-256 for uploaded images/documents
+- Store hashes in DataItem.hash field
+- Add hash verification for evidence integrity
+
+**Phase 43.3: Matching Engine (Week 2-3)**
+- Create `MatchingEngine` class
+- Implement exact hash matching (1.0 confidence)
+- Implement exact string matching for email, phone, crypto (0.95 confidence)
+- Implement partial string matching for names, addresses (0.3-0.9 confidence)
+- Performance optimization with indexes
+
+**Phase 43.4: Suggestion System (Week 3-4)**
+- Create `Suggestion` model
+- Compute suggestions on-demand when viewing entity profile
+- Implement suggestion caching (5-minute TTL)
+- User can dismiss irrelevant suggestions
+- Store dismissed suggestions in user preferences
+
+**Phase 43.5: Linking Actions (Week 4)**
+- Accept suggestion and merge entities (same person)
+- Accept suggestion and create relationship (KNOWS, WORKS_WITH, etc.)
+- Link orphan data to entity based on suggestion
+- Audit logging for all linking actions
+- Prevent accidental merges with confirmation required
+
+**Phase 43.6: Testing & Documentation (Week 5)**
+- Unit tests for MatchingEngine
+- Integration tests for suggestion flow
+- Performance tests (10,000+ entities)
+- Documentation for new MCP tools
+- Update SCOPE.md and ROADMAP.md
+
+#### New MCP Tools (8 tools)
+
+| Tool | Description |
+|------|-------------|
+| `compute_file_hash` | Compute SHA-256 hash for uploaded file |
+| `find_data_matches` | Find all matches for a data item |
+| `get_entity_suggestions` | Get all suggestions for an entity profile |
+| `dismiss_suggestion` | Dismiss a suggestion (user says "not related") |
+| `accept_suggestion_merge` | Accept suggestion and merge entities |
+| `accept_suggestion_link` | Accept suggestion and create relationship |
+| `link_orphan_to_entity` | Link orphan data to entity based on suggestion |
+| `list_dismissed_suggestions` | Show user's dismissed suggestions |
+
+#### Data Types for Matching
+
+**Hash-Based Matching (Exact - 1.0 confidence):**
+- Images (JPEG, PNG, GIF, WebP)
+- Documents (PDF, DOCX, TXT)
+- Evidence files (screenshots, archives)
+- SHA-256 for all files
+
+**Exact String Matching (0.95 confidence):**
+- Email addresses
+- Phone numbers (normalized to E.164)
+- Cryptocurrency addresses
+- URLs (normalized)
+- Social media handles
+- IP addresses
+
+**Partial/Fuzzy Matching (0.3-0.9 confidence):**
+- Full name matches
+- Partial name matches
+- Name variations (nickname detection)
+- Exact address vs. partial address (different cities)
+
+#### Use Cases
+
+**Image Hash Matching:**
+Investigator uploads profile photo for Entity A. System computes SHA-256 hash and finds match with Entity B. Suggestion shown: "This image matches Entity B (ID: ent_456)". Human operator decides whether to merge entities, create relationship, or ignore.
+
+**Shared Email Address:**
+Entity A has email "support@company.com", Entity B also has same email. System shows suggestion. Human operator decides if it's same person, shared corporate email, or working for same company.
+
+**Orphan Data Matching:**
+Orphan email "john@example.com" exists. Entity A is created with same email. System suggests linking orphan to entity. Human operator confirms or keeps separate.
+
+#### Tool Count Changes
+
+- **Before Phase 43:** 100 MCP tools
+- **After Phase 43:** 108 MCP tools (+8 smart suggestion tools)
+
+#### Success Criteria
+
+Phase 43 is successful if:
+1. Every piece of data has a unique ID (data_xxx)
+2. All uploaded files have SHA-256 hashes
+3. Matching engine finds exact hash matches (1.0 confidence)
+4. Matching engine finds exact string matches (0.95 confidence)
+5. Matching engine finds partial name/address matches (0.3-0.9 confidence)
+6. Entity profiles show suggested matches
+7. Human operators can view, link, or dismiss suggestions
+8. Dismissed suggestions are hidden
+9. All linking actions are logged (audit trail)
+10. Performance: <500ms to compute suggestions for entity with 100 data items
+
+**Documentation:**
+- Phase 43 planning: `docs/findings/SMART-SUGGESTIONS-PLANNING-2026-01-09.md`
+
+---
+
+### Phase 44: Future Enhancements 📋 PLANNED
+
+**Status:** TBD based on Phase 43 results
+
+**Potential Focus Areas:**
+- Advanced fuzzy string matching with Levenshtein distance
+- Nickname detection ("Robert" → "Bob")
+- Company name variations ("Inc" vs "Incorporated")
+- Machine learning for pattern detection
+- Bulk deduplication operations
+- Enhanced anomaly detection
+
+**Tool Count:** TBD (depends on features selected)
 
 ---
 
