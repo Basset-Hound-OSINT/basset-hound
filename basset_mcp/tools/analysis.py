@@ -8,6 +8,66 @@ including path finding, centrality analysis, and cluster detection.
 from .base import get_neo4j_handler, get_project_safe_name
 
 
+# Entity type visualization schema (BloodHound-style)
+ENTITY_TYPE_SCHEMA = {
+    "PERSON": {
+        "color": "#4A90D9",  # Blue
+        "icon": "user",
+        "description": "Standard individuals"
+    },
+    "SOCK_PUPPET": {
+        "color": "#9B59B6",  # Purple
+        "icon": "user-secret",
+        "description": "Undercover/research identities"
+    },
+    "COMPANY": {
+        "color": "#27AE60",  # Green
+        "icon": "building",
+        "description": "Corporations and businesses"
+    },
+    "ORGANIZATION": {
+        "color": "#E67E22",  # Orange
+        "icon": "sitemap",
+        "description": "Groups, NGOs, and other organizations"
+    },
+    "ORPHAN": {
+        "color": "#95A5A6",  # Gray
+        "icon": "question-circle",
+        "description": "Unlinked identifier data"
+    }
+}
+
+
+def detect_entity_type(entity: dict) -> str:
+    """
+    Detect the entity type based on profile markers.
+
+    Args:
+        entity: Entity dict with profile data
+
+    Returns:
+        Entity type string (PERSON, SOCK_PUPPET, COMPANY, ORGANIZATION)
+    """
+    profile = entity.get("profile", {})
+
+    # Check for sock puppet marker
+    sock_puppet = profile.get("_sock_puppet", {})
+    if sock_puppet.get("is_sock_puppet"):
+        return "SOCK_PUPPET"
+
+    # Check for company marker
+    entity_meta = profile.get("_entity_type", {})
+    if entity_meta.get("type") == "company":
+        return "COMPANY"
+
+    # Check for organization marker
+    if entity_meta.get("type") == "organization":
+        return "ORGANIZATION"
+
+    # Default to PERSON
+    return "PERSON"
+
+
 def register_analysis_tools(mcp):
     """Register graph analysis tools with the MCP server."""
 
@@ -223,10 +283,17 @@ def register_analysis_tools(mcp):
             else:
                 display_name = entity_id[:8]
 
+            # Detect entity type for visualization
+            entity_type = detect_entity_type(entity)
+            type_schema = ENTITY_TYPE_SCHEMA.get(entity_type, ENTITY_TYPE_SCHEMA["PERSON"])
+
             nodes.append({
                 "id": entity_id,
                 "type": "entity",
+                "entity_type": entity_type,
                 "label": display_name,
+                "color": type_schema["color"],
+                "icon": type_schema["icon"],
                 "created_at": entity.get("created_at"),
                 "section_count": len([s for s in profile.keys() if not s.startswith("_")])
             })
@@ -263,13 +330,17 @@ def register_analysis_tools(mcp):
         orphan_nodes = []
         orphan_edges = []
         if include_orphans:
+            orphan_schema = ENTITY_TYPE_SCHEMA["ORPHAN"]
             orphans = handler.list_orphan_data(safe_name, filters={"linked": True})
             for orphan in orphans:
                 orphan_id = orphan.get("id")
                 orphan_nodes.append({
                     "id": orphan_id,
                     "type": "orphan",
+                    "entity_type": "ORPHAN",
                     "label": f"{orphan.get('identifier_type', 'unknown')}: {orphan.get('identifier_value', '')[:20]}",
+                    "color": orphan_schema["color"],
+                    "icon": orphan_schema["icon"],
                     "identifier_type": orphan.get("identifier_type"),
                     "identifier_value": orphan.get("identifier_value")
                 })
@@ -340,3 +411,25 @@ def register_analysis_tools(mcp):
                 "nodes": nodes,
                 "edges": edges
             }
+
+    @mcp.tool()
+    def get_entity_type_schema() -> dict:
+        """
+        Get the entity type visualization schema.
+
+        Returns the color, icon, and description for each entity type,
+        enabling consistent visualization across tools (BloodHound-style).
+
+        Returns:
+            Dictionary with entity type definitions including:
+            - PERSON: Standard individuals (blue)
+            - SOCK_PUPPET: Undercover identities (purple)
+            - COMPANY: Corporations (green)
+            - ORGANIZATION: Groups and NGOs (orange)
+            - ORPHAN: Unlinked data (gray)
+        """
+        return {
+            "types": ENTITY_TYPE_SCHEMA,
+            "default_type": "PERSON",
+            "description": "BloodHound-style entity type visualization schema"
+        }

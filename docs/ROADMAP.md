@@ -2740,10 +2740,84 @@ class ForensicMetadata:
 - [x] Create comprehensive test suite
 - [x] Document implementation findings
 
-**Remaining (Phase 40.5):**
-- [ ] Add sock puppet MCP tools (specialized PERSON subtype)
-- [ ] Add investigation management tools
-- [ ] Add verification tools exposure
+### Phase 40.5: Remaining MCP Tools ✅ COMPLETED (2026-01-08)
+
+**Goal:** Complete MCP tool coverage for OSINT investigation workflows.
+
+**Completed Implementation:**
+
+1. **Sock Puppet Tools (`basset_mcp/tools/sock_puppets.py`)** - 15 tools
+   - CRUD: `create_sock_puppet`, `get_sock_puppet`, `list_sock_puppets`
+   - Lifecycle: `activate_sock_puppet`, `deactivate_sock_puppet`, `burn_sock_puppet`, `retire_sock_puppet`
+   - Platform accounts: `add_platform_account`, `update_platform_account`
+   - Operations: `record_puppet_activity`, `assign_handler`, `get_puppet_activity_log`, `assess_puppet_risk`
+
+   **Design Note:** Stores metadata/references only - actual credentials should be in external password managers (KeePass, HashiCorp Vault). This is intentional for security.
+
+2. **Verification Tools (`basset_mcp/tools/verification.py`)** - 12 tools
+   - Generic: `get_verification_types`, `verify_identifier`, `batch_verify`
+   - Specific: `verify_email`, `verify_phone`, `verify_domain`, `verify_ip`, `verify_url`, `verify_username`
+   - Crypto: `verify_crypto`, `get_all_crypto_matches`, `get_supported_cryptocurrencies`
+
+**Tool Count:** 81 total MCP tools (was 54, added 27)
+
+**Test Coverage:** 28 tests in `tests/test_mcp_sock_puppets_verification.py`
+
+**Documentation:** `docs/findings/MCP-PHASE40.5-2026-01-08.md`
+
+**Entity Type Visualization (documented for future implementation):**
+- PERSON: `#4A90D9` (blue)
+- SOCK_PUPPET: `#9B59B6` (purple)
+- COMPANY: `#27AE60` (green)
+- ORGANIZATION: `#E67E22` (orange)
+
+### Phase 40.6: Investigation Management Tools ✅ COMPLETED (2026-01-08)
+
+**Goal:** Complete case management capabilities for law enforcement and OSINT workflows.
+
+**Completed Implementation:**
+
+| Tool | Description |
+|------|-------------|
+| `create_investigation` | Initialize project as investigation |
+| `get_investigation` | Retrieve investigation details with stats |
+| `update_investigation` | Update investigation properties |
+| `set_investigation_status` | Change investigation status |
+| `advance_investigation_phase` | Move to next phase with milestone |
+| `close_investigation` | Close with final disposition |
+| `add_investigation_subject` | Add entity as investigation subject |
+| `update_subject_role` | Update subject's role/priority |
+| `clear_subject` | Mark subject as not involved |
+| `list_investigation_subjects` | List subjects with filtering |
+| `create_investigation_task` | Create investigation task |
+| `complete_investigation_task` | Mark task as completed |
+| `list_investigation_tasks` | List tasks with filtering |
+| `log_investigation_activity` | Log custom audit activity |
+| `get_investigation_activity_log` | Get audit log with filtering |
+| `list_investigations` | List all investigations across projects |
+
+**Investigation Lifecycle:**
+- 10 status values (intake, planning, active, pending_info, pending_review, on_hold, closed_resolved, closed_unfounded, closed_referred, reopened)
+- 8 OSINT phases (identification, acquisition, authentication, analysis, preservation, validation, reporting, closure)
+- 10 subject roles (target, subject, suspect, witness, victim, informant, complainant, associate, handler, undercover)
+
+**Compliance Features:**
+- Full audit trail for CJIS compliance
+- Chain of custody integration with provenance tools
+- Access control via confidentiality levels
+- Formal case disposition documentation
+
+**Updated Tool Count:** 99 MCP tools total (+17 investigation tools, +1 visualization tool)
+
+**Documentation:** `docs/findings/MCP-PHASE40.6-2026-01-08.md`
+
+**Entity Type Detection Implemented:**
+- [x] `get_entity_type_schema` tool - Returns visualization schema for all entity types
+- [x] `detect_entity_type()` function - Detects PERSON, SOCK_PUPPET, COMPANY, ORGANIZATION
+- [x] Graph export includes `entity_type`, `color`, and `icon` for each node
+- [x] 8 new tests for entity type detection
+
+**Total Test Coverage:** 98 MCP tests (1 skipped for IPv6)
 
 ### Phase 41: Integration APIs for Browser Automation
 

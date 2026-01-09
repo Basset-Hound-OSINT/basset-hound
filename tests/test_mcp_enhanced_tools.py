@@ -580,6 +580,168 @@ class TestGetEntityGraphTools:
         assert adjacency["person-1"][0]["target"] == "person-2"
 
 
+class TestEntityTypeDetection:
+    """Tests for entity type detection in graph visualization."""
+
+    def test_entity_type_schema_exists(self):
+        """Test that ENTITY_TYPE_SCHEMA is properly defined."""
+        from basset_mcp.tools.analysis import ENTITY_TYPE_SCHEMA
+
+        # Verify all expected types are present
+        expected_types = ["PERSON", "SOCK_PUPPET", "COMPANY", "ORGANIZATION", "ORPHAN"]
+        for entity_type in expected_types:
+            assert entity_type in ENTITY_TYPE_SCHEMA
+            assert "color" in ENTITY_TYPE_SCHEMA[entity_type]
+            assert "icon" in ENTITY_TYPE_SCHEMA[entity_type]
+            assert "description" in ENTITY_TYPE_SCHEMA[entity_type]
+
+    def test_entity_type_colors_are_valid_hex(self):
+        """Test that entity type colors are valid hex colors."""
+        from basset_mcp.tools.analysis import ENTITY_TYPE_SCHEMA
+        import re
+
+        hex_pattern = re.compile(r'^#[0-9A-Fa-f]{6}$')
+        for entity_type, schema in ENTITY_TYPE_SCHEMA.items():
+            color = schema["color"]
+            assert hex_pattern.match(color), f"Invalid color for {entity_type}: {color}"
+
+    def test_detect_entity_type_person(self):
+        """Test detection of standard PERSON entity."""
+        from basset_mcp.tools.analysis import detect_entity_type
+
+        person = {
+            "id": "person-1",
+            "profile": {
+                "core": {"name": [{"first_name": "John", "last_name": "Doe"}]}
+            }
+        }
+        assert detect_entity_type(person) == "PERSON"
+
+    def test_detect_entity_type_sock_puppet(self):
+        """Test detection of SOCK_PUPPET entity."""
+        from basset_mcp.tools.analysis import detect_entity_type
+
+        sock_puppet = {
+            "id": "puppet-1",
+            "profile": {
+                "core": {"name": [{"first_name": "Cover", "last_name": "Identity"}]},
+                "_sock_puppet": {
+                    "is_sock_puppet": True,
+                    "alias_name": "Cover Identity",
+                    "purpose": "research"
+                }
+            }
+        }
+        assert detect_entity_type(sock_puppet) == "SOCK_PUPPET"
+
+    def test_detect_entity_type_company(self):
+        """Test detection of COMPANY entity."""
+        from basset_mcp.tools.analysis import detect_entity_type
+
+        company = {
+            "id": "company-1",
+            "profile": {
+                "name": "Acme Corporation",
+                "_entity_type": {"type": "company"}
+            }
+        }
+        assert detect_entity_type(company) == "COMPANY"
+
+    def test_detect_entity_type_organization(self):
+        """Test detection of ORGANIZATION entity."""
+        from basset_mcp.tools.analysis import detect_entity_type
+
+        organization = {
+            "id": "org-1",
+            "profile": {
+                "name": "Non-Profit Foundation",
+                "_entity_type": {"type": "organization"}
+            }
+        }
+        assert detect_entity_type(organization) == "ORGANIZATION"
+
+    def test_graph_export_includes_entity_types(self):
+        """Test that graph export includes entity type and color information."""
+        from basset_mcp.tools.analysis import register_analysis_tools, ENTITY_TYPE_SCHEMA
+        from unittest.mock import MagicMock, patch
+
+        mock_handler = MagicMock()
+        mock_handler.get_project.return_value = {"id": "proj-1", "safe_name": "test"}
+        mock_handler.get_all_people.return_value = [
+            {
+                "id": "person-1",
+                "profile": {"core": {"name": [{"first_name": "Alice"}]}}
+            },
+            {
+                "id": "puppet-1",
+                "profile": {
+                    "core": {"name": [{"first_name": "Cover"}]},
+                    "_sock_puppet": {"is_sock_puppet": True}
+                }
+            }
+        ]
+        mock_handler.list_orphan_data.return_value = []
+
+        mcp = MagicMock()
+        tools = {}
+
+        def tool_decorator():
+            def decorator(func):
+                tools[func.__name__] = func
+                return func
+            return decorator
+
+        mcp.tool = tool_decorator
+
+        with patch('basset_mcp.tools.analysis.get_neo4j_handler', return_value=mock_handler):
+            with patch('basset_mcp.tools.analysis.get_project_safe_name', return_value="test"):
+                register_analysis_tools(mcp)
+
+        # Call get_entity_graph
+        with patch('basset_mcp.tools.analysis.get_neo4j_handler', return_value=mock_handler):
+            with patch('basset_mcp.tools.analysis.get_project_safe_name', return_value="test"):
+                result = tools["get_entity_graph"](project_id="proj-1")
+
+        # Verify nodes include entity_type and color
+        nodes = result["nodes"]
+        assert len(nodes) == 2
+
+        person_node = next(n for n in nodes if n["id"] == "person-1")
+        assert person_node["entity_type"] == "PERSON"
+        assert person_node["color"] == ENTITY_TYPE_SCHEMA["PERSON"]["color"]
+
+        puppet_node = next(n for n in nodes if n["id"] == "puppet-1")
+        assert puppet_node["entity_type"] == "SOCK_PUPPET"
+        assert puppet_node["color"] == ENTITY_TYPE_SCHEMA["SOCK_PUPPET"]["color"]
+
+    def test_get_entity_type_schema_tool(self):
+        """Test the get_entity_type_schema MCP tool."""
+        from basset_mcp.tools.analysis import register_analysis_tools
+        from unittest.mock import MagicMock
+
+        mcp = MagicMock()
+        tools = {}
+
+        def tool_decorator():
+            def decorator(func):
+                tools[func.__name__] = func
+                return func
+            return decorator
+
+        mcp.tool = tool_decorator
+        register_analysis_tools(mcp)
+
+        # Verify the tool exists and returns expected data
+        assert "get_entity_type_schema" in tools
+
+        result = tools["get_entity_type_schema"]()
+        assert "types" in result
+        assert "default_type" in result
+        assert result["default_type"] == "PERSON"
+        assert "PERSON" in result["types"]
+        assert "SOCK_PUPPET" in result["types"]
+
+
 class TestToolRegistration:
     """Tests for MCP tool registration."""
 

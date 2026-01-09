@@ -15,6 +15,9 @@ Modules:
 - auto_linking: Duplicate detection and entity merging
 - orphans: Orphan data management (unlinked identifiers)
 - provenance: Data provenance and chain of custody tracking
+- sock_puppets: Sock puppet identity management for investigations
+- verification: Identifier verification (email, phone, crypto, etc.)
+- investigations: Investigation lifecycle and case management
 """
 
 from .base import (
@@ -35,6 +38,9 @@ from .analysis import register_analysis_tools
 from .auto_linking import register_auto_linking_tools
 from .orphans import register_orphan_tools
 from .provenance import register_provenance_tools
+from .sock_puppets import register_sock_puppet_tools
+from .verification import register_verification_tools
+from .investigations import register_investigation_tools
 
 
 def register_all_tools(mcp):
@@ -49,6 +55,9 @@ def register_all_tools(mcp):
     register_auto_linking_tools(mcp)
     register_orphan_tools(mcp)
     register_provenance_tools(mcp)
+    register_sock_puppet_tools(mcp)
+    register_verification_tools(mcp)
+    register_investigation_tools(mcp)
 
 
 __all__ = [
