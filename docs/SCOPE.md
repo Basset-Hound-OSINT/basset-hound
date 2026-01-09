@@ -20,10 +20,22 @@ basset-hound is an **intelligence management system** for OSINT investigations. 
 
 **Entity Management**:
 - ✅ Create, read, update, delete entities
-- ✅ Flexible JSON schema with entity types (person, organization, location, etc.)
+- ✅ Flexible JSON schema with entity types
 - ✅ Entity attribute storage (names, identifiers, profile data)
 - ✅ Entity metadata (created_at, updated_at, confidence scores)
 - ✅ Custom entity type definitions via schema configuration
+
+**Entity Types**:
+- ✅ **person** - Individual person
+- ✅ **organization** - Company, corporation, business
+- ✅ **government** - Government entity, agency, department
+- ✅ **group** - Social group, religious organization, informal group
+- ✅ **sock_puppet** - Fake identity for undercover investigations (law enforcement use)
+- ✅ **location** - Physical location, address
+- ✅ **unknown** - Entity type not yet determined
+- ✅ **custom** - User-defined entity types
+
+**Important**: Sock puppet entities are NOT real people - they are fictitious identities created by investigators for online investigations. They store profile data and credential references, but basset-hound does NOT generate or create sock puppet data.
 
 **Relationship Management**:
 - ✅ Link entities with typed relationships (KNOWS, WORKS_FOR, LOCATED_IN, etc.)
@@ -61,21 +73,33 @@ basset-hound is an **intelligence management system** for OSINT investigations. 
 
 ### ✅ Sock Puppet Management
 
-**Sock Puppet Identities**:
-- ✅ Create sock puppet profiles for undercover investigations
+**What are Sock Puppets?**
+Sock puppets are fictitious online personas used by law enforcement and OSINT investigators for undercover investigations. They are NOT real people - they are entities created to collect information without revealing the investigator's identity.
+
+**Sock Puppet Identities (Storage Only)**:
+- ✅ **Store** sock puppet profiles created by investigators
 - ✅ Store alias names, backstory, target platforms
 - ✅ Link sock puppets to investigations
 - ✅ Platform-specific profile data (LinkedIn, Twitter, forums)
-- ✅ Sock puppet activity logging
+- ✅ Sock puppet activity logging (which sock puppet was used where)
+- ❌ **DO NOT** generate sock puppet data (names, emails, passwords, etc.)
+- ❌ **DO NOT** create fake identities automatically
 
-**Credentials Reference**:
+**Credentials Reference (NOT Password Management)**:
 - ✅ Store **references** to credentials (e.g., "stored in 1Password as 'puppet_linkedin_001'")
 - ✅ Track credential rotation dates
+- ✅ Store credential metadata (created_at, last_used, platforms)
 - ❌ **DO NOT** store actual passwords or credentials in basset-hound
+- ❌ **DO NOT** generate passwords
+- ❌ **DO NOT** act as a password manager (use 1Password, Bitwarden, KeePass)
 
 **Browser Integration**:
 - ✅ Provide sock puppet profile data for form autofill (via MCP tools)
 - ✅ Track sock puppet usage across investigations
+- ✅ Allow investigators to select which sock puppet to use for login
+- ❌ **DO NOT** automatically log in (human must review and click submit)
+
+**Philosophy**: basset-hound is a **storage system** for sock puppet profiles created elsewhere. Investigators create fake identities using external tools or manual methods, then store the profile data in basset-hound for easy access during investigations.
 
 ### ✅ Orphan Data Management
 
@@ -286,6 +310,34 @@ basset-hound is an **intelligence management system** for OSINT investigations. 
 - ❌ Credential rotation automation (use external vault)
 
 **Reason**: Sock puppets store **references** to credentials ("stored in 1Password as 'puppet_001'"), not actual passwords. Specialized tools handle credential management better than basset-hound.
+
+### ❌ Data Generation
+
+**basset-hound is a STORAGE system, NOT a data generator**:
+
+- ❌ Generate sock puppet identities (names, emails, addresses, etc.)
+- ❌ Generate fake data for investigations
+- ❌ Generate passwords or credentials
+- ❌ Generate social media profiles
+- ❌ Generate backstories automatically
+- ❌ AI-generated entity attributes
+
+**Exception**: Report Generation ONLY
+- ✅ Generate reports from stored data (investigation summaries, timelines, etc.)
+- ✅ Users can choose to store generated reports back in the system
+
+**Reason**: basset-hound stores and manages intelligence collected by investigators. External tools or human operators create/collect data, then store it in basset-hound. This prevents scope creep and maintains focus on intelligence management.
+
+**Data Flow**:
+```
+External Tool/Human → Creates sock puppet identity
+          ↓
+   Investigator → Stores profile in basset-hound
+          ↓
+   basset-hound → Stores and relates data
+          ↓
+   Browser Extension → Uses stored data for autofill
+```
 
 ---
 
