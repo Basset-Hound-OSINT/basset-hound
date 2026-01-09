@@ -6,10 +6,19 @@
 
 **Basset Hound is a lightweight, API-first entity relationship engine** inspired by [BloodHound](https://github.com/BloodHoundAD/BloodHound), designed for:
 
-1. **OSINT Investigations** - Tracking people, organizations, and their connections
-2. **Integration Backend** - API/MCP server for LLMs, AI agents, and other tools
-3. **Graph-Based Analysis** - Neo4j-powered relationship queries and pattern discovery
-4. **Data Ingestion** - Import from various OSINT tools and formats
+1. **Intelligence Storage** - The data backbone for OSINT investigations
+2. **Data Management** - Organize entities, relationships, evidence, and provenance
+3. **Integration Backend** - API/MCP server for LLMs, AI agents, and other tools
+4. **Graph Database** - Neo4j-powered relationship queries and basic graph operations
+5. **Basic Data Matching** - Suggest potential matches with confidence scores (NOT ML)
+
+**IMPORTANT**: Basset Hound is **STORAGE and MANAGEMENT ONLY**, NOT intelligence analysis:
+- ✅ Store entities, relationships, data
+- ✅ Basic suggestions ("hey, these might be related")
+- ✅ Data matching with confidence scores (fuzzy matching, hash comparison)
+- ❌ NO machine learning
+- ❌ NO advanced analysis
+- ❌ NO intelligence analysis capabilities
 
 ### Design Principles
 
@@ -23,10 +32,18 @@
 
 ### What Basset Hound is NOT
 
+- ❌ An intelligence analysis platform (no ML, pattern detection, predictive analytics)
+- ❌ An OSINT automation tool (no web scraping, social media enumeration)
+- ❌ A verification service (use basset-verify for identifier validation)
+- ❌ A browser automation tool (use basset-hound-browser for evidence capture)
 - ❌ A full-featured enterprise reporting platform
 - ❌ A multi-user collaborative application
-- ❌ A replacement for specialized OSINT tools
 - ❌ A UI-first application (API-first, UI is secondary)
+
+**Future Architecture:**
+- **basset-hound**: Storage backbone (this project)
+- **basset-verify**: Verification microservice (separate repo)
+- **intelligence-analysis** (future): AI agents for analysis, use basset-hound for storage
 
 ### Core Value Proposition
 
@@ -1062,11 +1079,14 @@ tests/
 
 #### Report Export Features
 
+**IMPORTANT**: Reports are **data presentation** features (IN SCOPE), not intelligence analysis. They format stored data using templates - no new insights are generated.
+
 - **Formats**: PDF (via WeasyPrint), HTML, Markdown
 - **Templates**: default (modern), professional (formal), minimal (clean)
 - **Content Options**: Include graph, timeline, statistics
 - **Entity Reports**: Single entity or project summary
 - **Custom Sections**: Define custom report sections
+- **Philosophy**: "Here's your data in a useful format" (NOT "here's what your data means")
 
 **API Endpoints:**
 - `POST /api/v1/projects/{project}/export/report` - Custom report
@@ -1111,6 +1131,8 @@ markdown>=3.0.0                   # Markdown to HTML conversion
 | Comprehensive tests | ✅ Done | 302 new tests (1039 total) |
 
 #### Report Scheduling Features
+
+**NOTE**: Scheduled reports are **template-based data presentation** (IN SCOPE). They format stored data on a schedule - no predictive analytics or insight generation.
 
 - **Frequencies**: ONCE, HOURLY, DAILY, WEEKLY, MONTHLY
 - **Cron Support**: Custom cron expressions via croniter
@@ -2908,13 +2930,22 @@ class ForensicMetadata:
 
 ### Phase 43: Smart Suggestions & Data Matching ✅ COMPLETE (2026-01-09)
 
-**Goal:** Intelligent suggestion system to help human operators identify potential matches, duplicates, and related data across entities and orphan data.
+**Goal:** Basic data matching system to help human operators identify potential matches, duplicates, and related data across entities and orphan data.
 
 **Status:** ✅ COMPLETE - All 6 sub-phases implemented and tested
 
 **Timeline:** 5 weeks (6 sub-phases: 43.1 through 43.6) - Completed in 1 day
 
-**Core Principle:** Suggest possible matches based on data analysis (hashes, exact matches, partial matches), but **always require human verification** before linking.
+**IMPORTANT**: This is **DATA MATCHING**, NOT intelligence analysis:
+- ✅ Hash comparison (SHA-256 for files/images)
+- ✅ Exact string matching (email, phone, crypto addresses)
+- ✅ Fuzzy matching (Jaro-Winkler, Levenshtein for typos)
+- ✅ Confidence scoring (0.0-1.0 based on match quality)
+- ❌ NOT machine learning - just comparison algorithms
+- ❌ NOT pattern detection - just data similarity
+- ❌ NOT predictive - just matching existing data
+
+**Core Principle:** Suggest possible matches based on simple data comparison (hashes, exact matches, fuzzy string matching), but **always require human verification** before linking.
 
 #### Overview
 
@@ -3024,10 +3055,17 @@ The Smart Suggestions system will:
 - IP addresses
 
 **Partial/Fuzzy Matching (0.3-0.9 confidence):**
-- Full name matches
-- Partial name matches
-- Name variations (nickname detection)
+- Full name matches (Jaro-Winkler, Levenshtein distance)
+- Partial name matches (token-based comparison)
+- Name variations (simple string similarity, NOT nickname detection/ML)
 - Exact address vs. partial address (different cities)
+
+**Note:** This is basic fuzzy matching using string similarity algorithms, NOT advanced matching:
+- ✅ String comparison algorithms (Jaro-Winkler, Levenshtein)
+- ✅ Token-based matching (word order variations)
+- ❌ NOT nickname detection (e.g., "Bob" = "Robert" requires ML/dictionary)
+- ❌ NOT geocoding or geospatial analysis
+- ❌ NOT phonetic matching beyond basic algorithms
 
 #### Use Cases
 
@@ -3362,19 +3400,32 @@ Phase 43 is successful if:
 
 ---
 
-### Phase 49: Machine Learning Integration 📋 PLANNED
+### Phase 49: Storage & Management Enhancements 📋 PLANNED
 
 **Status:** Future enhancement
 
-**Goal:** Improve suggestion accuracy through machine learning
+**Goal:** Improve basset-hound's core storage and management capabilities
+
+**IMPORTANT**: basset-hound is a **storage backbone**, NOT an analysis platform. Future phases focus on improving data management, NOT adding intelligence analysis features.
 
 **Planned Deliverables:**
-- Learn from user decisions (accept/dismiss patterns)
-- Improve confidence scoring algorithms
-- Personalized suggestion thresholds
-- Advanced pattern detection
+- Performance optimization (caching improvements, query optimization)
+- Advanced import/export capabilities (more formats, incremental sync)
+- Bulk operations enhancements (better error handling, resume capability)
+- Improved search indexing (better full-text search, field weighting)
+- Data archival and retention policies
+- Backup and restore improvements
 
-**Estimated Timeline:** 4-6 weeks
+**OUT OF SCOPE** (belongs in intelligence-analysis project):
+- ❌ Machine learning for entity resolution
+- ❌ Advanced pattern detection algorithms
+- ❌ Behavioral analysis
+- ❌ Predictive analytics
+- ❌ Anomaly detection
+
+See `docs/INTELLIGENCE-ANALYSIS-INTEGRATION.md` for future intelligence analysis architecture.
+
+**Estimated Timeline:** 2-3 weeks
 
 ---
 

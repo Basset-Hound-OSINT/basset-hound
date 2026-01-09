@@ -8,9 +8,24 @@
 
 ## Purpose
 
-basset-hound is an **intelligence management system** for OSINT investigations. It provides structured storage, relationship mapping, investigation tracking, and reporting through a Neo4j graph database and MCP server interface.
+basset-hound is an **intelligence storage and management system** for OSINT investigations. It provides the **data backbone** for intelligence work - structured storage, relationship mapping, investigation tracking, and basic data matching through a Neo4j graph database and MCP server interface.
 
-**Core Mission**: Store and manage intelligence in highly configurable ways, enabling AI agents and investigators to organize, query, and analyze collected information.
+**Core Mission**: Store and manage intelligence in highly configurable ways, enabling AI agents and investigators to organize, query, and retrieve collected information.
+
+**What basset-hound IS:**
+- ✅ **Storage backbone** - Entities, relationships, evidence, provenance
+- ✅ **Data organization** - Projects, investigations, timelines
+- ✅ **Basic data matching** - Suggest potential matches with confidence scores
+- ✅ **Graph database** - Relationship queries and path finding
+- ✅ **MCP server** - API for AI agents and external tools
+
+**What basset-hound is NOT:**
+- ❌ **Intelligence analysis platform** - No ML, pattern detection, or predictive analytics
+- ❌ **OSINT automation** - No web scraping or social media enumeration
+- ❌ **Verification service** - Use basset-verify for identifier validation
+- ❌ **Browser automation** - Use basset-hound-browser for evidence capture
+
+basset-hound focuses on **data management**, not data analysis or collection.
 
 ---
 
@@ -140,16 +155,24 @@ Sock puppets are fictitious online personas used by law enforcement and OSINT in
 - ✅ Verify evidence integrity (SHA-256 match)
 - ✅ Link evidence to entities and investigations
 
-### ✅ Graph Analysis
+### ✅ Basic Graph Queries
 
-**Relationship Analysis**:
-- ✅ Find paths between entities
-- ✅ Centrality analysis (who is most connected?)
-- ✅ Community detection (clusters of related entities)
-- ✅ Relationship strength scoring
+**Relationship Queries (NOT Analysis)**:
+- ✅ Find paths between entities (shortest path, all paths)
+- ✅ Degree centrality (count connections, who is most connected?)
+- ✅ Community detection (basic clustering of related entities)
+- ✅ Relationship strength scoring (based on edge properties)
+- ✅ Neighborhood exploration (N-hop queries)
 - ✅ Export graph for visualization (Gephi, Cytoscape)
 
-**Visualization**:
+**Important**: These are basic graph database queries, NOT advanced analysis:
+- ❌ NO machine learning for community detection
+- ❌ NO predictive link analysis
+- ❌ NO behavioral pattern detection
+- ❌ NO anomaly detection in networks
+- ❌ NO graph embeddings or neural networks
+
+**Data Export**:
 - ✅ Export graph in standard formats (JSON, GraphML)
 - ✅ Generate entity type schemas for UI rendering
 - ✅ Subgraph extraction (entities within N hops)
@@ -166,18 +189,65 @@ Sock puppets are fictitious online personas used by law enforcement and OSINT in
 - ✅ Filter relationships by type, strength, date range
 - ✅ Cypher query support for advanced users
 
-### ✅ Reports
+### ✅ Reports & Data Export
 
-**Report Generation**:
+**IMPORTANT DISTINCTION**: basset-hound provides **data presentation** features, NOT intelligence analysis. Reports are generated from templates using stored data - no new insights are created.
+
+**Template-Based Report Generation**:
 - ✅ Entity profile reports (with relationships and activity)
 - ✅ Investigation summary reports
 - ✅ Relationship network reports
 - ✅ Timeline reports
+- ✅ Activity aggregation reports
+- ❌ **NO** predictive analytics reports
+- ❌ **NO** risk assessment reports
+- ❌ **NO** behavioral analysis reports
+
+**Philosophy**: Reports show "here's your data in a useful format," NOT "here's what your data means."
+
+**Data Visualization & Export**:
+- ✅ Export relationship graphs as images (PNG, SVG)
+- ✅ Export timelines as visualizations
+- ✅ Graph rendering with layout algorithms (for display, not analysis)
+- ✅ Node sizing based on connection count (for visualization)
+- ✅ Bulk export features (ZIP files, JSON archives)
+- ✅ API export endpoints for external tools
 
 **Export Formats**:
 - ✅ JSON (machine-readable)
 - ✅ Markdown (human-readable)
+- ✅ GraphML (graph export for Gephi, Cytoscape)
+- ✅ CSV (tabular data)
+- ✅ Images (PNG, SVG for visualizations)
 - ✅ Future: PDF, HTML
+
+**What This IS:**
+```python
+# ✅ EXAMPLE: Template-based report
+def generate_entity_report(entity_id):
+    """Generate report from template with entity data."""
+    entity = get_entity(entity_id)
+    relationships = get_relationships(entity_id)
+    evidence = get_evidence(entity_id)
+
+    # Fill template with stored data (NO NEW INSIGHTS)
+    return render_template("entity_report.html",
+                          entity=entity,
+                          relationships=relationships,
+                          evidence=evidence)
+```
+
+**What This is NOT:**
+```python
+# ❌ EXAMPLE: Predictive analysis
+def generate_risk_report(entity_id):
+    """Generate risk assessment report."""
+    history = get_activity_history(entity_id)
+    # ML model generates NEW INSIGHT (risk score)
+    risk_score = ml_model.predict(history)
+    # This creates new analytical data - OUT OF SCOPE
+    return {"risk_score": risk_score}
+```
 
 ### ✅ Projects
 
@@ -207,7 +277,11 @@ Sock puppets are fictitious online personas used by law enforcement and OSINT in
 - ✅ Track session activity (pages visited, evidence captured)
 - ✅ End sessions with summary
 
-### ✅ Smart Suggestions & Data Matching (Phase 43 - Future)
+### ✅ Smart Suggestions & Data Matching (Phase 43 - COMPLETE)
+
+**This is DATA MATCHING, NOT intelligence analysis.**
+
+basset-hound suggests potential matches based on comparing data values (hashes, strings, fuzzy matching). This is fundamentally different from machine learning or advanced analysis.
 
 **Data-Level Identity**:
 - ✅ Every piece of data gets unique ID (data_abc123)
@@ -215,14 +289,21 @@ Sock puppets are fictitious online personas used by law enforcement and OSINT in
 - ✅ Images, documents, evidence files tracked independently
 - ✅ Data can exist without being linked to entities
 
-**Intelligent Matching**:
+**Basic Data Matching (NOT ML)**:
 - ✅ Exact hash matching (images, documents) - 1.0 confidence
 - ✅ Exact string matching (email, phone, crypto) - 0.95 confidence
+- ✅ Fuzzy matching (Jaro-Winkler, Levenshtein) - 0.3-0.9 confidence
 - ✅ Partial matching (names, addresses) - 0.3-0.9 confidence
 - ✅ Cross-entity duplicate detection
 - ✅ Orphan data to entity matching
 
-**Suggestion System**:
+**What this is NOT:**
+- ❌ NOT machine learning - just string/hash comparison algorithms
+- ❌ NOT pattern detection - just data similarity scoring
+- ❌ NOT predictive - just matching existing data
+- ❌ NOT behavioral analysis - just comparing field values
+
+**Suggestion System (Human-in-the-Loop)**:
 - ✅ Show "Suggested Tags" section on entity profiles
 - ✅ Suggest potential matches with confidence scores
 - ✅ Human operator reviews and decides (view, link, dismiss)
@@ -231,16 +312,108 @@ Sock puppets are fictitious online personas used by law enforcement and OSINT in
 - ✅ Audit trail for all linking decisions
 
 **Use Cases**:
-- Same image appears in two entities → suggest possible duplicate
-- Same email in entity and orphan data → suggest linking
-- Partial address match → suggest but flag as low confidence
-- Same document hash → highlight potential relationship
+- Same image appears in two entities → suggest possible duplicate (hash match)
+- Same email in entity and orphan data → suggest linking (exact string match)
+- Partial address match → suggest but flag as low confidence (fuzzy match)
+- Same document hash → highlight potential relationship (hash match)
+- Similar names with typos → suggest potential match (Levenshtein distance)
 
-**Philosophy**: Assist human operators with intelligent suggestions, but never force deduplication or auto-link. Low-confidence matches (e.g., same street address but different cities) are suggested but easily dismissed.
+**Philosophy**: Assist human operators with data matching suggestions using simple algorithms (hash comparison, string similarity, fuzzy matching). This is NOT intelligence analysis - it's basic data comparison with confidence scoring. The human operator always makes the final decision.
 
 ---
 
 ## Out of Scope
+
+### ❌ Intelligence Analysis
+
+**basset-hound is a STORAGE and MANAGEMENT system, NOT an intelligence analysis platform.**
+
+basset-hound provides the **data backbone** for intelligence work - storing entities, relationships, evidence, and basic data matching. Intelligence analysis capabilities (pattern detection, behavioral analysis, predictive analytics, anomaly detection) belong in a separate system.
+
+**CRITICAL DISTINCTION:**
+- ✅ **Data Presentation** (IN SCOPE): "Here's your data in a useful format"
+  - Template-based reports
+  - Timeline aggregation and visualization
+  - Graph export and rendering
+  - Mathematical comparisons (similarity scores)
+  - Activity counts and statistics
+
+- ❌ **Insight Generation** (OUT OF SCOPE): "Here's what your data means"
+  - Predictive analytics
+  - Pattern detection
+  - Risk scoring
+  - Behavioral profiling
+  - Trend forecasting
+
+**What basset-hound does NOT do:**
+- ❌ Machine learning for entity resolution
+- ❌ Advanced pattern detection (trend detection, burst detection, anomaly detection)
+- ❌ Behavioral analysis or profiling
+- ❌ Predictive analytics (forecasting, probability prediction)
+- ❌ Anomaly detection with scoring
+- ❌ Threat scoring algorithms
+- ❌ Risk assessment models
+- ❌ Sentiment analysis
+- ❌ Community detection using ML (Louvain, Label Propagation)
+- ❌ Influence propagation simulation (Independent Cascade, Linear Threshold)
+- ❌ Network analysis with interpretation (betweenness centrality as "broker identification")
+- ❌ Geospatial analysis (geocoding, route planning)
+- ❌ Natural language processing
+- ❌ Image recognition or facial detection
+- ❌ Voice analysis or speaker identification
+- ❌ Search pattern detection and trending topic identification
+- ❌ Zero-result prediction
+- ❌ Entity insights with recommendations
+
+**What basset-hound DOES provide:**
+- ✅ **Basic data matching** with confidence scores (Phase 43)
+  - Exact hash matching (images, documents) → 1.0 confidence
+  - Exact string matching (email, phone, crypto) → 0.95 confidence
+  - Partial matching (names, addresses) → 0.3-0.9 confidence
+  - Fuzzy matching (Jaro-Winkler, Levenshtein) for typo tolerance
+- ✅ **Human-in-the-loop suggestions** - "These entities might be related"
+- ✅ **Graph traversal queries** - Find paths between entities (BFS/DFS)
+- ✅ **Connected components** - Find isolated subgraphs (basic graph query)
+- ✅ **Mathematical similarity metrics** - Jaccard, Cosine, SimRank (comparison, not prediction)
+- ✅ **Activity aggregation** - Count events, group by time period
+- ✅ **Timeline visualization** - Display activity over time
+- ✅ **Graph export for external analysis** - GraphML, JSON, images
+- ✅ **Template-based reports** - Format stored data for human consumption
+- ✅ **Relationship queries** - Who knows whom, who works where
+- ✅ **Data storage** - Entities, relationships, evidence, provenance
+- ✅ **Data organization** - Projects, investigations, timelines
+
+**Future Architecture:**
+
+basset-hound will integrate with two companion systems:
+
+1. **basset-verify** (separate microservice, already exists):
+   - Identifier format validation (email, phone, crypto)
+   - Network-level verification (DNS, SMTP)
+   - basset-hound calls basset-verify on-demand (optional)
+
+2. **intelligence-analysis** (future project, NOT part of basset-hound):
+   - AI agents perform advanced analysis
+   - Machine learning for pattern detection
+   - Predictive analytics and risk scoring
+   - Uses basset-hound for data storage/retrieval
+   - Generates analytical reports stored in basset-hound
+   - See `docs/INTELLIGENCE-ANALYSIS-INTEGRATION.md` for architecture
+
+**Why this separation matters:**
+
+Intelligence analysis requires different skills, technologies, and architectures than data management:
+- **Analysis**: Python ML libraries (scikit-learn, TensorFlow), statistical models, training datasets
+- **Storage**: Neo4j graph database, CRUD operations, relationship queries, data integrity
+
+By keeping them separate, basset-hound:
+- Remains focused on what it does best: storing and organizing intelligence
+- Stays lightweight and reliable (no ML dependencies)
+- Avoids scope creep into complex analysis territory
+- Allows investigators to choose their own analysis tools
+- Maintains simple, predictable behavior
+
+---
 
 ### ❌ OSINT Automation
 
