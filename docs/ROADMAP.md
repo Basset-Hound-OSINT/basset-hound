@@ -2819,39 +2819,46 @@ class ForensicMetadata:
 
 **Total Test Coverage:** 98 MCP tests (1 skipped for IPv6)
 
-### Phase 41: Integration APIs for Browser Automation
+### Phase 41: Browser Integration APIs ✅ COMPLETED (2026-01-08)
 
-**Goal:** Provide APIs for autofill-extension and basset-hound-browser integration.
+**Goal:** Provide MCP tools for autofill-extension and basset-hound-browser integration.
 
-**New Endpoints:**
+**Completed Implementation:**
 
-```
-# Form Field Mapping
-POST /api/v1/form-mapping/suggest
-  Request: { form_fields: [...], entity_type: "PERSON" }
-  Response: { mappings: [{ field_id: "email", entity_path: "contact.email" }] }
+| Tool Category | Tools | Description |
+|--------------|-------|-------------|
+| **Autofill Data** | 2 | `get_autofill_data`, `suggest_form_mapping` |
+| **Evidence Capture** | 4 | `capture_evidence`, `get_evidence`, `list_evidence`, `verify_evidence_integrity` |
+| **Sock Puppet Profile** | 1 | `get_sock_puppet_profile` |
+| **Browser Session** | 4 | `register_browser_session`, `update_browser_session`, `end_browser_session`, `get_investigation_context` |
+| **Total** | **13** | Browser integration tools |
 
-# Entity Auto-Fill Data
-GET /api/v1/entities/{id}/autofill-data
-  Response: { fields: { email: "...", phone: "...", name: { first: "...", last: "..." } } }
+**Key Features:**
+- Form field to entity path mapping with confidence scores
+- Evidence storage with SHA-256 hashing and chain of custody
+- Sock puppet profile retrieval (metadata only, not credentials)
+- Browser session tracking across investigations
+- Investigation context for AI agent decision-making
 
-# Sock Puppet Credentials (encrypted)
-GET /api/v1/sock-puppets/{id}/credentials?platform=facebook
-  Response: { username: "...", password: "encrypted:...", 2fa_available: true }
+**Evidence Types Supported:**
+- screenshot, page_archive, network_har, dom_snapshot
+- console_log, cookies, local_storage, metadata
 
-# Evidence Capture
-POST /api/v1/evidence/capture
-  Request: { screenshot: "base64...", url: "...", elements: [...], entity_id: "..." }
-  Response: { evidence_id: "...", chain_of_custody_started: true }
-```
+**Tool Count:** 112 MCP tools total (+13 browser integration)
 
-**Implementation Tasks:**
-- [ ] Create form-mapping suggestion API
-- [ ] Implement autofill data endpoint
-- [ ] Add encrypted credential retrieval
-- [ ] Create evidence capture endpoint
-- [ ] Add WebSocket subscriptions for real-time sync
-- [ ] Document integration APIs
+**Test Coverage:** 45 tests in `tests/test_mcp_browser_integration.py`
+
+**Full MCP Test Suite:** 143 passed, 1 skipped
+
+**Documentation:**
+- `docs/findings/MCP-PHASE41-2026-01-08.md` - Phase 41 implementation
+- `docs/findings/INTEGRATION-BROWSER-APIS-2026-01-08.md` - Integration master doc
+- Integration docs copied to autofill-extension, basset-hound-browser, palletai
+
+**External Repository Integration:**
+- autofill-extension: Phases 14-16 added to roadmap
+- basset-hound-browser: Phases 19-21 added to roadmap
+- palletai: Phases 15-17 added to roadmap
 
 ---
 

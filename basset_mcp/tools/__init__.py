@@ -18,6 +18,7 @@ Modules:
 - sock_puppets: Sock puppet identity management for investigations
 - verification: Identifier verification (email, phone, crypto, etc.)
 - investigations: Investigation lifecycle and case management
+- browser_integration: Browser integration (autofill, evidence capture, session tracking)
 """
 
 from .base import (
@@ -41,6 +42,7 @@ from .provenance import register_provenance_tools
 from .sock_puppets import register_sock_puppet_tools
 from .verification import register_verification_tools
 from .investigations import register_investigation_tools
+from .browser_integration import register_browser_integration_tools
 
 
 def register_all_tools(mcp):
@@ -58,6 +60,7 @@ def register_all_tools(mcp):
     register_sock_puppet_tools(mcp)
     register_verification_tools(mcp)
     register_investigation_tools(mcp)
+    register_browser_integration_tools(mcp)
 
 
 __all__ = [
