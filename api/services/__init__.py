@@ -94,35 +94,16 @@ from .entity_type_ui import (
     reset_entity_type_ui_service,
 )
 
-# Community Detection Service (Graph Analytics)
-from .community_detection import (
-    CommunityDetectionService,
-    Community,
-    CommunityDetectionResult,
-    CommunityStats,
-    ComponentType,
-    ConnectedComponent,
-    ConnectedComponentsResult,
-    get_community_detection_service,
-    set_community_detection_service,
-    reset_community_detection_service,
-)
-
-# Influence Propagation Service (Graph Analytics)
-from .influence_service import (
-    InfluenceService,
-    InfluenceScore,
-    InfluenceSpreadResult,
-    AffectedEntity,
-    KeyEntityResult,
-    KeyEntityReason,
-    InfluenceReport,
-    InfluencePath,
-    InfluencePathStep,
-    PropagationModel,
-    get_influence_service,
-    reset_influence_service,
-)
+# Community Detection Service (Graph Analytics) - ARCHIVED: Out of scope for storage layer
+# These services were moved to archive/out-of-scope-ml/ on 2026-01-13
+# They implement intelligence analysis features and should be part of a future
+# intelligence-analysis project, not the basset-hound storage layer.
+#
+# Archived files:
+#   - community_detection.py
+#   - influence_service.py
+#   - ml_analytics.py
+#   - temporal_patterns.py
 
 # Similarity Service (Graph Analytics)
 from .similarity_service import (
@@ -140,23 +121,7 @@ from .similarity_service import (
     reset_similarity_service,
 )
 
-# Temporal Patterns Service (Graph Analytics)
-from .temporal_patterns import (
-    TemporalPatternsService,
-    PatternType,
-    TrendDirection,
-    TimeWindow,
-    ActivityBucket,
-    BurstDetection,
-    TrendAnalysis,
-    CyclicalPattern,
-    TemporalAnomaly,
-    EntityTemporalProfile,
-    RelationshipTemporalPattern,
-    TemporalPatternReport,
-    get_temporal_patterns_service,
-    set_temporal_patterns_service,
-)
+# Temporal Patterns Service (Graph Analytics) - ARCHIVED: See comment above
 
 # Query Cache Service (Phase 20: Performance Optimization)
 from .query_cache import (
@@ -378,30 +343,8 @@ __all__ = [
     "EntityTypeUIService",
     "get_entity_type_ui_service",
     "reset_entity_type_ui_service",
-    # Community Detection Service exports (Graph Analytics)
-    "CommunityDetectionService",
-    "Community",
-    "CommunityDetectionResult",
-    "CommunityStats",
-    "ComponentType",
-    "ConnectedComponent",
-    "ConnectedComponentsResult",
-    "get_community_detection_service",
-    "set_community_detection_service",
-    "reset_community_detection_service",
-    # Influence Propagation Service exports (Graph Analytics)
-    "InfluenceService",
-    "InfluenceScore",
-    "InfluenceSpreadResult",
-    "AffectedEntity",
-    "KeyEntityResult",
-    "KeyEntityReason",
-    "InfluenceReport",
-    "InfluencePath",
-    "InfluencePathStep",
-    "PropagationModel",
-    "get_influence_service",
-    "reset_influence_service",
+    # Community Detection Service exports (Graph Analytics) - ARCHIVED
+    # Influence Propagation Service exports (Graph Analytics) - ARCHIVED
     # Similarity Service exports (Graph Analytics)
     "SimilarityService",
     "SimilarityMethod",
@@ -415,21 +358,7 @@ __all__ = [
     "get_similarity_service",
     "set_similarity_service",
     "reset_similarity_service",
-    # Temporal Patterns Service exports (Graph Analytics)
-    "TemporalPatternsService",
-    "PatternType",
-    "TrendDirection",
-    "TimeWindow",
-    "ActivityBucket",
-    "BurstDetection",
-    "TrendAnalysis",
-    "CyclicalPattern",
-    "TemporalAnomaly",
-    "EntityTemporalProfile",
-    "RelationshipTemporalPattern",
-    "TemporalPatternReport",
-    "get_temporal_patterns_service",
-    "set_temporal_patterns_service",
+    # Temporal Patterns Service exports (Graph Analytics) - ARCHIVED
     # Query Cache Service exports (Phase 20)
     "QueryCacheService",
     "QueryType",

@@ -64,7 +64,11 @@ from .websocket import router as websocket_router
 from api.websocket.suggestion_events import router as suggestion_ws_router
 from .report_storage import router as report_storage_router
 from .marketplace import router as marketplace_router
-from .ml_analytics import router as ml_analytics_router
+# ML Analytics router - ARCHIVED: Out of scope for storage layer (2026-01-13)
+# The ML analytics service and router have been moved to archive/out-of-scope-ml/
+# They implement intelligence analysis features and should be part of a future
+# intelligence-analysis project, not the basset-hound storage layer.
+# from .ml_analytics import router as ml_analytics_router
 from .jobs import router as jobs_router, schedule_jobs_router
 from .audit import router as audit_router, project_audit_router, entity_audit_router
 from .graph import router as graph_router
@@ -84,6 +88,7 @@ from .deduplication import router as deduplication_router, project_dedup_router
 from .verification import router as verification_router
 from .osint import router as osint_router
 from .suggestions import router as suggestions_router
+from .integrations import router as integrations_router
 
 # Create main API router
 api_router = APIRouter()
@@ -119,7 +124,7 @@ api_router.include_router(websocket_router)
 api_router.include_router(suggestion_ws_router)  # Phase 45: Suggestion WebSocket events
 api_router.include_router(report_storage_router)
 api_router.include_router(marketplace_router)
-api_router.include_router(ml_analytics_router)
+# api_router.include_router(ml_analytics_router)  # ARCHIVED
 api_router.include_router(jobs_router)
 api_router.include_router(schedule_jobs_router)
 api_router.include_router(audit_router)
@@ -148,6 +153,7 @@ api_router.include_router(project_dedup_router)
 api_router.include_router(verification_router)
 api_router.include_router(osint_router)
 api_router.include_router(suggestions_router)
+api_router.include_router(integrations_router)
 
 __all__ = [
     "api_router",
@@ -180,7 +186,7 @@ __all__ = [
     "websocket_router",
     "report_storage_router",
     "marketplace_router",
-    "ml_analytics_router",
+    # "ml_analytics_router",  # ARCHIVED
     "jobs_router",
     "schedule_jobs_router",
     "audit_router",
@@ -209,4 +215,5 @@ __all__ = [
     "verification_router",
     "osint_router",
     "suggestions_router",
+    "integrations_router",
 ]

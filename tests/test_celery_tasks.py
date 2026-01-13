@@ -118,17 +118,8 @@ class TestMaintenanceTasks:
         assert cleanup_expired_cache is not None
         assert hasattr(cleanup_expired_cache, 'delay')
 
-    def test_cleanup_ml_analytics_cache_task_exists(self):
-        """Test that cleanup_ml_analytics_cache task exists."""
-        from api.tasks.maintenance_tasks import cleanup_ml_analytics_cache
-        assert cleanup_ml_analytics_cache is not None
-        assert hasattr(cleanup_ml_analytics_cache, 'delay')
-
-    def test_optimize_search_index_task_exists(self):
-        """Test that optimize_search_index task exists."""
-        from api.tasks.maintenance_tasks import optimize_search_index
-        assert optimize_search_index is not None
-        assert hasattr(optimize_search_index, 'delay')
+    # ARCHIVED: test_cleanup_ml_analytics_cache_task_exists - Task was archived (2026-01-13)
+    # ARCHIVED: test_optimize_search_index_task_exists - Task was archived (2026-01-13)
 
     def test_health_check_task_exists(self):
         """Test that health_check task exists."""
@@ -146,15 +137,15 @@ class TestMaintenanceTasks:
         """Test that all maintenance tasks are celery tasks."""
         from api.tasks.maintenance_tasks import (
             cleanup_expired_cache,
-            cleanup_ml_analytics_cache,
-            optimize_search_index,
+            # cleanup_ml_analytics_cache,  # ARCHIVED
+            # optimize_search_index,  # ARCHIVED
             health_check,
             cleanup_old_reports,
         )
         from celery import Task
         assert isinstance(cleanup_expired_cache, Task)
-        assert isinstance(cleanup_ml_analytics_cache, Task)
-        assert isinstance(optimize_search_index, Task)
+        # assert isinstance(cleanup_ml_analytics_cache, Task)  # ARCHIVED
+        # assert isinstance(optimize_search_index, Task)  # ARCHIVED
         assert isinstance(health_check, Task)
         assert isinstance(cleanup_old_reports, Task)
 

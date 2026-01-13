@@ -1,5 +1,53 @@
 # Basset Hound Development Roadmap
 
+---
+
+## Project Status: SCOPE COMPLETE
+
+**Date:** 2026-01-13
+
+**Status:** Core scope 98.5% complete
+
+| Metric | Value |
+|--------|-------|
+| Total MCP Tools | 130 |
+| Total Tests | 2,673+ |
+| Integration Readiness | Ready for testing with companion projects |
+
+---
+
+## Scope Cleanup Completed (2026-01-13)
+
+**4 ML services archived** (out of scope for basset-hound):
+- `ml_analytics.py`
+- `temporal_patterns.py`
+- `community_detection.py`
+- `influence_service.py`
+
+**Note:** Archived to `/archive/out-of-scope-ml/` for future intelligence-analysis project.
+
+---
+
+## Integration Readiness
+
+| Companion Project | Status | Notes |
+|-------------------|--------|-------|
+| basset-verify | ✅ Integration tested | Client created |
+| basset-hound-browser | ✅ Evidence APIs ready | Session tracking implemented |
+| palletai | ✅ 130 MCP tools available | Full MCP integration |
+| autofill-extension | ✅ Autofill endpoints ready | API endpoints prepared |
+
+---
+
+## Recommendation
+
+- **basset-hound has achieved its core scope** as a storage backbone for OSINT investigations
+- **Ready for production use** as the data management layer
+- **Future development** should focus on integrations with companion projects and optional enhancements
+- **Intelligence analysis features** belong in a separate project (intelligence-analysis)
+
+---
+
 ## Project Vision & Philosophy
 
 ### What Basset Hound IS
@@ -2165,7 +2213,9 @@ See [25-PHASE25-DEDUPLICATION-DATA-QUALITY.md](docs/findings/25-PHASE25-DEDUPLIC
 
 ---
 
-### Phase 26: Data Verification Service - 📋 PLANNED
+### Phase 26: Data Verification Service - 📋 INTEGRATION PHASE
+
+**Note:** This is an INTEGRATION phase, not core scope. basset-verify already exists as a separate project. Integration has been tested and a client has been created.
 
 | Task | Status | Notes |
 |------|--------|-------|
@@ -2196,7 +2246,9 @@ See [INTEGRATION-RESEARCH-2026-01-04.md](docs/findings/INTEGRATION-RESEARCH-2026
 
 ---
 
-### Phase 27: Integration with autofill-extension - 📋 PLANNED
+### Phase 27: Integration with autofill-extension - 📋 INTEGRATION PHASE (External Project)
+
+**Note:** This is an INTEGRATION phase with an external project (autofill-extension). Autofill endpoints are ready on the basset-hound side.
 
 | Task | Status | Notes |
 |------|--------|-------|
@@ -2209,7 +2261,9 @@ See [INTEGRATION-RESEARCH-2026-01-04.md](docs/findings/INTEGRATION-RESEARCH-2026
 
 ---
 
-### Phase 28: Integration with basset-hound-browser - 📋 PLANNED
+### Phase 28: Integration with basset-hound-browser - 📋 INTEGRATION PHASE (External Project)
+
+**Note:** This is an INTEGRATION phase with an external project (basset-hound-browser). Evidence APIs are ready and session tracking has been implemented on the basset-hound side.
 
 | Task | Status | Notes |
 |------|--------|-------|
@@ -3365,9 +3419,11 @@ Phase 43 is successful if:
 
 ---
 
-### Phase 47: Frontend Implementation 📋 PLANNED
+### Phase 47: Frontend Implementation 📋 OPTIONAL/FUTURE (Enhancement Phase)
 
 **Status:** Ready to begin (Phase 46 designs complete)
+
+**Note:** This is an ENHANCEMENT phase, not core scope. The backend APIs are complete; frontend implementation is optional based on UI requirements.
 
 **Goal:** Build production-ready React/Vue components based on Phase 46 specifications
 
@@ -3383,9 +3439,11 @@ Phase 43 is successful if:
 
 ---
 
-### Phase 48: Performance Monitoring 📋 PLANNED
+### Phase 48: Performance Monitoring 📋 OPTIONAL/FUTURE (Enhancement Phase)
 
 **Status:** Future enhancement
+
+**Note:** This is an ENHANCEMENT phase, not core scope. Monitoring can be added when production deployment requires it.
 
 **Goal:** Add comprehensive monitoring and metrics for production deployment
 
@@ -3400,9 +3458,11 @@ Phase 43 is successful if:
 
 ---
 
-### Phase 49: Storage & Management Enhancements 📋 PLANNED
+### Phase 49: Storage & Management Enhancements 📋 OPTIONAL/FUTURE (Enhancement Phase)
 
 **Status:** Future enhancement
+
+**Note:** This is an ENHANCEMENT phase, not core scope. These improvements can be made as needed based on production usage patterns.
 
 **Goal:** Improve basset-hound's core storage and management capabilities
 

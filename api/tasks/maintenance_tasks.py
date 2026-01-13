@@ -88,89 +88,24 @@ def cleanup_expired_cache(self) -> Dict[str, Any]:
         }
 
 
-@celery_app.task(bind=True)
-def cleanup_ml_analytics_cache(self) -> Dict[str, Any]:
-    """
-    Clean up ML analytics caches.
-
-    This task cleans up the TF-IDF and zero-result query caches
-    in the ML analytics service.
-
-    Returns:
-        Dict containing cleanup results
-    """
-    logger.info("Starting ML analytics cache cleanup")
-
-    try:
-        from api.services.ml_analytics import MLAnalyticsService
-
-        # Get the singleton instance
-        service = MLAnalyticsService.get_instance()
-
-        # Clear TF-IDF cache
-        service.clear_tfidf_cache()
-
-        # Clear zero-result queries cache (it has LRU eviction, but manual clear is fine)
-        cleared_zero_results = len(service._zero_result_queries)
-        service._zero_result_queries.clear()
-
-        logger.info(
-            f"ML analytics cache cleanup completed: "
-            f"cleared TF-IDF cache and {cleared_zero_results} zero-result entries"
-        )
-
-        return {
-            "success": True,
-            "tfidf_cache_cleared": True,
-            "zero_result_queries_cleared": cleared_zero_results,
-            "executed_at": datetime.now(timezone.utc).isoformat(),
-        }
-
-    except Exception as e:
-        logger.error(f"Error during ML analytics cache cleanup: {e}")
-        return {
-            "success": False,
-            "error": str(e),
-            "executed_at": datetime.now(timezone.utc).isoformat(),
-        }
+# ARCHIVED: cleanup_ml_analytics_cache task removed (2026-01-13)
+# The ML analytics service has been archived to archive/out-of-scope-ml/
+# It is out of scope for the storage layer and belongs in a future
+# intelligence-analysis project.
+#
+# @celery_app.task(bind=True)
+# def cleanup_ml_analytics_cache(self) -> Dict[str, Any]:
+#     """Clean up ML analytics caches - ARCHIVED"""
+#     pass
 
 
-@celery_app.task(bind=True)
-def optimize_search_index(self) -> Dict[str, Any]:
-    """
-    Optimize search indexes for better performance.
-
-    This task performs any necessary maintenance on search indexes,
-    such as refreshing IDF values in the ML analytics service.
-
-    Returns:
-        Dict containing optimization results
-    """
-    logger.info("Starting search index optimization")
-
-    try:
-        from api.services.ml_analytics import MLAnalyticsService
-
-        service = MLAnalyticsService.get_instance()
-
-        # Refresh IDF values to incorporate any new documents
-        service.refresh_idf()
-
-        logger.info("Search index optimization completed")
-
-        return {
-            "success": True,
-            "idf_refreshed": True,
-            "executed_at": datetime.now(timezone.utc).isoformat(),
-        }
-
-    except Exception as e:
-        logger.error(f"Error during search index optimization: {e}")
-        return {
-            "success": False,
-            "error": str(e),
-            "executed_at": datetime.now(timezone.utc).isoformat(),
-        }
+# ARCHIVED: optimize_search_index task removed (2026-01-13)
+# This task depended on the ML analytics service which has been archived.
+#
+# @celery_app.task(bind=True)
+# def optimize_search_index(self) -> Dict[str, Any]:
+#     """Optimize search indexes - ARCHIVED"""
+#     pass
 
 
 @celery_app.task(bind=True)
@@ -319,8 +254,8 @@ def cleanup_old_reports(self, days_old: int = 30) -> Dict[str, Any]:
 
 __all__ = [
     'cleanup_expired_cache',
-    'cleanup_ml_analytics_cache',
-    'optimize_search_index',
+    # 'cleanup_ml_analytics_cache',  # ARCHIVED
+    # 'optimize_search_index',  # ARCHIVED
     'health_check',
     'cleanup_old_reports',
 ]

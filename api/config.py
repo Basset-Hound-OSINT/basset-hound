@@ -177,22 +177,25 @@ class Settings(BaseSettings):
         description="Maximum number of templates to store in memory"
     )
 
-    # MLAnalytics memory limits
+    # MLAnalytics memory limits - ARCHIVED (2026-01-13)
+    # These settings were for the ML analytics service which has been moved to
+    # archive/out-of-scope-ml/ as it's out of scope for the storage layer.
+    # Keeping these fields for backwards compatibility with existing .env files.
     ml_analytics_max_history: int = Field(
         default=10000,
-        description="Maximum query history size for ML analytics"
+        description="[ARCHIVED] Maximum query history size for ML analytics"
     )
     ml_analytics_max_tfidf_cache: int = Field(
         default=5000,
-        description="Maximum TF-IDF cache entries"
+        description="[ARCHIVED] Maximum TF-IDF cache entries"
     )
     ml_analytics_max_entity_queries: int = Field(
         default=2000,
-        description="Maximum entity query associations to track"
+        description="[ARCHIVED] Maximum entity query associations to track"
     )
     ml_analytics_max_cooccurrence: int = Field(
         default=5000,
-        description="Maximum query co-occurrence entries"
+        description="[ARCHIVED] Maximum query co-occurrence entries"
     )
 
     @property

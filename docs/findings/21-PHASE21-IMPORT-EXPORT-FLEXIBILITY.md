@@ -358,13 +358,19 @@ mapped_data = await mapping_service.apply_mapping(mapping, raw_data)
 
 ### With Phase 18 (Graph Analytics)
 
-```python
-from api.services import get_community_detection_service, get_graph_format_converter
+> **Note:** The community_detection service was archived on 2026-01-13 as out-of-scope
+> for the storage layer. See archive/out-of-scope-ml/README.md for details.
+> The graph_format_converter remains available for format conversions.
 
-# Export community detection results to Gephi
-communities = await get_community_detection_service().detect_communities(project_id)
+```python
+# ARCHIVED EXAMPLE - community_detection_service is no longer available
+# from api.services import get_community_detection_service, get_graph_format_converter
+# communities = await get_community_detection_service().detect_communities(project_id)
+
+# Graph format conversion is still available:
+from api.services import get_graph_format_converter
 converter = get_graph_format_converter()
-gexf_data = converter.convert(community_graph, GraphFormat.JSON_GRAPH, GraphFormat.GEXF)
+gexf_data = converter.convert(graph_data, GraphFormat.JSON_GRAPH, GraphFormat.GEXF)
 ```
 
 ### With Phase 20 (Query Cache)
