@@ -48,6 +48,1490 @@
 
 ---
 
+## Phase 48: Dynamic Entity Architecture (PLANNED) ⭐ MAJOR
+
+**Goal:** Transform basset-hound from hardcoded data schemas to a dynamic, entity-driven architecture where **platforms become true entities** and **accounts/content become relationship data** rather than static YAML.
+
+### Vision
+
+Instead of hardcoding 70+ social media platforms in YAML, **platforms become entities** with their own configurable field schemas. Accounts and content are modeled as **relationship properties**, not independent entities.
+
+**Key Insight:** The **Ontological Independence Test** determines what is an entity:
+- **Entity**: Can exist and be clearly defined WITHOUT requiring a relationship to another entity
+- **Dependent Data**: Cannot exist without another entity (modeled as relationships/properties)
+
+| TRUE Entity | Can exist independently |
+|-------------|------------------------|
+| Platform | A platform exists even without users or owners |
+| Person | A person exists regardless of accounts or employers |
+| Location | An address exists even if no one lives there |
+
+| NOT an Entity | Cannot exist independently |
+|---------------|---------------------------|
+| Account | Requires a Platform to host it → HAS_ACCOUNT_ON relationship |
+| Content | Requires Platform + Author → Relationship properties |
+
+### Current Problem
+
+```yaml
+# Current: 70+ hardcoded platforms in data_config.yaml
+sections:
+  - id: social_major
+    fields:
+      - id: facebook
+        type: component
+        components: [url, username, display_name, user_id]
+      - id: instagram
+        type: component
+        # ... and 70 more platforms, most unused
+```
+
+**Problems:**
+1. **Config bloat** - Human operators see platforms they'll never use (MySpace, Parler, etc.)
+2. **Migration burden** - Adding new platforms requires config changes
+3. **No metadata** - Platforms lack descriptions, domains, icons for operator guidance
+4. **Static relationships** - Can't model "Post links Person to Company via Platform"
+5. **Duplicate data** - Same field types (username, url) repeated for every platform
+
+### Solution: Entity-Based Dynamic Architecture
+
+**Phase 48.1: Platform as Entity**
+
+Create `Platform` as a first-class entity type in Neo4j:
+
+```yaml
+# Simplified data_config.yaml - Data Types Only
+data_types:
+  social_media_account:
+    label: "Social Media Account"
+    description: "Account on a social media platform"
+    fields:
+      - id: platform_id
+        type: entity_reference
+        entity_type: platform
+        label: "Platform"
+      - id: username
+        type: string
+        identifier: true
+      - id: profile_url
+        type: url
+      - id: user_id
+        type: string
+        label: "Platform User ID"
+
+  marketplace_account:
+    label: "Marketplace Account"
+    description: "Account on an e-commerce marketplace"
+    fields:
+      - id: platform_id
+        type: entity_reference
+        entity_type: platform
+      - id: username
+        type: string
+      - id: seller_rating
+        type: string
+```
+
+Platform entities stored in Neo4j:
+
+```cypher
+(:Platform {
+  id: "platform_facebook",
+  name: "Facebook",
+  category: "social_media",  // social_media, marketplace, forum, dating, gaming
+  domains: ["facebook.com", "fb.com", "fb.me"],
+  icon: "fa-facebook",
+  color: "#1877F2",
+  description: "Major social networking platform owned by Meta",
+  profile_url_template: "https://facebook.com/{username}",
+  active: true,
+  notes: "Commonly used for personal and business profiles"
+})
+```
+
+### Benefits
+
+| Current Approach | New Approach |
+|------------------|--------------|
+| 70+ platforms hardcoded in YAML | Only major platforms pre-seeded |
+| Config edit required for new platforms | Human operator creates Platform entity |
+| No descriptions or guidance | Rich metadata (domains, icons, descriptions) |
+| MySpace still in config | Only relevant platforms visible |
+| Static platform list | Dynamic, project-specific platform registry |
+
+### Implementation
+
+1. **Create Platform entity type** in data_config.yaml
+2. **Pre-seed major platforms** (Facebook, Instagram, Twitter, LinkedIn, YouTube, TikTok)
+3. **Create MCP tools** for platform management (`add_platform`, `list_platforms`, `search_platforms`)
+4. **Update social media sections** in data_config.yaml to use `entity_reference` type
+5. **Migrate UI** to show platform dropdown with descriptions
+
+### Pre-seeded Platforms (Major Only)
+
+| Platform | Category | Why Included |
+|----------|----------|--------------|
+| Facebook | social_media | Ubiquitous |
+| Instagram | social_media | Photo sharing, Meta ecosystem |
+| Twitter/X | social_media | Public discourse |
+| LinkedIn | professional | Business networking |
+| YouTube | video | Video content |
+| TikTok | video | Short-form video |
+| Reddit | forum | Discussion forums |
+| Discord | messaging | Community servers |
+| Telegram | messaging | Encrypted messaging |
+| WhatsApp | messaging | Global messaging |
+
+Human operators add obscure platforms as needed (Parler, Gab, niche forums, dark web markets).
+
+### Phase 48.2: Configurable Entity Fields (Platform-Specific Schemas)
+
+**Key Innovation:** Each Platform entity can define its **own required/optional fields**.
+
+```cypher
+// Platform with custom field schema
+(:Platform {
+  id: "platform_linkedin",
+  name: "LinkedIn",
+  category: "professional",
+
+  // Define what fields an account on this platform should have
+  field_schema: {
+    "required": [
+      {"id": "username", "type": "string", "label": "LinkedIn Username"},
+      {"id": "profile_url", "type": "url", "label": "Profile URL"}
+    ],
+    "optional": [
+      {"id": "email", "type": "email", "label": "Associated Email"},
+      {"id": "display_name", "type": "string", "label": "Display Name"},
+      {"id": "headline", "type": "string", "label": "Professional Headline"},
+      {"id": "connections", "type": "number", "label": "Connection Count"},
+      {"id": "company", "type": "entity_reference", "entity_type": "organization", "label": "Current Employer"}
+    ],
+    "credentials": [
+      {"id": "password_ref", "type": "credential_reference", "label": "Password Reference"}
+    ]
+  }
+})
+```
+
+**When human operator creates "Other Platform" (custom):**
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│ Create New Platform                                                  │
+├─────────────────────────────────────────────────────────────────────┤
+│ Platform Name: _______________________                              │
+│ Category: [Social Media ▼] (social, professional, marketplace, etc)│
+│ Domain(s): _______________________ (comma-separated)               │
+│ Description: _______________________________________________        │
+│                                                                     │
+│ FIELD CONFIGURATION                                                 │
+│ ┌───────────────────────────────────────────────────────────────┐  │
+│ │ Required Fields:                                               │  │
+│ │   [✓] Username                                                │  │
+│ │   [✓] Profile URL                                             │  │
+│ │   [ ] Email                                                    │  │
+│ │   [ ] User ID                                                  │  │
+│ │                                                                │  │
+│ │ Optional Fields:                                               │  │
+│ │   [✓] Display Name                                            │  │
+│ │   [ ] Phone                                                    │  │
+│ │   [✓] Bio/Description                                         │  │
+│ │   [ ] Followers Count                                          │  │
+│ │                                                                │  │
+│ │ [+ Add Custom Field]                                           │  │
+│ └───────────────────────────────────────────────────────────────┘  │
+│                                                                     │
+│                              [Cancel] [Create Platform]             │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**Benefits:**
+- No config file edits needed
+- Each platform can have unique fields (LinkedIn has "headline", Twitter has "verified badge")
+- Human operators control what data they need to track
+- Old platforms don't clutter the interface
+
+### Phase 48.3: Content as Dependent Data (NOT an Entity)
+
+**Key Insight:** Content (posts, messages, etc.) is **dependent data**, not an entity. Content cannot exist without:
+1. A Platform to host it
+2. An Author (Person) who created it
+
+Since content fails the **Ontological Independence Test** (it cannot exist and be clearly defined without other entities), it is NOT a first-class entity.
+
+**Modeling Options:**
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│ OPTION A: Content as Relationship Properties (Recommended)          │
+│                                                                     │
+│   Person ──[HAS_ACCOUNT_ON]──> Platform                            │
+│              │                                                      │
+│              └── posts: [                                           │
+│                    {text: "...", url: "...", timestamp: "..."},     │
+│                    {text: "...", url: "...", timestamp: "..."}      │
+│                  ]                                                  │
+│                                                                     │
+│   Pros: Simple, maintains ontological correctness                   │
+│   Cons: Hard to query across posts from different accounts          │
+├─────────────────────────────────────────────────────────────────────┤
+│ OPTION B: Content as Dependent Node (Future consideration)          │
+│                                                                     │
+│   If query patterns require content-centric searches, we CAN        │
+│   create Content nodes, but acknowledge they are DEPENDENT DATA:    │
+│                                                                     │
+│   Person ──[POSTED]──> Content ◄──[HOSTS]── Platform               │
+│                                                                     │
+│   The Content node MUST have both relationships to be valid.        │
+│   Orphan Content nodes (no Platform, no Author) are invalid.        │
+│                                                                     │
+│   Pros: Enables "find all posts mentioning X" queries               │
+│   Cons: Violates strict entity independence, more complex           │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**Recommendation:** Start with Option A (content as relationship properties). If investigators need content-centric queries, revisit Option B as a "dependent node" pattern, clearly documented as non-independent data.
+
+### Phase 48.4: Account as Relationship (Person-Platform Edge)
+
+**Key Insight:** An "account" is not an entity - it's a **relationship with properties** (an edge in graph terminology). A Person HAS_ACCOUNT_ON a Platform, and that relationship carries the account-specific data.
+
+**Graph Modeling Terminology:**
+
+| Concept | Graph Term | Description |
+|---------|------------|-------------|
+| Person, Platform, Organization, Location, Group | **Node** (Entity) | First-class objects that can exist independently |
+| Account | **Edge** (Relationship) | HAS_ACCOUNT_ON links Person → Platform with properties |
+| Content | **Edge Properties** | Posts/messages stored as properties on HAS_ACCOUNT_ON |
+
+```cypher
+// Entities (Nodes)
+(:Person {id: "person_john", name: "John Doe"})
+(:Platform {id: "platform_linkedin", name: "LinkedIn", category: "professional"})
+(:Organization {id: "org_microsoft", name: "Microsoft"})
+
+// Account is a RELATIONSHIP with properties, NOT a separate node
+(:Person {id: "person_john"})-[:HAS_ACCOUNT_ON {
+  // Account-specific data lives on the edge
+  username: "john-doe-12345",
+  profile_url: "https://linkedin.com/in/john-doe-12345",
+  display_name: "John Doe",
+
+  // Platform-specific fields (from platform's field_schema)
+  headline: "Senior Software Engineer at TechCorp",
+  connections: 500,
+
+  // Credential reference (NOT actual password)
+  password_ref: "1password://vault/john_linkedin_creds",
+
+  // Metadata
+  verified: true,
+  created_at: datetime(),
+  last_active: datetime()
+}]->(:Platform {id: "platform_linkedin"})
+
+// Platform ownership - Platform is OWNED_BY Organization
+(:Platform {id: "platform_linkedin"})-[:OWNED_BY]->(:Organization {id: "org_microsoft"})
+
+// Employment is a separate relationship
+(:Person {id: "person_john"})-[:WORKS_AT {since: date("2020-01-15")}]->(:Organization {id: "org_techcorp"})
+```
+
+**Why Relationship, Not Entity?**
+
+| Account as Entity (Wrong) | Account as Relationship (Correct) |
+|---------------------------|-----------------------------------|
+| Creates unnecessary node | Data lives on the edge |
+| Requires two hops: Person→Account→Platform | Single hop: Person→Platform |
+| Harder to query "all accounts on LinkedIn" | Simple: `MATCH (p:Person)-[a:HAS_ACCOUNT_ON]->(pl:Platform)` |
+| Account "floats" without clear ownership | Relationship inherently connects Person↔Platform |
+
+**Benefits:**
+1. **Query efficiency**: Single pattern match for account queries
+2. **Clear ownership**: Relationship inherently ties Person to Platform
+3. **Platform-specific data**: Edge properties defined by platform's field_schema
+4. **Cleaner model**: No intermediate nodes cluttering the graph
+5. **Platform ownership**: Platforms can have OWNED_BY relationships to Organizations
+
+### Full Architecture Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    DYNAMIC ENTITY ARCHITECTURE                       │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  TRUE ENTITIES (Pass Ontological Independence Test)                 │
+│  ┌──────────┐     ┌──────────┐     ┌──────────┐     ┌──────────┐  │
+│  │  Person  │     │ Platform │     │   Org    │     │ Location │  │
+│  │  (Node)  │     │  (Node)  │     │  (Node)  │     │  (Node)  │  │
+│  └────┬─────┘     └────┬─────┘     └────┬─────┘     └──────────┘  │
+│       │                │                │                          │
+│       │                │                │                          │
+│  RELATIONSHIPS (Edges with Properties)                             │
+│  ─────────────────────────────────────────────────────────────────│
+│                                                                     │
+│  Person ───[HAS_ACCOUNT_ON]───► Platform                           │
+│             │                                                       │
+│             ├── username, profile_url, display_name                │
+│             ├── password_ref, verified                             │
+│             ├── platform-specific fields (from Platform schema)    │
+│             └── posts: [{...}, {...}]  (content as properties)     │
+│                                                                     │
+│  Platform ───[OWNED_BY]───► Organization                           │
+│  Person ───[WORKS_AT]───► Organization                             │
+│  Person ───[LOCATED_IN]───► Location                               │
+│  Person ───[KNOWS]───► Person                                      │
+│                                                                     │
+├─────────────────────────────────────────────────────────────────────┤
+│  ONTOLOGICAL INDEPENDENCE TEST:                                     │
+│  "Can this thing exist and be clearly defined without              │
+│   requiring a relationship to another entity?"                      │
+│                                                                     │
+│  ✓ Platform: Exists without owners or users                        │
+│  ✓ Person: Exists without accounts or employers                    │
+│  ✓ Location: Exists without occupants                              │
+│  ✓ Group: Can have 0 members                                       │
+│  ✗ Account: Cannot exist without a Platform → RELATIONSHIP         │
+│  ✗ Content: Cannot exist without Platform + Author → PROPERTIES    │
+│                                                                     │
+│  Pre-seeded Platforms: Facebook, LinkedIn, Twitter, etc.            │
+│  Human operators: Create "Other Platform" entities as needed        │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Implementation Phases
+
+| Sub-Phase | Deliverable | Dependencies |
+|-----------|-------------|--------------|
+| 48.1 | Platform entity type, pre-seeded major platforms | None |
+| 48.2 | Configurable field schemas per platform, "Add Platform" UI | 48.1 |
+| 48.3 | Content as relationship properties (posts array on HAS_ACCOUNT_ON) | 48.1 |
+| 48.4 | HAS_ACCOUNT_ON relationship type with platform-specific properties | 48.1, 48.2 |
+| 48.5 | Migration tool for existing data | 48.1-48.4 |
+| 48.6 | Simplified data_config.yaml (remove hardcoded platforms) | 48.5 |
+
+### MCP Tools (New)
+
+**Platform Management:**
+| Tool | Description |
+|------|-------------|
+| `create_platform` | Create a new platform entity with field schema |
+| `list_platforms` | List all platform entities (optionally by category) |
+| `get_platform` | Get platform details including field schema |
+| `update_platform` | Update platform metadata or field schema |
+| `set_platform_owner` | Create OWNED_BY relationship: Platform → Organization |
+
+**Account Relationships (HAS_ACCOUNT_ON edge):**
+| Tool | Description |
+|------|-------------|
+| `link_person_to_platform` | Create HAS_ACCOUNT_ON relationship with properties |
+| `get_accounts_for_person` | List all HAS_ACCOUNT_ON relationships for a person |
+| `get_accounts_on_platform` | List all HAS_ACCOUNT_ON relationships on a platform |
+| `update_account` | Update properties on HAS_ACCOUNT_ON relationship |
+| `remove_account` | Delete HAS_ACCOUNT_ON relationship |
+
+**Content (as relationship properties):**
+| Tool | Description |
+|------|-------------|
+| `add_post_to_account` | Add a post to the HAS_ACCOUNT_ON relationship's posts array |
+| `get_posts_for_account` | Get all posts from a specific HAS_ACCOUNT_ON relationship |
+| `search_posts` | Search across all posts (full-text search on relationship properties) |
+
+### Migration Strategy
+
+Existing investigations can be migrated:
+1. **Phase 1**: Create Platform entities for each unique platform in existing data
+2. **Phase 2**: Create HAS_ACCOUNT_ON relationships from existing profile data
+3. **Phase 3**: Migrate existing post data to relationship properties
+4. **Phase 4**: Clean up deprecated profile structure
+
+**Migration is NON-DESTRUCTIVE** - original data preserved until verified.
+
+---
+
+## Phase 49: Multi-Algorithm File Hashing & Deduplication (PLANNED)
+
+**Goal:** Compute multiple hashes per file to enable automatic match suggestions across entities.
+
+### Problem
+
+Current file handling:
+- Files stored per entity in filesystem
+- No hash computation
+- No deduplication
+- Same file uploaded to different entities = wasted storage + missed connections
+
+### Solution: Hash Registry
+
+When files are uploaded:
+
+1. **Compute multiple hashes**:
+   - SHA-256 (standard, integrity)
+   - SHA-1 (legacy compatibility, Git)
+   - MD5 (legacy compatibility, some tools)
+   - CRC32 (fast, basic check)
+   - For images: pHash, dHash (perceptual hashes for similar images)
+
+2. **Store in hash registry**:
+   ```cypher
+   (:FileHash {
+     id: "hash_abc123",
+     file_id: "file_xyz",
+     entity_id: "ent_123",
+     project_id: "proj_456",
+
+     // Multiple algorithms
+     sha256: "e3b0c44298fc1c149...",
+     sha1: "da39a3ee5e6b4b0d...",
+     md5: "d41d8cd98f00b204...",
+     crc32: "00000000",
+
+     // Image perceptual hashes (if applicable)
+     phash: "8f14e45fceea167...",
+     dhash: "0000000000000000",
+
+     // Metadata
+     filename: "evidence.jpg",
+     file_size: 1024567,
+     mime_type: "image/jpeg",
+     created_at: datetime()
+   })
+   ```
+
+3. **Query for matches**:
+   ```cypher
+   // Find files with matching SHA-256
+   MATCH (h1:FileHash {sha256: $hash})
+   MATCH (h2:FileHash {sha256: $hash})
+   WHERE h1.entity_id <> h2.entity_id
+   RETURN h1, h2
+   ```
+
+### Human Operator Experience
+
+**On File Upload:**
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Upload: evidence_photo.jpg                                  │
+├─────────────────────────────────────────────────────────────┤
+│ ⚠️  POTENTIAL MATCHES FOUND                                  │
+│                                                             │
+│ 1. [EXACT MATCH] Same file exists in:                       │
+│    • John Doe (Person) - uploaded 2026-01-10                │
+│    • Jane Smith (Person) - uploaded 2026-01-08              │
+│                                                             │
+│    SHA-256: e3b0c44298fc1c149...                           │
+│                                                             │
+│    Actions: [Link to existing] [Upload anyway] [Cancel]     │
+│                                                             │
+│ 2. [SIMILAR IMAGE] 92% perceptual match:                    │
+│    • Unknown Person (Person) - evidence_cropped.jpg         │
+│                                                             │
+│    Actions: [View comparison] [Dismiss]                     │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Hash Display on Entity Profile:**
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Files & Documents                                           │
+├─────────────────────────────────────────────────────────────┤
+│ 📄 evidence.pdf                                             │
+│    SHA-256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+│    MD5: d41d8cd98f00b204e9800998ecf8427e                    │
+│    [Copy SHA-256] [Copy MD5] [Download]                     │
+│                                                             │
+│ 🖼️ profile_photo.jpg                                        │
+│    SHA-256: abc123...                                       │
+│    pHash: 8f14e45f...                                       │
+│    ⚠️ 2 similar images in other entities [View matches]     │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### MCP Tools
+
+| Tool | Description |
+|------|-------------|
+| `get_file_hashes` | Get all hashes for a file |
+| `find_file_matches` | Find files matching any hash |
+| `find_similar_images` | Find perceptually similar images |
+| `compare_files` | Compare two files by hash |
+
+### Benefits
+
+| Capability | Benefit |
+|------------|---------|
+| Multi-algorithm hashing | Support any hash format investigators use |
+| Automatic match detection | "This file exists elsewhere" suggestions |
+| Perceptual image hashing | Find similar (not identical) images |
+| Hash display for operators | Copy-paste hashes for external verification |
+| Cross-entity linking | Same file → potential entity relationship |
+
+---
+
+## Phase 50: Simplified Data Configuration (PLANNED)
+
+**Goal:** Restructure `data_config.yaml` to focus on data types and identifiers, not platforms.
+
+### Current Structure (Problematic)
+
+```yaml
+# Current: 70+ platform-specific sections
+sections:
+  - id: social_major
+    fields:
+      - id: facebook
+        type: component
+        components: [url, username, display_name, user_id]
+      - id: instagram
+        type: component
+        components: [url, username, display_name]
+      # ... 20+ more platforms
+
+  - id: gaming
+    fields:
+      - id: steam
+        components: [profile_url, username, steam_id]
+      # ... 10+ more
+```
+
+### New Structure (Simplified)
+
+```yaml
+# New: Data types + identifiers
+version: "4.0"
+
+# =============================================================================
+# IDENTIFIER TYPES (things that can uniquely identify someone)
+# =============================================================================
+identifier_types:
+  email:
+    label: "Email Address"
+    pattern: "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
+    searchable: true
+    verifiable: true  # Can be verified via basset-verify
+
+  phone:
+    label: "Phone Number"
+    pattern: "^\\+?[1-9]\\d{1,14}$"
+    searchable: true
+    verifiable: true
+
+  username:
+    label: "Username/Handle"
+    searchable: true
+    description: "Platform-agnostic username"
+
+  crypto_address:
+    label: "Cryptocurrency Address"
+    verifiable: true
+    auto_detect: true  # Auto-detect coin type
+
+  ip_address:
+    label: "IP Address"
+    pattern: "^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$"
+    searchable: true
+
+  domain:
+    label: "Domain Name"
+    verifiable: true
+
+# =============================================================================
+# DATA TYPES (categories of information)
+# =============================================================================
+data_types:
+  # Social/Online Presence (platform-agnostic)
+  online_account:
+    label: "Online Account"
+    description: "Account on any online platform"
+    fields:
+      - id: platform
+        type: entity_reference
+        entity_type: platform
+        label: "Platform"
+        required: true
+      - id: username
+        type: identifier
+        identifier_type: username
+      - id: profile_url
+        type: url
+      - id: user_id
+        type: string
+        label: "Platform User ID"
+      - id: email
+        type: identifier
+        identifier_type: email
+      - id: display_name
+        type: string
+
+  # File/Evidence
+  file_evidence:
+    label: "File Evidence"
+    description: "File with chain of custody"
+    fields:
+      - id: file
+        type: file
+      - id: description
+        type: comment
+      - id: source
+        type: string
+      - id: date_obtained
+        type: date
+      - id: hashes
+        type: computed
+        auto_generate: true  # System computes hashes
+
+  # Contact Information
+  contact_info:
+    label: "Contact Information"
+    fields:
+      - id: type
+        type: select
+        options: ["Home", "Work", "Mobile", "Other"]
+      - id: email
+        type: identifier
+        identifier_type: email
+      - id: phone
+        type: identifier
+        identifier_type: phone
+      - id: address
+        type: component
+        components: [street, city, state, postal_code, country]
+
+# =============================================================================
+# SECTIONS (UI organization)
+# =============================================================================
+sections:
+  - id: identity
+    name: "Identity"
+    icon: fa-id-card
+    data_types: [name, alias, date_of_birth, gender, nationality]
+
+  - id: contact
+    name: "Contact Information"
+    icon: fa-address-book
+    data_types: [contact_info]
+
+  - id: online_presence
+    name: "Online Presence"
+    icon: fa-globe
+    data_types: [online_account]
+    description: "Social media, forums, marketplaces - any online account"
+
+  - id: identifiers
+    name: "Identifiers"
+    icon: fa-fingerprint
+    data_types: [email, phone, crypto_address, ip_address, domain]
+
+  - id: files
+    name: "Files & Evidence"
+    icon: fa-folder
+    data_types: [file_evidence]
+```
+
+### Key Changes
+
+| Aspect | Before | After |
+|--------|--------|-------|
+| Platform handling | 70+ hardcoded | Platform entities in Neo4j |
+| Social accounts | Platform-specific fields | Generic `online_account` type |
+| Identifiers | Mixed with other fields | Dedicated identifier types |
+| Files | Basic file type | `file_evidence` with auto-hashing |
+| Config size | ~2800 lines | ~500 lines |
+| Adding platforms | Edit YAML | Create Platform entity |
+
+### Benefits
+
+1. **Cleaner config** - Focus on data types, not platform enumeration
+2. **Dynamic platforms** - Add platforms without config changes
+3. **Consistent identifiers** - Unified identifier handling with verification
+4. **Auto-hashing** - Files automatically get hash registry entries
+5. **Human operator guidance** - Platform entities have descriptions and domains
+
+---
+
+## Phase 51: Optional Neo4j-Native Graph Analytics (PLANNED)
+
+**Goal:** Reintegrate graph analytics features using ONLY Neo4j-native GDS algorithms. No external ML libraries required.
+
+### Philosophy
+
+basset-hound should scale from **laptop (8GB RAM)** to **industrial cluster**. Optional analytics features:
+- **OFF by default** on resource-constrained systems
+- **Toggle on** when hardware permits
+- **Gracefully degrade** when unavailable
+- **No ML training required** - uses Neo4j GDS algorithms only
+
+### Neo4j GDS Algorithms (No External Dependencies)
+
+These algorithms run entirely within Neo4j using the Graph Data Science library:
+
+| Feature | Algorithm | GDS Procedure | Resource Impact |
+|---------|-----------|---------------|-----------------|
+| Community Detection | Louvain | `gds.louvain` | Medium |
+| Community Detection | Label Propagation | `gds.labelPropagation` | Low |
+| Influence Scoring | PageRank | `gds.pageRank` | Medium |
+| Path Finding | Shortest Path | `gds.shortestPath.dijkstra` | Low |
+| Path Finding | All Shortest Paths | `gds.allShortestPaths` | Medium |
+| Similarity | Node Similarity | `gds.nodeSimilarity` | Medium-High |
+| Connectivity | Connected Components | `gds.wcc` | Low |
+| Connectivity | Strongly Connected | `gds.scc` | Low |
+| Centrality | Betweenness | `gds.betweenness` | High |
+| Centrality | Closeness | `gds.closeness` | High |
+
+### Feature Flags Configuration
+
+```yaml
+# config/analytics_features.yaml
+analytics:
+  # Master toggle - if false, all analytics disabled
+  enabled: true
+
+  # Auto-detect based on available memory
+  auto_scale: true
+  memory_threshold_mb: 4096  # Disable high-impact features below this
+
+  features:
+    # Low resource impact - safe on laptops
+    connected_components:
+      enabled: true
+      auto_run: false  # Only on demand
+
+    label_propagation:
+      enabled: true
+      auto_run: false
+
+    shortest_path:
+      enabled: true
+      auto_run: true  # Light enough to run on navigation
+
+    # Medium resource impact - needs 8GB+
+    community_detection_louvain:
+      enabled: auto  # Based on memory_threshold
+      schedule: "daily"  # Run nightly, cache results
+
+    pagerank:
+      enabled: auto
+      schedule: "daily"
+
+    # High resource impact - needs 16GB+ or cluster
+    betweenness_centrality:
+      enabled: false  # Manual enable only
+      schedule: "weekly"
+
+    node_similarity:
+      enabled: false
+      schedule: "weekly"
+```
+
+### Implementation Approach
+
+1. **Analytics Service Wrapper**
+   - Check feature flags before running algorithms
+   - Gracefully return "feature disabled" if unavailable
+   - Cache expensive results with TTL
+
+2. **REST API Endpoints**
+   ```
+   GET  /api/v1/analytics/features        # List available features
+   GET  /api/v1/analytics/status          # Current status of each feature
+   POST /api/v1/analytics/run/{feature}   # Manually trigger an analysis
+   GET  /api/v1/analytics/results/{feature}  # Get cached results
+   ```
+
+3. **Graceful Degradation**
+   ```python
+   async def get_communities(project_id: str):
+       if not analytics_enabled("community_detection_louvain"):
+           return AnalyticsUnavailable(
+               feature="community_detection",
+               reason="Disabled due to resource constraints",
+               suggestion="Enable in config/analytics_features.yaml"
+           )
+       # ... run algorithm
+   ```
+
+4. **UI Indicators**
+   - Show which analytics features are available
+   - Gray out unavailable features
+   - Display "Enable in settings" tooltips
+
+### What This Phase Does NOT Include
+
+- ❌ ML model training (TF-IDF, embeddings, etc.)
+- ❌ External Python ML libraries (scikit-learn, numpy for ML)
+- ❌ Predictive analytics
+- ❌ Natural language processing
+- ❌ Image recognition/similarity (beyond perceptual hashing)
+
+These remain OUT OF SCOPE for basset-hound and belong in a future `intelligence-analysis` project.
+
+### Migration from Archived Services
+
+| Archived Service | Neo4j-Native Replacement |
+|-----------------|-------------------------|
+| `community_detection.py` Louvain | `gds.louvain` (direct replacement) |
+| `community_detection.py` Label Propagation | `gds.labelPropagation` (direct replacement) |
+| `community_detection.py` Connected Components | `gds.wcc` (direct replacement) |
+| `influence_service.py` PageRank | `gds.pageRank` (direct replacement) |
+| `influence_service.py` Key Entity Detection | `gds.articulationPoints`, `gds.bridges` |
+| `temporal_patterns.py` | OUT OF SCOPE (keep archived) |
+| `ml_analytics_service.py` | OUT OF SCOPE (keep archived) |
+
+### Benefits
+
+| Benefit | Description |
+|---------|-------------|
+| Zero Training | No ML models to train or maintain |
+| Scales Down | Works on laptops with minimal resources |
+| Scales Up | Leverages Neo4j cluster when available |
+| Optional | Can be completely disabled |
+| Transparent | Users see exactly what's enabled/disabled |
+| Native | Runs inside Neo4j, no Python ML overhead |
+
+---
+
+## Phase 51.1: Hardware Benchmarking & Resource Management (PLANNED)
+
+**Goal:** Smart detection of host system capabilities to automatically configure concurrent processes and feature availability.
+
+### Problem
+
+Human operators run basset-hound on diverse hardware:
+- Laptops with 8GB RAM (can't run heavy analytics)
+- Workstations with 32GB RAM (can run most features)
+- Servers with 64GB+ (can run everything)
+- Industrial clusters (horizontal scaling)
+
+We need to:
+1. **Detect** available resources at startup
+2. **Auto-configure** feature availability based on resources
+3. **Allow overrides** for human operators who know their systems
+4. **Monitor** resource usage and throttle if needed
+
+### System Benchmark Service
+
+```python
+# api/services/system_benchmark.py
+from dataclasses import dataclass
+from typing import Optional
+import psutil
+import os
+
+@dataclass
+class SystemBenchmark:
+    """Detected system capabilities."""
+    total_memory_mb: int
+    available_memory_mb: int
+    cpu_count: int
+    cpu_count_physical: int
+    neo4j_memory_mb: Optional[int]  # If detectable
+
+    # Computed tiers
+    tier: str  # "laptop", "workstation", "server", "cluster"
+    max_concurrent_analytics: int
+    max_concurrent_background_jobs: int
+    recommended_features: dict[str, bool]
+
+
+class SystemBenchmarkService:
+    """Benchmark host system and recommend configurations."""
+
+    # Memory thresholds for tiers
+    TIER_THRESHOLDS = {
+        "laptop": 8 * 1024,      # < 8GB
+        "workstation": 32 * 1024,  # 8-32GB
+        "server": 64 * 1024,      # 32-64GB
+        "cluster": float("inf"),   # 64GB+
+    }
+
+    def detect(self) -> SystemBenchmark:
+        """Detect system capabilities."""
+        memory = psutil.virtual_memory()
+
+        total_mb = memory.total // (1024 * 1024)
+        available_mb = memory.available // (1024 * 1024)
+        cpu_count = psutil.cpu_count(logical=True)
+        cpu_physical = psutil.cpu_count(logical=False)
+
+        # Determine tier
+        tier = self._determine_tier(total_mb)
+
+        # Calculate max concurrent processes
+        max_analytics = self._calc_max_analytics(tier, cpu_physical)
+        max_background = self._calc_max_background(tier, cpu_physical)
+
+        # Recommend features based on tier
+        features = self._recommend_features(tier, total_mb)
+
+        return SystemBenchmark(
+            total_memory_mb=total_mb,
+            available_memory_mb=available_mb,
+            cpu_count=cpu_count,
+            cpu_count_physical=cpu_physical,
+            neo4j_memory_mb=self._detect_neo4j_memory(),
+            tier=tier,
+            max_concurrent_analytics=max_analytics,
+            max_concurrent_background_jobs=max_background,
+            recommended_features=features,
+        )
+
+    def _determine_tier(self, total_mb: int) -> str:
+        if total_mb < 8 * 1024:
+            return "laptop"
+        elif total_mb < 32 * 1024:
+            return "workstation"
+        elif total_mb < 64 * 1024:
+            return "server"
+        else:
+            return "cluster"
+
+    def _calc_max_analytics(self, tier: str, cpus: int) -> int:
+        """Max concurrent GDS analytics jobs."""
+        limits = {"laptop": 1, "workstation": 2, "server": 4, "cluster": 8}
+        return min(limits[tier], max(1, cpus // 2))
+
+    def _calc_max_background(self, tier: str, cpus: int) -> int:
+        """Max concurrent Celery/ARQ workers."""
+        limits = {"laptop": 2, "workstation": 4, "server": 8, "cluster": 16}
+        return min(limits[tier], cpus)
+
+    def _recommend_features(self, tier: str, total_mb: int) -> dict:
+        """Recommend which features should be enabled."""
+        return {
+            # Always available
+            "path_finding": True,
+            "connected_components": True,
+            "degree_centrality": True,
+
+            # Medium resource impact
+            "label_propagation": tier in ("workstation", "server", "cluster"),
+            "pagerank": tier in ("workstation", "server", "cluster"),
+            "community_detection": tier in ("server", "cluster"),
+
+            # High resource impact
+            "betweenness_centrality": tier in ("server", "cluster"),
+            "node_similarity": tier == "cluster",
+            "closeness_centrality": tier == "cluster",
+        }
+```
+
+### Configuration with Overrides
+
+```yaml
+# config/system.yaml
+system:
+  # Auto-detect system capabilities at startup
+  auto_benchmark: true
+
+  # Override detected values (optional)
+  overrides:
+    # Uncomment to force specific tier
+    # tier: "workstation"
+
+    # Uncomment to limit concurrent jobs
+    # max_concurrent_analytics: 1
+    # max_concurrent_background_jobs: 2
+
+  # Resource monitoring
+  monitoring:
+    enabled: true
+    check_interval_seconds: 60
+    memory_warning_threshold: 0.85  # 85% usage
+    memory_critical_threshold: 0.95  # 95% usage → throttle
+
+  # Throttling behavior when resources are low
+  throttling:
+    enabled: true
+    pause_analytics_on_critical: true
+    reduce_workers_on_warning: true
+
+
+# Feature toggles (human operator can override)
+analytics:
+  # Master toggle
+  enabled: true
+
+  # Use auto-detected recommendations
+  use_recommended: true
+
+  # Or manually specify (overrides recommendations)
+  features:
+    path_finding:
+      enabled: true
+      # Cannot disable - core feature
+
+    connected_components:
+      enabled: true
+
+    pagerank:
+      enabled: auto  # Use system recommendation
+      # enabled: true  # Force on
+      # enabled: false  # Force off
+
+    community_detection:
+      enabled: auto
+      schedule: "0 2 * * *"  # 2 AM daily if enabled
+
+    betweenness_centrality:
+      enabled: false  # Disabled by default, very expensive
+      schedule: "0 3 * * 0"  # 3 AM Sunday if enabled
+```
+
+### Multi-Layer Feature Toggle Architecture
+
+Feature toggles are available at **three layers** to ensure users never have a slow startup:
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  LAYER 1: CONFIG FILE (Fastest - Before Startup)                    │
+│  config/analytics_features.yaml                                      │
+│  - Set defaults before server starts                                 │
+│  - Prevents slow features from ever loading                          │
+│  - No API call needed - just edit file and restart                   │
+├─────────────────────────────────────────────────────────────────────┤
+│  LAYER 2: REST API (Runtime - No Restart Needed)                    │
+│  POST /api/v1/analytics/features/{feature}/toggle                   │
+│  - Toggle features on/off while server is running                   │
+│  - Changes take effect immediately                                   │
+│  - Persists to config file (optional)                               │
+├─────────────────────────────────────────────────────────────────────┤
+│  LAYER 3: FRONTEND UI (User-Friendly)                               │
+│  Settings → Graph Analytics → Feature Toggles                        │
+│  - Visual toggles with resource impact indicators                   │
+│  - "Apply Recommended" button for easy optimization                 │
+│  - Shows current resource usage in real-time                        │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**Priority Order:** Config File → API Override → UI Changes
+
+**Key Design Principle:** If the system is slow, users can:
+1. **Immediate relief**: Edit `config/analytics_features.yaml`, set `analytics.enabled: false`, restart
+2. **No restart needed**: Call API to toggle off specific features
+3. **User-friendly**: Use UI to disable features with one click
+
+### REST API Endpoints
+
+```
+GET  /api/v1/system/benchmark      # Get current system benchmark
+GET  /api/v1/system/resources      # Get current resource usage
+POST /api/v1/system/benchmark      # Re-run benchmark
+GET  /api/v1/analytics/features    # List features with enabled status
+POST /api/v1/analytics/features/{feature}/toggle  # Toggle feature on/off
+PATCH /api/v1/analytics/features   # Bulk update multiple features
+POST /api/v1/analytics/features/apply-recommended  # Apply system recommendations
+```
+
+### Toggle API Examples
+
+```bash
+# Disable a slow feature immediately (no restart)
+curl -X POST http://localhost:8000/api/v1/analytics/features/community_detection/toggle \
+  -H "Content-Type: application/json" \
+  -d '{"enabled": false, "persist": true}'
+
+# Disable ALL analytics (emergency performance fix)
+curl -X PATCH http://localhost:8000/api/v1/analytics/features \
+  -H "Content-Type: application/json" \
+  -d '{"master_enabled": false, "persist": true}'
+
+# Apply system-recommended settings
+curl -X POST http://localhost:8000/api/v1/analytics/features/apply-recommended
+```
+
+### Example API Response
+
+```json
+GET /api/v1/system/benchmark
+{
+  "benchmark": {
+    "total_memory_mb": 16384,
+    "available_memory_mb": 8192,
+    "cpu_count": 8,
+    "cpu_count_physical": 4,
+    "neo4j_memory_mb": 4096,
+    "tier": "workstation",
+    "max_concurrent_analytics": 2,
+    "max_concurrent_background_jobs": 4
+  },
+  "recommended_features": {
+    "path_finding": true,
+    "connected_components": true,
+    "degree_centrality": true,
+    "label_propagation": true,
+    "pagerank": true,
+    "community_detection": false,
+    "betweenness_centrality": false,
+    "node_similarity": false
+  },
+  "active_features": {
+    "path_finding": {"enabled": true, "source": "always_on"},
+    "connected_components": {"enabled": true, "source": "recommended"},
+    "pagerank": {"enabled": true, "source": "recommended"},
+    "community_detection": {"enabled": false, "source": "recommended"},
+    "betweenness_centrality": {"enabled": false, "source": "config_override"}
+  },
+  "_links": {
+    "self": {"href": "/api/v1/system/benchmark"},
+    "features": {"href": "/api/v1/analytics/features"},
+    "resources": {"href": "/api/v1/system/resources"}
+  }
+}
+```
+
+### UI: Feature Management Panel
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  System Resources                                          [Refresh]│
+├─────────────────────────────────────────────────────────────────────┤
+│  Tier: WORKSTATION                                                  │
+│  Memory: 16 GB (8 GB available)  ████████░░░░ 50%                  │
+│  CPU: 8 cores (4 physical)                                          │
+│  Concurrent Analytics: 2 max                                        │
+├─────────────────────────────────────────────────────────────────────┤
+│  Graph Analytics Features                                           │
+├─────────────────────────────────────────────────────────────────────┤
+│  ✅ Path Finding              [Always On]     Low impact           │
+│  ✅ Connected Components      [On] [Off]      Low impact           │
+│  ✅ Degree Centrality         [On] [Off]      Low impact           │
+│  ✅ Label Propagation         [On] [Off]      Low impact           │
+│  ✅ PageRank                  [On] [Off]      Medium impact        │
+│  ⚪ Community Detection       [On] [Off]      Medium-High impact   │
+│       ⚠️ Not recommended for your system tier                       │
+│  ⚪ Betweenness Centrality    [On] [Off]      High impact          │
+│       ⚠️ Not recommended for your system tier                       │
+│  ⚪ Node Similarity           [On] [Off]      High impact          │
+│       ⚠️ Requires cluster deployment                                │
+├─────────────────────────────────────────────────────────────────────┤
+│  [Apply Recommended Settings]  [Save Custom Settings]               │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Implementation Priority
+
+| Sub-Phase | Component | Effort | Priority |
+|-----------|-----------|--------|----------|
+| 51.1.1 | SystemBenchmarkService | Small | High |
+| 51.1.2 | Config schema with overrides | Small | High |
+| 51.1.3 | REST API endpoints | Medium | High |
+| 51.1.4 | Resource monitoring | Medium | Medium |
+| 51.1.5 | Throttling behavior | Medium | Medium |
+| 51.1.6 | UI feature panel | Medium | Low |
+
+---
+
+## Phase 51.2: Neo4j GDS Algorithm Implementation (PLANNED)
+
+**Goal:** Implement each Neo4j GDS algorithm wrapper with proper resource checking.
+
+### Implementation Order
+
+Algorithms are implemented in order of resource impact (low → high):
+
+| Phase | Algorithm | GDS Procedure | Resource Impact | Dependencies |
+|-------|-----------|---------------|-----------------|--------------|
+| 51.2.1 | Connected Components | `gds.wcc` | Low | None |
+| 51.2.2 | Shortest Path | `gds.shortestPath.dijkstra` | Low | None |
+| 51.2.3 | All Paths | `gds.allShortestPaths.dijkstra` | Low-Medium | 51.2.2 |
+| 51.2.4 | Label Propagation | `gds.labelPropagation` | Low | None |
+| 51.2.5 | Degree Centrality | `gds.degree` | Low | None |
+| 51.2.6 | PageRank | `gds.pageRank` | Medium | None |
+| 51.2.7 | Louvain Community | `gds.louvain` | Medium | None |
+| 51.2.8 | Node Similarity | `gds.nodeSimilarity` | Medium-High | None |
+| 51.2.9 | Betweenness Centrality | `gds.betweenness` | High | None |
+| 51.2.10 | Closeness Centrality | `gds.closeness` | High | None |
+
+### Algorithm Wrapper Pattern
+
+```python
+# api/services/analytics/base.py
+from abc import ABC, abstractmethod
+from typing import Generic, TypeVar
+
+T = TypeVar("T")
+
+class AnalyticsAlgorithm(ABC, Generic[T]):
+    """Base class for Neo4j GDS algorithm wrappers."""
+
+    # Algorithm metadata
+    name: str
+    gds_procedure: str
+    resource_impact: str  # "low", "medium", "high"
+    feature_flag: str
+
+    def __init__(self, neo4j_handler, benchmark_service, config):
+        self.neo4j = neo4j_handler
+        self.benchmark = benchmark_service
+        self.config = config
+
+    async def run(self, project_id: str, **kwargs) -> T:
+        """Run the algorithm with resource checking."""
+        # Check if feature is enabled
+        if not self._is_enabled():
+            return self._feature_disabled_response()
+
+        # Check current resource availability
+        if not await self._check_resources():
+            return self._resources_unavailable_response()
+
+        # Run the actual algorithm
+        return await self._execute(project_id, **kwargs)
+
+    def _is_enabled(self) -> bool:
+        """Check if this algorithm is enabled in config."""
+        setting = self.config.get(f"analytics.features.{self.feature_flag}.enabled")
+        if setting == "auto":
+            return self.benchmark.recommended_features.get(self.feature_flag, False)
+        return setting is True
+
+    async def _check_resources(self) -> bool:
+        """Check if we have resources to run."""
+        if self.resource_impact == "low":
+            return True
+
+        resources = await self.benchmark.get_current_resources()
+        if resources.memory_usage > 0.95:  # Critical
+            return False
+        if resources.memory_usage > 0.85 and self.resource_impact == "high":
+            return False
+        return True
+
+    @abstractmethod
+    async def _execute(self, project_id: str, **kwargs) -> T:
+        """Execute the GDS algorithm."""
+        pass
+
+
+# api/services/analytics/connected_components.py
+class ConnectedComponentsAlgorithm(AnalyticsAlgorithm[ConnectedComponentsResult]):
+    name = "Connected Components"
+    gds_procedure = "gds.wcc"
+    resource_impact = "low"
+    feature_flag = "connected_components"
+
+    async def _execute(self, project_id: str, **kwargs) -> ConnectedComponentsResult:
+        graph_name = f"wcc_{project_id}"
+
+        async with self.neo4j.session() as session:
+            # Create graph projection
+            await session.run("""
+                CALL gds.graph.project(
+                    $graph_name,
+                    {Person: {properties: ['id']}},
+                    {KNOWS: {orientation: 'UNDIRECTED'}}
+                )
+            """, graph_name=graph_name)
+
+            try:
+                # Run WCC algorithm
+                result = await session.run("""
+                    CALL gds.wcc.stream($graph_name)
+                    YIELD nodeId, componentId
+                    RETURN gds.util.asNode(nodeId).id AS entityId, componentId
+                    ORDER BY componentId
+                """, graph_name=graph_name)
+
+                records = await result.data()
+
+                # Group by component
+                components = defaultdict(list)
+                for r in records:
+                    components[r["componentId"]].append(r["entityId"])
+
+                return ConnectedComponentsResult(
+                    total_components=len(components),
+                    largest_component_size=max(len(c) for c in components.values()) if components else 0,
+                    isolated_count=sum(1 for c in components.values() if len(c) == 1),
+                    components=[
+                        Component(id=str(cid), member_ids=members, size=len(members))
+                        for cid, members in components.items()
+                    ],
+                )
+            finally:
+                # Always clean up projection
+                await session.run("CALL gds.graph.drop($graph_name, false)", graph_name=graph_name)
+```
+
+### Result Caching
+
+Expensive algorithm results are cached:
+
+```python
+# api/services/analytics/cache.py
+class AnalyticsCache:
+    """Cache for expensive analytics results."""
+
+    # Cache TTLs by resource impact
+    TTL_BY_IMPACT = {
+        "low": 60 * 5,       # 5 minutes
+        "medium": 60 * 60,    # 1 hour
+        "high": 60 * 60 * 24,  # 24 hours
+    }
+
+    async def get_or_compute(
+        self,
+        algorithm: AnalyticsAlgorithm,
+        project_id: str,
+        **kwargs
+    ):
+        cache_key = self._make_key(algorithm, project_id, kwargs)
+
+        # Check cache
+        cached = await self.redis.get(cache_key)
+        if cached:
+            return json.loads(cached)
+
+        # Compute
+        result = await algorithm.run(project_id, **kwargs)
+
+        # Cache result
+        ttl = self.TTL_BY_IMPACT[algorithm.resource_impact]
+        await self.redis.setex(cache_key, ttl, result.json())
+
+        return result
+```
+
+---
+
+## Phase 51.3: Background Scheduling & Job Management (PLANNED)
+
+**Goal:** Schedule expensive analytics to run during off-peak hours with proper job management.
+
+### Scheduled Jobs
+
+```python
+# api/tasks/analytics_tasks.py
+from arq import cron
+
+class AnalyticsTasks:
+    """Background tasks for scheduled analytics."""
+
+    @cron(hour=2, minute=0)  # 2 AM daily
+    async def run_daily_analytics(self, ctx):
+        """Run medium-impact analytics daily."""
+        config = get_analytics_config()
+        benchmark = get_benchmark_service()
+
+        for feature in ["pagerank", "label_propagation"]:
+            if config.is_scheduled(feature, "daily"):
+                if benchmark.recommended_features.get(feature):
+                    await self._run_for_all_projects(feature)
+
+    @cron(weekday=0, hour=3, minute=0)  # 3 AM Sunday
+    async def run_weekly_analytics(self, ctx):
+        """Run high-impact analytics weekly."""
+        config = get_analytics_config()
+
+        for feature in ["community_detection", "betweenness_centrality"]:
+            if config.is_scheduled(feature, "weekly"):
+                await self._run_for_all_projects(feature)
+```
+
+### Job Status API
+
+```
+GET  /api/v1/analytics/jobs           # List all analytics jobs
+GET  /api/v1/analytics/jobs/{job_id}  # Get job status
+POST /api/v1/analytics/jobs/{job_id}/cancel  # Cancel running job
+```
+
+---
+
+## Phase 47.1: Batch & Auto-Accept Suggestions (COMPLETE)
+
+**Date:** 2026-01-14
+**Status:** Implemented
+
+Added API endpoints for batch operations and auto-accept functionality to support automation scripts and custom frontends.
+
+### New API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/v1/suggestions/batch/accept` | POST | Batch accept multiple suggestions |
+| `/api/v1/suggestions/auto-accept/preview` | POST | Preview what would be auto-accepted |
+| `/api/v1/suggestions/auto-accept/execute` | POST | Execute auto-accept with config |
+
+### Batch Accept
+
+Accept multiple suggestions in a single request:
+
+```json
+POST /api/v1/suggestions/batch/accept
+{
+  "suggestions": [
+    {
+      "source_entity_id": "ent_123",
+      "target_entity_id": "ent_456",
+      "data_id": "data_789",
+      "action": "relationship",
+      "relationship_type": "KNOWS"
+    },
+    {
+      "source_entity_id": "ent_abc",
+      "data_id": "data_xyz",
+      "action": "dismiss"
+    }
+  ],
+  "reason": "Verified by human operator",
+  "created_by": "operator_1"
+}
+```
+
+**Supported Actions:**
+- `link` - Link two data items
+- `merge` - Merge two entities (keep source)
+- `relationship` - Create relationship between entities
+- `dismiss` - Dismiss a suggestion
+
+### Auto-Accept Configuration
+
+Configure criteria for automatic acceptance:
+
+```json
+{
+  "enabled": true,
+  "min_confidence": 0.95,
+  "match_types": ["exact_hash", "exact_string"],
+  "data_types": ["email", "phone"],
+  "action": "link",
+  "relationship_type": "RELATED_TO",
+  "dry_run": true
+}
+```
+
+**Workflow:**
+1. Call `/auto-accept/preview` to see what would be accepted
+2. Review the preview results
+3. If satisfied, call `/auto-accept/execute` with `dry_run: false`
+
+### Use Cases
+
+1. **Human Operator Bulk Operations**
+   - Select multiple suggestions in UI → batch accept
+   - Review auto-accept preview → approve/reject
+
+2. **Automation Scripts**
+   - Nightly job to link high-confidence hash matches
+   - Webhook handler to auto-link verified data
+
+3. **Custom Frontends**
+   - Build custom UI with batch operations
+   - Implement approval workflows
+
+### Safety Features
+
+- `dry_run: true` by default for auto-accept
+- Full audit trail for all actions
+- Rate limiting (100 req/min)
+- Per-action error handling (one failure doesn't stop batch)
+
+---
+
 ## Project Vision & Philosophy
 
 ### What Basset Hound IS
@@ -3419,23 +4903,36 @@ Phase 43 is successful if:
 
 ---
 
-### Phase 47: Frontend Implementation 📋 OPTIONAL/FUTURE (Enhancement Phase)
+### Phase 47: Frontend Implementation 🚧 IN PROGRESS (Enhancement Phase)
 
-**Status:** Ready to begin (Phase 46 designs complete)
+**Status:** In Progress (Started 2026-01-14)
 
 **Note:** This is an ENHANCEMENT phase, not core scope. The backend APIs are complete; frontend implementation is optional based on UI requirements.
 
-**Goal:** Build production-ready React/Vue components based on Phase 46 specifications
+**Goal:** Build production-ready React components based on Phase 46 specifications
 
-**Planned Deliverables:**
-- 5 React/Vue component implementations
-- State management (Redux/Zustand)
-- REST API integration
-- WebSocket real-time updates
-- Component unit tests
-- Storybook documentation
+**Completed Deliverables:**
+- [x] React + Vite + TypeScript setup (`frontend/`)
+- [x] Type definitions for suggestions system (`src/types/`)
+- [x] SuggestionBadge component with accessibility
+- [x] SuggestionCard component with expandable details
+- [x] SuggestionPanel container with filtering
+- [x] Zustand state management (`src/store/`)
+- [x] WebSocket hook for real-time updates (`src/hooks/`)
+- [x] API client utilities (`src/utils/api.ts`)
+- [x] Unit tests for components and utilities
+- [ ] Storybook documentation (pending)
 
-**Estimated Timeline:** 2-3 weeks
+**Files Created:**
+- `frontend/package.json` - Package configuration
+- `frontend/tsconfig.json` - TypeScript config
+- `frontend/vite.config.ts` - Vite build config
+- `frontend/src/components/suggestions/` - 3 React components
+- `frontend/src/hooks/useWebSocket.ts` - WebSocket hook
+- `frontend/src/store/suggestions.ts` - Zustand store
+- `frontend/src/types/suggestion.ts` - TypeScript types
+- `frontend/src/utils/` - Confidence helpers, API client
+- `frontend/README.md` - Usage documentation
 
 ---
 

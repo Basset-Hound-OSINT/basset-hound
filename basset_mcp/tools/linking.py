@@ -91,7 +91,7 @@ def register_linking_tools(mcp):
             return {"error": f"Failed to link data items: {str(e)}"}
 
     @mcp.tool()
-    def merge_entities(
+    def merge_entities_with_audit(
         project_id: str,
         entity_id_1: str,
         entity_id_2: str,
@@ -99,16 +99,18 @@ def register_linking_tools(mcp):
         reason: str,
     ) -> dict:
         """
-        Merge two entities that represent the same person.
+        Merge two entities with full audit trail (Phase 43.5).
 
         ⚠️ WARNING: This operation is IRREVERSIBLE (except via audit trail rollback).
         All data, relationships, and profile information from the discarded entity
         are moved to the kept entity. The discarded entity is marked as merged.
 
-        Use this when:
-        - Two profiles represent the same person (duplicates)
-        - High-confidence data matching indicates same entity
-        - Manual investigation confirms they are the same person
+        This is the audit-enabled version of merge_entities. Use this when:
+        - Acting on smart suggestions from Phase 43
+        - You need full audit trail with reason tracking
+        - Human accountability is required
+
+        For simple merges without audit trail, use merge_entities instead.
 
         The reason parameter is REQUIRED for human accountability.
 
@@ -130,7 +132,7 @@ def register_linking_tools(mcp):
             - warning: Reminder that merge is irreversible
 
         Example:
-            merge_entities(
+            merge_entities_with_audit(
                 project_id="my_project",
                 entity_id_1="ent_abc123",
                 entity_id_2="ent_xyz789",
@@ -331,14 +333,14 @@ def register_linking_tools(mcp):
             return {"error": f"Failed to link orphan to entity: {str(e)}"}
 
     @mcp.tool()
-    def dismiss_suggestion(
+    def dismiss_suggestion_with_audit(
         project_id: str,
         entity_id: str,
         data_id: str,
         reason: str,
     ) -> dict:
         """
-        Dismiss a suggestion so it doesn't reappear.
+        Dismiss a suggestion with full audit trail (Phase 43.5).
 
         Use this when:
         - A suggestion is incorrect or not relevant
@@ -348,6 +350,9 @@ def register_linking_tools(mcp):
         This creates a DISMISSED_SUGGESTION relationship to track that
         the user has explicitly rejected this suggestion. The suggestion
         will not reappear unless the underlying data changes.
+
+        This is the audit-enabled version. For simple dismissals without
+        full audit trail, use dismiss_suggestion instead.
 
         The reason parameter is REQUIRED for human accountability.
 

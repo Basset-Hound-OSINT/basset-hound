@@ -34,7 +34,7 @@ export function addFieldInstance(container, sectionId, field, index) {
     fieldHeader.className = 'd-flex justify-content-between align-items-center mb-2';
     
     const fieldTitle = document.createElement('h6');
-    fieldTitle.textContent = field.name || fieldId;
+    fieldTitle.textContent = field.label || field.name || fieldId;
     fieldHeader.appendChild(fieldTitle);
     
     // Add remove button for multiple instances
@@ -59,7 +59,7 @@ export function addFieldInstance(container, sectionId, field, index) {
             
             const componentLabel = document.createElement('label');
             componentLabel.className = 'form-label';
-            componentLabel.textContent = component.name || component.id;
+            componentLabel.textContent = component.label || component.name || component.id;
             componentGroup.appendChild(componentLabel);
             
             // Create the component input
@@ -86,7 +86,7 @@ export function addFieldInstance(container, sectionId, field, index) {
                 addComponentBtn.type = 'button';
                 addComponentBtn.className = 'btn btn-outline-secondary';
                 addComponentBtn.innerHTML = '<i class="fas fa-plus"></i>';
-                addComponentBtn.title = `Add another ${component.name || component.id}`;
+                addComponentBtn.title = `Add another ${component.label || component.name || component.id}`;
                 addComponentBtn.addEventListener('click', function() {
                     const compInputs = componentContainer.querySelectorAll('.input-group');
                     const compIndex = compInputs.length;
@@ -177,7 +177,7 @@ export function createPersonForm(container, config, person = null) {
 
             const fieldLabel = document.createElement('label');
             fieldLabel.className = 'form-label';
-            fieldLabel.textContent = field.name || field.id;
+            fieldLabel.textContent = field.label || field.name || field.id;
             fieldDiv.appendChild(fieldLabel);
 
             const containerDiv = document.createElement('div');
@@ -204,7 +204,7 @@ export function createPersonForm(container, config, person = null) {
 
                 if (field.components) {
                     const groupTitle = document.createElement('h6');
-                    groupTitle.textContent = `${field.name || field.id} #${index + 1}`;
+                    groupTitle.textContent = `${field.label || field.name || field.id} #${index + 1}`;
                     groupDiv.appendChild(groupTitle);
 
                     field.components.forEach(component => {
@@ -213,7 +213,7 @@ export function createPersonForm(container, config, person = null) {
 
                         const label = document.createElement('label');
                         label.className = 'form-label';
-                        label.textContent = component.name || component.id;
+                        label.textContent = component.label || component.label || component.name || component.id;
                         compWrapper.appendChild(label);
 
                         if (component.multiple) {
@@ -403,7 +403,7 @@ export function createFieldWithValue(container, sectionId, field, value, index) 
     fieldHeader.className = 'd-flex justify-content-between align-items-center mb-2';
     
     const fieldTitle = document.createElement('h6');
-    fieldTitle.textContent = field.name || fieldId;
+    fieldTitle.textContent = field.label || field.name || fieldId;
     fieldHeader.appendChild(fieldTitle);
 
     if (field.type === "component" && field.components) {
@@ -507,7 +507,7 @@ export function createFieldWithValue(container, sectionId, field, value, index) 
             
             const componentLabel = document.createElement('label');
             componentLabel.className = 'form-label';
-            componentLabel.textContent = component.name || component.id;
+            componentLabel.textContent = component.label || component.name || component.id;
             componentGroup.appendChild(componentLabel);
             
             if (component.multiple) {
@@ -541,7 +541,7 @@ export function createFieldWithValue(container, sectionId, field, value, index) 
                         addComponentBtn.type = 'button';
                         addComponentBtn.className = 'btn btn-outline-secondary';
                         addComponentBtn.innerHTML = '<i class="fas fa-plus"></i>';
-                        addComponentBtn.title = `Add another ${component.name || component.id}`;
+                        addComponentBtn.title = `Add another ${component.label || component.name || component.id}`;
                         addComponentBtn.addEventListener('click', function() {
                             const compInputs = componentContainer.querySelectorAll('.input-group');
                             const newCompIndex = compInputs.length;

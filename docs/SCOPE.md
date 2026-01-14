@@ -50,7 +50,64 @@ basset-hound focuses on **data management**, not data analysis or collection.
 - ✅ **unknown** - Entity type not yet determined
 - ✅ **custom** - User-defined entity types
 
+**Dynamic Entity Types (Phase 48 - PLANNED)**:
+- ⏳ **platform** - Social media, marketplace, forum, or any online platform (e.g., Facebook, LinkedIn, eBay)
+
+**NOT Entities (Dependent Data - Phase 48)**:
+- ❌ **account** - Cannot exist without a Platform; modeled as HAS_ACCOUNT_ON relationship with properties
+- ❌ **content** - Cannot exist without a Platform and Author; modeled as relationship properties or nested data
+
+**Dynamic Relationship Types (Phase 48 - PLANNED)**:
+- ⏳ **HAS_ACCOUNT_ON** - Edge linking Person/SockPuppet → Platform with properties (username, profile_url, password_ref, etc.)
+- ⏳ **OWNS** - Edge linking Person/Org → Org/Platform/Location (ownership)
+- ⏳ **CONTROLS** - Edge linking Person/Org → SockPuppet (operator relationship)
+
 **Important**: Sock puppet entities are NOT real people - they are fictitious identities created by investigators for online investigations. They store profile data and credential references, but basset-hound does NOT generate or create sock puppet data.
+
+**What Makes Something an Entity (Ontological Independence Test)**:
+
+An **entity** in basset-hound is something that can **exist and be clearly defined without requiring a relationship to another entity**. An entity is where the "pipeline of influence" stops - it can stand alone.
+
+> **The Primary Test**: "Can this thing exist and be clearly defined WITHOUT requiring ANY relationship to another entity?"
+
+For the formal test framework with decision matrix and examples, see: [Ontological Independence Test](findings/ONTOLOGICAL-INDEPENDENCE-TEST-2026-01-14.md)
+
+| Entity | Why It's an Entity |
+|--------|-------------------|
+| **Person** | Exists regardless of accounts, employers, or relationships |
+| **Organization** | Exists even if no one works there and it owns nothing |
+| **Platform** | "A platform can simply just be a platform" - exists without owners or users |
+| **Location** | An address exists even if no one lives there |
+| **Group** | Can exist with 0 members - "there can be 0 people in a group if all the people left" |
+| **Government** | A government entity/agency exists independently of personnel or controlled organizations |
+| **Sock Puppet** | A fictitious identity exists as a defined persona even without active accounts |
+
+| NOT an Entity | Why NOT |
+|---------------|---------|
+| **Account** | Cannot exist without a Platform to host it (ontologically dependent) |
+| **Content** | Cannot be defined without knowing which Platform hosts it (ontologically dependent) |
+
+**Three Distinct Data Concepts**:
+
+| Concept | Definition | Example |
+|---------|------------|---------|
+| **Ontologically Independent Entity** | Can exist and be defined without ANY relationship to another entity | Person, Platform, Location |
+| **Ontologically Dependent Data** | *Inherently* cannot exist without another entity | Account (needs Platform), Content (needs Platform + Author) |
+| **Orphan Data** | *Temporarily* unlinked data waiting to be attached to an entity | Scraped profile before entity linkage |
+
+**Key Distinction**: Ontological dependence is an *inherent property* - an Account is ALWAYS dependent on a Platform (part of its definition). Orphan data is a *temporary state* - the data COULD be linked to an existing entity type, we just haven't made the connection yet.
+
+**Dynamic Entity Architecture Philosophy (Phase 48)**:
+
+basset-hound is evolving from hardcoded data schemas to a **dynamic, entity-driven architecture**:
+
+1. **Platforms as Entities**: Instead of hardcoding 70+ social media platforms in YAML, platforms become first-class entities with configurable field schemas. Human operators add platforms as needed.
+
+2. **Accounts as Relationships**: An account is the HAS_ACCOUNT_ON relationship between a Person and a Platform, with properties (username, profile_url, password_ref, etc.). Accounts are NOT entities because they cannot exist without a Platform.
+
+3. **Platform-Specific Fields**: Each Platform entity defines its own field schema (username, profile_url, headline for LinkedIn, etc.), eliminating duplicate field definitions.
+
+4. **On-Demand Configuration**: Human operators create "Other Platform" entities when they encounter new platforms, rather than waiting for config updates.
 
 **Relationship Management**:
 - ✅ Link entities with typed relationships (KNOWS, WORKS_FOR, LOCATED_IN, etc.)
@@ -118,6 +175,15 @@ Sock puppets are fictitious online personas used by law enforcement and OSINT in
 
 ### ✅ Orphan Data Management
 
+**Important Distinction**: Orphan data is NOT the same as ontologically dependent data.
+
+| Concept | Definition | In basset-hound |
+|---------|------------|-----------------|
+| **Orphan Data** | Data that *temporarily* lacks a link but COULD be linked to an existing entity type | OrphanData node (temporary storage) |
+| **Ontologically Dependent Data** | Data that *inherently* cannot exist without another entity (part of its definition) | Relationship properties, NOT nodes |
+
+**Key insight**: Orphan data is a *temporary state* - the data is waiting to be linked. Ontological dependence is an *inherent property* - an Account can NEVER exist without a Platform.
+
 **Unlinked Identifiers**:
 - ✅ Store identifiers not yet linked to entities ("orphan data")
 - ✅ Batch import of orphan identifiers
@@ -126,6 +192,8 @@ Sock puppets are fictitious online personas used by law enforcement and OSINT in
 - ✅ Automatic linking suggestions based on similarity
 
 **Use Case**: Collect email addresses from web pages → store as orphans → link to entities later
+
+**Note**: Once orphan data is linked to an entity, it becomes properties ON that entity - it was never an entity itself, just data waiting to find its home.
 
 ### ✅ Provenance Tracking
 
@@ -204,6 +272,23 @@ Sock puppets are fictitious online personas used by law enforcement and OSINT in
 - ❌ **NO** behavioral analysis reports
 
 **Philosophy**: Reports show "here's your data in a useful format," NOT "here's what your data means."
+
+### ✅ Reporting
+
+**Export & Programmatic Reporting**:
+- ✅ Export of relationship data and entity profiles
+- ✅ Programmatic report generation from graph data
+- ✅ Bulk export features for external analysis tools
+
+**NOT in Scope for Reporting**:
+- ❌ AI-generated narrative reports (use external LLM tools)
+- ❌ Data generation (basset-hound is storage, not generation)
+- ❌ Automated insights or analysis summaries
+
+**Future Enhancements**:
+- ⏳ Report templates (BLUF format, executive summary, etc.)
+- ⏳ Customizable report layouts
+- ⏳ Scheduled report generation
 
 **Data Visualization & Export**:
 - ✅ Export relationship graphs as images (PNG, SVG)
@@ -322,96 +407,225 @@ basset-hound suggests potential matches based on comparing data values (hashes, 
 
 ---
 
-## Out of Scope
+## Scope Boundary: Data Management vs Analysis
 
-### ❌ Intelligence Analysis
+### Core Philosophy
 
-**basset-hound is a STORAGE and MANAGEMENT system, NOT an intelligence analysis platform.**
+basset-hound is a **DATA STORAGE AND MANAGEMENT** system, NOT a data acquisition or intelligence analysis platform.
 
-basset-hound provides the **data backbone** for intelligence work - storing entities, relationships, evidence, and basic data matching. Intelligence analysis capabilities (pattern detection, behavioral analysis, predictive analytics, anomaly detection) belong in a separate system.
+**The Three-Tier Model:**
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  DATA ACQUISITION (OUT OF SCOPE)                                    │
+│  - Web scraping, social media enumeration                           │
+│  - OSINT automation, browser automation                             │
+│  - → Use palletai, basset-hound-browser                             │
+├─────────────────────────────────────────────────────────────────────┤
+│  DATA MANAGEMENT (basset-hound - THIS PROJECT)                      │
+│  - Storage: Entities, relationships, evidence, provenance           │
+│  - Organization: Projects, investigations, timelines                │
+│  - Matching: Hash/string comparison, fuzzy matching, suggestions    │
+│  - Graph Analytics: Neo4j-native algorithms (OPTIONAL, TOGGLEABLE)  │
+├─────────────────────────────────────────────────────────────────────┤
+│  INTELLIGENCE ANALYSIS (OUT OF SCOPE)                               │
+│  - ML models, predictive analytics, behavioral profiling            │
+│  - Risk scoring, threat assessment, anomaly detection               │
+│  - → Use future intelligence-analysis project                       │
+└─────────────────────────────────────────────────────────────────────┘
+```
 
-**CRITICAL DISTINCTION:**
-- ✅ **Data Presentation** (IN SCOPE): "Here's your data in a useful format"
-  - Template-based reports
-  - Timeline aggregation and visualization
-  - Graph export and rendering
-  - Mathematical comparisons (similarity scores)
-  - Activity counts and statistics
+---
 
-- ❌ **Insight Generation** (OUT OF SCOPE): "Here's what your data means"
-  - Predictive analytics
-  - Pattern detection
-  - Risk scoring
-  - Behavioral profiling
-  - Trend forecasting
+### ✅ IN SCOPE: Neo4j-Native Graph Analytics (Optional, Toggleable)
+
+**Key Principle:** Features that run natively in Neo4j (no external ML libraries) ARE in scope, but should be:
+- **Optional** - Can be disabled for resource-constrained environments
+- **Background-friendly** - Can run asynchronously without blocking
+- **Scalable** - Work on both laptops and industrial deployments
+
+**Neo4j Graph Data Science (GDS) Features:**
+
+| Feature | Type | Description | Resource Impact |
+|---------|------|-------------|-----------------|
+| **Path Finding** | Core | Shortest path, all paths between entities | Low |
+| **Connected Components** | Core | Find isolated subgraphs | Low |
+| **Degree Centrality** | Optional | Count connections per entity | Low |
+| **PageRank** | Optional | Identify influential entities | Medium |
+| **Community Detection** | Optional | Louvain/Label Propagation clustering | Medium-High |
+| **Betweenness Centrality** | Optional | Find bridge/broker entities | High |
+| **Similarity Metrics** | Optional | Jaccard, Cosine, Node Similarity | Medium |
+
+**Implementation Requirements:**
+```yaml
+# Feature flags in config
+graph_analytics:
+  enabled: true              # Master toggle
+  background_processing: true # Run expensive queries async
+  features:
+    path_finding: true       # Always on (core feature)
+    connected_components: true
+    degree_centrality: true
+    pagerank: false          # Disabled by default
+    community_detection: false
+    betweenness_centrality: false
+```
+
+**Why Neo4j-Native Analytics are IN SCOPE:**
+- These algorithms run **inside Neo4j** - no external dependencies
+- They're mathematical/deterministic, not machine learning
+- They answer "what exists in my data" not "what does it mean"
+- Neo4j GDS is already a dependency for graph operations
+- Results are facts about the graph, not predictions
+
+---
+
+### ❌ OUT OF SCOPE: ML Training and Intelligence Analysis
+
+**Critical Clarification: basset-hound is NOT an ML framework.**
+
+basset-hound is a **data storage and relationship management** system. It does NOT:
+- Train machine learning models
+- Require ML model weights or training data
+- Include any ML training infrastructure
+- Provide model inference pipelines
+
+**ML Training Integration Pattern (for external projects):**
+
+If you need ML capabilities, use basset-hound as a **data source** for your ML training project:
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  YOUR ML TRAINING PROJECT (External)                                │
+│  - Your ML framework (PyTorch, TensorFlow, scikit-learn)           │
+│  - Your training pipeline                                           │
+│  - Your model weights and checkpoints                               │
+│                                                                     │
+│  ┌─────────────────┐     ┌─────────────────┐                       │
+│  │ Training Script │────>│ basset-hound    │  (read-only API)      │
+│  │                 │<────│ REST API        │                       │
+│  └─────────────────┘     └─────────────────┘                       │
+│         │                                                           │
+│         v                                                           │
+│  ┌─────────────────┐                                               │
+│  │ Trained Model   │  ← Your project owns the model                │
+│  └─────────────────┘                                               │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**Example: Using basset-hound data for ML training (external project):**
+```python
+# In your ML training project (NOT in basset-hound)
+import requests
+from your_ml_framework import Model, train
+
+# Fetch training data from basset-hound API
+response = requests.get("http://basset-hound/api/v1/entities?project=investigation_1")
+entities = response.json()
+
+# Your training logic
+model = Model()
+train(model, entities)  # Your responsibility
+model.save("my_trained_model.pt")  # Your project owns this
+```
 
 **What basset-hound does NOT do:**
-- ❌ Machine learning for entity resolution
-- ❌ Advanced pattern detection (trend detection, burst detection, anomaly detection)
-- ❌ Behavioral analysis or profiling
-- ❌ Predictive analytics (forecasting, probability prediction)
-- ❌ Anomaly detection with scoring
-- ❌ Threat scoring algorithms
-- ❌ Risk assessment models
-- ❌ Sentiment analysis
-- ❌ Community detection using ML (Louvain, Label Propagation)
-- ❌ Influence propagation simulation (Independent Cascade, Linear Threshold)
-- ❌ Network analysis with interpretation (betweenness centrality as "broker identification")
-- ❌ Geospatial analysis (geocoding, route planning)
-- ❌ Natural language processing
-- ❌ Image recognition or facial detection
-- ❌ Voice analysis or speaker identification
-- ❌ Search pattern detection and trending topic identification
-- ❌ Zero-result prediction
-- ❌ Entity insights with recommendations
 
-**What basset-hound DOES provide:**
-- ✅ **Basic data matching** with confidence scores (Phase 43)
-  - Exact hash matching (images, documents) → 1.0 confidence
-  - Exact string matching (email, phone, crypto) → 0.95 confidence
-  - Partial matching (names, addresses) → 0.3-0.9 confidence
-  - Fuzzy matching (Jaro-Winkler, Levenshtein) for typo tolerance
-- ✅ **Human-in-the-loop suggestions** - "These entities might be related"
-- ✅ **Graph traversal queries** - Find paths between entities (BFS/DFS)
-- ✅ **Connected components** - Find isolated subgraphs (basic graph query)
-- ✅ **Mathematical similarity metrics** - Jaccard, Cosine, SimRank (comparison, not prediction)
-- ✅ **Activity aggregation** - Count events, group by time period
-- ✅ **Timeline visualization** - Display activity over time
-- ✅ **Graph export for external analysis** - GraphML, JSON, images
-- ✅ **Template-based reports** - Format stored data for human consumption
-- ✅ **Relationship queries** - Who knows whom, who works where
-- ✅ **Data storage** - Entities, relationships, evidence, provenance
-- ✅ **Data organization** - Projects, investigations, timelines
+| Category | Examples | Why Out of Scope |
+|----------|----------|------------------|
+| **ML Training** | Model training, fine-tuning, transfer learning | basset-hound is storage, not a training framework |
+| **Model Inference** | Running predictions, classification | Use external inference services |
+| **Model Storage** | Saving model weights, checkpoints | Use MLflow, Weights & Biases, or filesystem |
+| **Training Data Management** | Dataset versioning, splits, augmentation | Use DVC, Hugging Face Datasets, or similar |
+| **Predictive Analytics** | Forecasting, probability prediction | Generates insights, not data management |
+| **Behavioral Analysis** | Profiling, pattern detection, anomaly scoring | Interpretive, not factual |
+| **NLP/Image/Audio** | Sentiment, facial recognition, voice ID | External models, significant compute |
 
-**Future Architecture:**
+**Archived Services (for future intelligence-analysis project):**
+- `ml_analytics_service.py` - TF-IDF query suggestions, search patterns
+- `temporal_patterns.py` - Burst detection, trend analysis
+- `influence_service.py` - Influence propagation simulation
+- See `/archive/out-of-scope-ml/` for migration notes
 
-basset-hound will integrate with two companion systems:
+**Suggested Integration: basset-hound + ML Project**
 
-1. **basset-verify** (separate microservice, already exists):
-   - Identifier format validation (email, phone, crypto)
-   - Network-level verification (DNS, SMTP)
-   - basset-hound calls basset-verify on-demand (optional)
+If ML training IS required for your workflow:
+1. Create a separate `intelligence-analysis` project
+2. Use basset-hound REST API to fetch training data
+3. Train models in your ML project
+4. Optionally store analysis results back to basset-hound via API
 
-2. **intelligence-analysis** (future project, NOT part of basset-hound):
-   - AI agents perform advanced analysis
-   - Machine learning for pattern detection
-   - Predictive analytics and risk scoring
-   - Uses basset-hound for data storage/retrieval
-   - Generates analytical reports stored in basset-hound
-   - See `docs/INTELLIGENCE-ANALYSIS-INTEGRATION.md` for architecture
+---
 
-**Why this separation matters:**
+### Clear Examples
 
-Intelligence analysis requires different skills, technologies, and architectures than data management:
-- **Analysis**: Python ML libraries (scikit-learn, TensorFlow), statistical models, training datasets
-- **Storage**: Neo4j graph database, CRUD operations, relationship queries, data integrity
+**IN SCOPE (Data Management + Neo4j Analytics):**
+```python
+# ✅ "Which entities have the most connections?" (Degree Centrality)
+result = neo4j.run("MATCH (e:Person)-[r]-() RETURN e, count(r) ORDER BY count(r) DESC")
 
-By keeping them separate, basset-hound:
-- Remains focused on what it does best: storing and organizing intelligence
-- Stays lightweight and reliable (no ML dependencies)
-- Avoids scope creep into complex analysis territory
-- Allows investigators to choose their own analysis tools
-- Maintains simple, predictable behavior
+# ✅ "Find communities of connected entities" (Neo4j GDS Louvain)
+CALL gds.louvain.stream('myGraph') YIELD nodeId, communityId
+
+# ✅ "What's the shortest path between Entity A and Entity B?"
+MATCH path = shortestPath((a:Person)-[*]-(b:Person))
+
+# ✅ "These two entities share the same email - suggest a link"
+# (Hash/string comparison with confidence score)
+```
+
+**OUT OF SCOPE (Intelligence Analysis):**
+```python
+# ❌ "Predict which entities are likely to be connected in the future"
+model.predict_link(entity_a, entity_b)  # ML prediction
+
+# ❌ "This entity's behavior is anomalous based on historical patterns"
+anomaly_score = ml_model.detect_anomaly(entity)  # Behavioral profiling
+
+# ❌ "Generate a risk score for this entity"
+risk = threat_model.score(entity)  # Subjective assessment
+
+# ❌ "What topics are trending in the investigation?"
+trends = nlp_model.extract_trends(text_corpus)  # NLP analysis
+```
+
+---
+
+### Hardware Scalability
+
+basset-hound is designed to work on:
+
+| Environment | Configuration | Features Available |
+|-------------|--------------|-------------------|
+| **Laptop** (8GB RAM) | `graph_analytics.enabled: false` | Storage, matching, basic queries |
+| **Workstation** (32GB) | Default config | All core + optional analytics |
+| **Server** (64GB+) | Full config, workers | All features, background processing |
+| **Industrial** (Cluster) | Neo4j cluster | All features, horizontal scaling |
+
+**Resource Management:**
+- Expensive queries run in background workers (Celery/ARQ)
+- Results cached to avoid recomputation
+- Feature flags disable heavy operations on limited hardware
+- API rate limiting prevents resource exhaustion
+
+---
+
+### Integration Architecture
+
+**basset-hound Integrations:**
+
+1. **basset-verify** (existing):
+   - Identifier validation (email, phone, crypto)
+   - basset-hound calls on-demand (optional)
+
+2. **basset-hound-browser** (existing):
+   - Evidence capture, session tracking
+   - Browser → basset-hound data flow
+
+3. **intelligence-analysis** (future, OUT OF SCOPE):
+   - ML-based analysis, predictions, insights
+   - Consumes data FROM basset-hound
+   - Stores results BACK to basset-hound
+   - Separate deployment, separate resources
 
 ---
 

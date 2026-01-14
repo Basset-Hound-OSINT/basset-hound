@@ -86,6 +86,64 @@ class LinkOrphanToEntityRequest(BaseModel):
     created_by: str = Field("system", max_length=100, description="User ID or name")
 
 
+# Batch/Auto-Accept Models
+
+class BatchSuggestionItem(BaseModel):
+    """Single suggestion to accept in batch operation."""
+    source_entity_id: str = Field(..., description="Source entity ID")
+    target_entity_id: Optional[str] = Field(None, description="Target entity ID (for relationships/merges)")
+    target_orphan_id: Optional[str] = Field(None, description="Target orphan ID (for orphan linking)")
+    data_id: Optional[str] = Field(None, description="Data item ID that triggered the suggestion")
+    action: str = Field(..., description="Action to take: 'link', 'merge', 'relationship', 'dismiss'")
+    relationship_type: Optional[str] = Field(None, description="Relationship type (for relationship action)")
+
+
+class BatchAcceptSuggestionsRequest(BaseModel):
+    """Request model for batch accepting suggestions."""
+    suggestions: List[BatchSuggestionItem] = Field(
+        ...,
+        min_length=1,
+        max_length=100,
+        description="List of suggestions to accept (max 100)"
+    )
+    reason: str = Field("Batch accepted", max_length=500, description="Reason for batch accept")
+    created_by: str = Field("system", max_length=100, description="User ID or name")
+
+
+class AutoAcceptConfigRequest(BaseModel):
+    """Configuration for auto-accepting suggestions."""
+    enabled: bool = Field(False, description="Enable auto-accept")
+    min_confidence: float = Field(0.95, ge=0.5, le=1.0, description="Minimum confidence to auto-accept")
+    match_types: List[str] = Field(
+        default=["exact_hash"],
+        description="Match types to auto-accept (exact_hash, exact_string, partial_string)"
+    )
+    data_types: List[str] = Field(
+        default=[],
+        description="Data types to auto-accept (empty = all)"
+    )
+    action: str = Field("link", description="Default action: 'link', 'relationship'")
+    relationship_type: Optional[str] = Field(
+        "RELATED_TO",
+        description="Default relationship type when action='relationship'"
+    )
+    dry_run: bool = Field(True, description="If true, only preview what would be accepted")
+
+
+class AutoAcceptPreviewItem(BaseModel):
+    """Single item in auto-accept preview."""
+    source_entity_id: str = Field(..., description="Source entity ID")
+    source_entity_name: Optional[str] = Field(None, description="Source entity name")
+    target_entity_id: Optional[str] = Field(None, description="Target entity ID")
+    target_entity_name: Optional[str] = Field(None, description="Target entity name")
+    data_id: str = Field(..., description="Data item ID")
+    data_type: str = Field(..., description="Data type")
+    data_value: str = Field(..., description="Data value")
+    confidence_score: float = Field(..., description="Confidence score")
+    match_type: str = Field(..., description="Match type")
+    proposed_action: str = Field(..., description="Action that would be taken")
+
+
 # Response Models
 
 class LinkModel(BaseModel):
@@ -267,6 +325,52 @@ class LinkingHistoryResponse(BaseModel):
     """Complete response for linking history."""
     data: LinkingHistoryData = Field(..., description="Response data")
     pagination: Optional[PaginationModel] = Field(None, description="Pagination metadata")
+    links: Dict[str, LinkModel] = Field(..., description="HATEOAS links", alias="_links")
+
+
+# Batch/Auto-Accept Response Models
+
+class BatchActionResult(BaseModel):
+    """Result of a single batch action."""
+    suggestion_index: int = Field(..., description="Index in the request array")
+    success: bool = Field(..., description="Whether action succeeded")
+    action_id: Optional[str] = Field(None, description="Action ID if successful")
+    error: Optional[str] = Field(None, description="Error message if failed")
+
+
+class BatchAcceptSuggestionsResponse(BaseModel):
+    """Response for batch accepting suggestions."""
+    model_config = {"populate_by_name": True}
+
+    success: bool = Field(..., description="Overall success (all actions succeeded)")
+    total_processed: int = Field(..., description="Total suggestions processed")
+    successful_count: int = Field(..., description="Number of successful actions")
+    failed_count: int = Field(..., description="Number of failed actions")
+    results: List[BatchActionResult] = Field(..., description="Individual results")
+    links: Dict[str, LinkModel] = Field(..., description="HATEOAS links", alias="_links")
+
+
+class AutoAcceptPreviewResponse(BaseModel):
+    """Response for auto-accept preview."""
+    model_config = {"populate_by_name": True}
+
+    config: AutoAcceptConfigRequest = Field(..., description="Config used for preview")
+    preview: List[AutoAcceptPreviewItem] = Field(..., description="Items that would be accepted")
+    total_matches: int = Field(..., description="Total matches found")
+    would_accept: int = Field(..., description="Number that would be auto-accepted")
+    links: Dict[str, LinkModel] = Field(..., description="HATEOAS links", alias="_links")
+
+
+class AutoAcceptExecuteResponse(BaseModel):
+    """Response for auto-accept execution."""
+    model_config = {"populate_by_name": True}
+
+    success: bool = Field(..., description="Overall success")
+    config: AutoAcceptConfigRequest = Field(..., description="Config used")
+    total_processed: int = Field(..., description="Total suggestions processed")
+    successful_count: int = Field(..., description="Number of successful actions")
+    failed_count: int = Field(..., description="Number of failed actions")
+    results: List[BatchActionResult] = Field(..., description="Individual results")
     links: Dict[str, LinkModel] = Field(..., description="HATEOAS links", alias="_links")
 
 

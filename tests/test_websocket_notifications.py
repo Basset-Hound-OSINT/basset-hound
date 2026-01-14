@@ -89,7 +89,8 @@ class TestWebSocketPing:
         with client.websocket_connect("/api/v1/ws/suggestions/proj_test_123") as websocket:
             # Consume connection messages
             websocket.receive_json()  # connected
-            websocket.receive_json()  # subscribed
+            websocket.receive_json()  # subscribed to project
+            websocket.receive_json()  # subscribed to suggestions type
 
             # Send ping
             websocket.send_json({"type": "ping"})
@@ -108,6 +109,7 @@ class TestEntitySubscriptions:
             # Consume connection messages
             websocket.receive_json()  # connected
             websocket.receive_json()  # subscribed to project
+            websocket.receive_json()  # subscribed to suggestions type
 
             # Subscribe to specific entity
             websocket.send_json({
@@ -126,13 +128,14 @@ class TestEntitySubscriptions:
             # Consume connection messages
             websocket.receive_json()  # connected
             websocket.receive_json()  # subscribed to project
+            websocket.receive_json()  # subscribed to suggestions type
 
             # Subscribe to entity
             websocket.send_json({
                 "type": "subscribe_entity",
                 "entity_id": "ent_abc123"
             })
-            websocket.receive_json()  # subscribed
+            websocket.receive_json()  # subscribed to entity
 
             # Unsubscribe from entity
             websocket.send_json({
@@ -377,7 +380,8 @@ class TestErrorHandling:
         with client.websocket_connect("/api/v1/ws/suggestions/proj_test_123") as websocket:
             # Consume connection messages
             websocket.receive_json()  # connected
-            websocket.receive_json()  # subscribed
+            websocket.receive_json()  # subscribed to project
+            websocket.receive_json()  # subscribed to suggestions type
 
             # Send invalid JSON
             websocket.send_text("not valid json{")
@@ -392,7 +396,8 @@ class TestErrorHandling:
         with client.websocket_connect("/api/v1/ws/suggestions/proj_test_123") as websocket:
             # Consume connection messages
             websocket.receive_json()  # connected
-            websocket.receive_json()  # subscribed
+            websocket.receive_json()  # subscribed to project
+            websocket.receive_json()  # subscribed to suggestions type
 
             # Send unknown message type
             websocket.send_json({"type": "unknown_type"})
@@ -405,7 +410,8 @@ class TestErrorHandling:
         with client.websocket_connect("/api/v1/ws/suggestions/proj_test_123") as websocket:
             # Consume connection messages
             websocket.receive_json()  # connected
-            websocket.receive_json()  # subscribed
+            websocket.receive_json()  # subscribed to project
+            websocket.receive_json()  # subscribed to suggestions type
 
             # Send subscribe_entity without entity_id
             websocket.send_json({"type": "subscribe_entity"})

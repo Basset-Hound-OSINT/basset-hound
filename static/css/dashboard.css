@@ -17,6 +17,39 @@ body {
     overflow-y: auto;
 }
 
+/* Main content area - ensure scrolling works */
+.main-content {
+    padding: 20px;
+    height: 100vh;
+    overflow-y: auto;
+}
+
+/* Person form container - scrollable with visible buttons */
+#person-form-container {
+    max-height: calc(100vh - 60px);
+    overflow-y: auto;
+    padding: 20px;
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+/* Ensure form sections don't overflow */
+#person-form {
+    width: 100%;
+}
+
+/* Sticky action buttons at bottom of form */
+#person-form > .d-flex:last-child {
+    position: sticky;
+    bottom: 0;
+    background-color: white;
+    padding: 15px 0;
+    border-top: 1px solid #dee2e6;
+    margin-top: 20px;
+    z-index: 10;
+}
+
 .person-list, .organization-list {
     list-style: none;
     padding: 0;
@@ -154,21 +187,27 @@ body {
         height: auto;
         max-height: 250px;
     }
-    
-    .content {
+
+    .content,
+    .main-content {
         height: auto;
     }
-    
+
+    #person-form-container {
+        max-height: none;
+        overflow-y: visible;
+    }
+
     .profile-header {
         flex-direction: column;
         align-items: flex-start;
     }
-    
+
     .profile-header .d-flex {
         flex-direction: column;
         width: 100%;
     }
-    
+
     .profile-header .d-flex > div {
         margin-top: 10px;
         width: 100%;

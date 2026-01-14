@@ -768,3 +768,69 @@ async def create_report_file_direct(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create report: {str(e)}"
         )
+
+
+@report_serve_router.post(
+    "/{filename:path}/rename",
+    response_model=SuccessResponse,
+    summary="Rename report file directly",
+    description="Direct endpoint to rename a report file.",
+    responses={
+        200: {"description": "Report renamed successfully"},
+        400: {"description": "Invalid new filename or file already exists"},
+        404: {"description": "Report not found"},
+    }
+)
+async def rename_report_file_direct(
+    project_id: str,
+    person_id: str,
+    filename: str,
+    rename_data: ReportRename
+):
+    """
+    Rename a report file directly.
+
+    - **project_id**: The project UUID
+    - **person_id**: The entity UUID
+    - **filename**: Current report filename
+    - **new_name**: New filename (must end in .md)
+    """
+    # Validate new filename
+    if not validate_filename(rename_data.new_name):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid filename"
+        )
+
+    reports_dir = os.path.abspath(os.path.join("projects", project_id, "people", person_id, "reports"))
+    old_path = os.path.abspath(os.path.join(reports_dir, filename))
+    new_path = os.path.abspath(os.path.join(reports_dir, rename_data.new_name))
+
+    # Security check
+    if not old_path.startswith(reports_dir) or not new_path.startswith(reports_dir):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid path"
+        )
+
+    if not os.path.exists(old_path):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Report '{filename}' not found"
+        )
+
+    if os.path.exists(new_path):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A file with the new name already exists"
+        )
+
+    try:
+        os.rename(old_path, new_path)
+        return SuccessResponse(success=True, filename=rename_data.new_name)
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to rename report: {str(e)}"
+        )

@@ -61,6 +61,84 @@ This is the **orphan data** concept: storing identifiers and information fragmen
 
 ---
 
+## Entity Architecture Philosophy
+
+### The Ontological Independence Test
+
+**An entity is something that can exist and be clearly defined without requiring a relationship to another entity.** It's where the "pipeline of influence" stops.
+
+Ask yourself: *Can this thing exist on its own, with its own identity, without being defined by something else?*
+
+### True Entities (Independent)
+
+| Entity Type | Why It's Independent |
+|-------------|---------------------|
+| **Person** | A person exists regardless of their accounts, organizations, or relationships |
+| **Organization** | Companies, agencies, NGOs exist as legal/social constructs independent of any platform |
+| **Platform** | Twitter, Facebook, Discord exist as entities - not hardcoded enums |
+| **Location** | Physical places exist independently of who visits or lives there |
+| **Group** | Informal groups, movements, communities have independent existence |
+| **Government** | Nation-states, agencies, departments exist as sovereign entities |
+| **Sock Puppet** | A fabricated persona is an entity - the fiction itself is the thing being tracked |
+
+### NOT Entities (Dependent Data)
+
+These are **relationship properties**, not standalone entities:
+
+| Data Type | Why It's Dependent | How It's Modeled |
+|-----------|-------------------|------------------|
+| **Account** | Cannot exist without a Platform; `@john_doe` means nothing without knowing it's on Twitter | `HAS_ACCOUNT_ON` relationship between Person/Org and Platform, with properties (username, created_date, followers, etc.) |
+| **Content** | Cannot exist without Platform AND Author; a tweet requires both Twitter and a user | Relationship properties on `POSTED_ON` or `AUTHORED` relationships |
+
+### Platform as Entity
+
+Instead of hardcoding 70+ social media platforms in YAML configuration, **Platforms become first-class entities**:
+
+```cypher
+// Platform entity with configurable field schema
+(p:Platform {name: "Twitter", domain: "twitter.com", account_fields: ["username", "display_name", "followers"]})
+
+// Account as relationship with properties
+(person:Person)-[:HAS_ACCOUNT_ON {username: "@johndoe", followers: 5000}]->(platform:Platform)
+```
+
+This allows:
+- Adding new platforms at runtime without code changes
+- Platform-specific field schemas (Twitter has followers, LinkedIn has connections)
+- Tracking platform metadata (launch date, API availability, etc.)
+
+---
+
+## Reporting Philosophy
+
+### What Basset Hound Reports ARE
+
+- **Relationship maps** exportable for visualization tools
+- **Entity profiles** with all connected data and relationships
+- **Connection data** showing paths between entities
+- **Graph-derived documentation** - clear documentation of how things relate forms naturally from the graph structure
+
+### What Basset Hound Reports are NOT
+
+- **Data generation** is out of scope - basset-hound stores and analyzes, not generates
+- **End-user polished reports** - reports serve as data exports and LLM context, not final deliverables
+- **Standalone investigation reports** - basset-hound reports *augment* larger investigation reports
+
+### Export Capabilities
+
+Users can download/export:
+- Full entity profiles (JSON, CSV)
+- Relationship graphs (D3.js, Cytoscape, vis.js formats)
+- Path analysis results
+- Timeline data
+- Connection matrices
+
+### Future Enhancement: Report Templates
+
+Structured report formats (BLUF, executive summary, etc.) are planned as templates that programmatically pull from the graph. The graph is the source of truth; reports are views into it.
+
+---
+
 ## Key Features
 
 ### 🔍 Smart Suggestions & Data Matching
@@ -79,11 +157,12 @@ This is the **orphan data** concept: storing identifiers and information fragmen
 
 ### 👤 Multi-Entity Type Support
 - **Person** - Individuals with detailed social/contact info
-- **Organization** - Companies, groups, agencies
-- **Device** - Phones, computers, IoT devices
+- **Organization** - Companies, agencies, NGOs
+- **Platform** - Social media, websites, services (first-class entities, not hardcoded)
 - **Location** - Addresses, venues, regions
-- **Event** - Incidents, meetings, transactions
-- **Document** - Files, reports, evidence
+- **Group** - Informal groups, movements, communities
+- **Government** - Nation-states, agencies, departments
+- **Sock Puppet** - Fabricated personas under investigation
 
 ### 🕸️ Graph-Based Relationships
 - 26 relationship types (WORKS_WITH, KNOWS, FAMILY, OWNS, etc.)
@@ -240,7 +319,8 @@ See [docs/ROADMAP.md](docs/ROADMAP.md) for full configuration documentation.
 │  • Bulk Operations      • Reports        • Cache            │
 ├─────────────────────────────────────────────────────────────┤
 │                     Neo4j Graph Database                     │
-│  Entities (Person, Org, Device, etc.) + Relationships        │
+│  Entities (Person, Org, Platform, Location, etc.)            │
+│  Relationships with properties (HAS_ACCOUNT_ON, etc.)        │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -383,7 +463,7 @@ See [docs/ROADMAP.md](docs/ROADMAP.md) for detailed development plans.
 
 **Core Features (Completed):**
 - ✅ Entity relationship storage with Neo4j
-- ✅ Multi-entity type support (Person, Org, Device, Location, Event, Document)
+- ✅ Multi-entity type support (Person, Org, Platform, Location, Group, Government, Sock Puppet)
 - ✅ Graph analysis (path finding, clustering, centrality)
 - ✅ Orphan data management (store-now, link-later workflow)
 - ✅ **Smart Suggestions** - Automatic data matching with confidence scoring (Phase 43)

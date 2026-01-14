@@ -25,6 +25,13 @@ from fastapi.responses import JSONResponse
 from api.dependencies import get_neo4j_handler
 from api.models.suggestion import (
     ActionTypeEnum,
+    AutoAcceptConfigRequest,
+    AutoAcceptExecuteResponse,
+    AutoAcceptPreviewItem,
+    AutoAcceptPreviewResponse,
+    BatchAcceptSuggestionsRequest,
+    BatchAcceptSuggestionsResponse,
+    BatchActionResult,
     ConfidenceLevelEnum,
     ConfidenceGroupResponse,
     CreateRelationshipRequest,
@@ -1021,4 +1028,474 @@ async def get_linking_history(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get linking history: {str(e)}",
+        )
+
+
+# =============================================================================
+# Batch/Auto-Accept Endpoints
+# =============================================================================
+
+@router.post(
+    "/batch/accept",
+    response_model=BatchAcceptSuggestionsResponse,
+    summary="Batch accept suggestions",
+    description="Accept multiple suggestions in a single request",
+    responses={
+        200: {"description": "Batch processed successfully"},
+        400: {"model": ErrorResponse, "description": "Bad request"},
+        429: {"model": ErrorResponse, "description": "Rate limit exceeded"},
+        500: {"model": ErrorResponse, "description": "Internal server error"},
+    },
+)
+async def batch_accept_suggestions(
+    request: Request,
+    body: BatchAcceptSuggestionsRequest,
+    _rate_limit: None = Depends(check_rate_limit),
+) -> BatchAcceptSuggestionsResponse:
+    """
+    Batch accept multiple suggestions in a single request.
+
+    This endpoint allows automation scripts or frontends to accept multiple
+    suggestions at once, supporting different action types:
+    - link: Link two data items together
+    - merge: Merge two entities
+    - relationship: Create relationship between entities
+    - dismiss: Dismiss a suggestion
+
+    Each suggestion in the batch is processed independently. If one fails,
+    others continue to process.
+
+    **Use Cases:**
+    - Human operator selects multiple suggestions to accept
+    - Automation script processes suggestions meeting criteria
+    - Frontend batch operations
+    """
+    start_time = time.time()
+
+    try:
+        # Get base URL for HATEOAS links
+        base_url = str(request.base_url).rstrip("/")
+
+        results: list[BatchActionResult] = []
+        successful_count = 0
+        failed_count = 0
+
+        async with AsyncNeo4jService() as neo4j:
+            linking_service = LinkingService(neo4j)
+
+            for idx, suggestion in enumerate(body.suggestions):
+                try:
+                    action_id = None
+
+                    if suggestion.action == "link":
+                        # Link data items
+                        if not suggestion.data_id:
+                            raise ValueError("data_id required for link action")
+
+                        result = await linking_service.link_data_items(
+                            data_id_1=suggestion.data_id,
+                            data_id_2=suggestion.source_entity_id,  # Entity's data
+                            reason=body.reason,
+                            confidence=0.9,
+                            created_by=body.created_by,
+                        )
+                        action_id = result["action_id"]
+
+                    elif suggestion.action == "merge":
+                        # Merge entities
+                        if not suggestion.target_entity_id:
+                            raise ValueError("target_entity_id required for merge action")
+
+                        result = await linking_service.merge_entities(
+                            entity_id_1=suggestion.source_entity_id,
+                            entity_id_2=suggestion.target_entity_id,
+                            keep_entity_id=suggestion.source_entity_id,  # Keep source
+                            reason=body.reason,
+                            created_by=body.created_by,
+                        )
+                        action_id = result["action_id"]
+
+                    elif suggestion.action == "relationship":
+                        # Create relationship
+                        if not suggestion.target_entity_id:
+                            raise ValueError("target_entity_id required for relationship action")
+
+                        relationship_type = suggestion.relationship_type or "RELATED_TO"
+
+                        result = await linking_service.create_relationship_from_suggestion(
+                            entity_id_1=suggestion.source_entity_id,
+                            entity_id_2=suggestion.target_entity_id,
+                            relationship_type=relationship_type,
+                            reason=body.reason,
+                            confidence="high",
+                            created_by=body.created_by,
+                        )
+                        action_id = result["action_id"]
+
+                    elif suggestion.action == "dismiss":
+                        # Dismiss suggestion
+                        if not suggestion.data_id:
+                            raise ValueError("data_id required for dismiss action")
+
+                        result = await linking_service.dismiss_suggestion(
+                            entity_id=suggestion.source_entity_id,
+                            data_id=suggestion.data_id,
+                            reason=body.reason,
+                            created_by=body.created_by,
+                        )
+                        action_id = result["action_id"]
+
+                    else:
+                        raise ValueError(f"Unknown action: {suggestion.action}")
+
+                    results.append(BatchActionResult(
+                        suggestion_index=idx,
+                        success=True,
+                        action_id=action_id,
+                        error=None,
+                    ))
+                    successful_count += 1
+
+                except Exception as e:
+                    results.append(BatchActionResult(
+                        suggestion_index=idx,
+                        success=False,
+                        action_id=None,
+                        error=str(e),
+                    ))
+                    failed_count += 1
+                    logger.warning(f"Batch item {idx} failed: {e}")
+
+        # Build HATEOAS links
+        links = {
+            "self": LinkModel(href=f"{base_url}/api/v1/suggestions/batch/accept", method="POST"),
+            "history": LinkModel(href=f"{base_url}/api/v1/suggestions/linking/history"),
+        }
+
+        # Log response time
+        elapsed = time.time() - start_time
+        logger.info(f"Batch accept: {len(body.suggestions)} items, {successful_count} succeeded, {elapsed:.3f}s")
+
+        return BatchAcceptSuggestionsResponse(
+            success=(failed_count == 0),
+            total_processed=len(body.suggestions),
+            successful_count=successful_count,
+            failed_count=failed_count,
+            results=results,
+            _links=links,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in batch accept: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to process batch: {str(e)}",
+        )
+
+
+@router.post(
+    "/auto-accept/preview",
+    response_model=AutoAcceptPreviewResponse,
+    summary="Preview auto-accept matches",
+    description="Preview what suggestions would be auto-accepted with given config",
+    responses={
+        200: {"description": "Preview generated successfully"},
+        400: {"model": ErrorResponse, "description": "Bad request"},
+        429: {"model": ErrorResponse, "description": "Rate limit exceeded"},
+        500: {"model": ErrorResponse, "description": "Internal server error"},
+    },
+)
+async def preview_auto_accept(
+    request: Request,
+    body: AutoAcceptConfigRequest,
+    project_id: str = Query(..., description="Project ID to scan"),
+    limit: int = Query(100, ge=1, le=500, description="Maximum matches to preview"),
+    _rate_limit: None = Depends(check_rate_limit),
+) -> AutoAcceptPreviewResponse:
+    """
+    Preview what suggestions would be auto-accepted with given configuration.
+
+    This is a **dry-run** endpoint - no changes are made. Use this to:
+    - See what suggestions match your auto-accept criteria
+    - Tune your configuration before executing
+    - Verify the results before committing
+
+    **Configuration Options:**
+    - min_confidence: Minimum confidence score to accept (0.5-1.0)
+    - match_types: Types of matches to accept (exact_hash, exact_string, partial_string)
+    - data_types: Specific data types to auto-accept (empty = all)
+    - action: Default action to take (link, relationship)
+
+    **Example Use:**
+    ```json
+    {
+      "enabled": true,
+      "min_confidence": 0.95,
+      "match_types": ["exact_hash", "exact_string"],
+      "data_types": ["email"],
+      "action": "link"
+    }
+    ```
+    """
+    start_time = time.time()
+
+    try:
+        # Get base URL for HATEOAS links
+        base_url = str(request.base_url).rstrip("/")
+
+        preview_items: list[AutoAcceptPreviewItem] = []
+
+        async with AsyncNeo4jService() as neo4j:
+            suggestion_service = SuggestionService(neo4j)
+
+            # Get all entities in project
+            async with neo4j.session() as session:
+                # Find all matches meeting criteria
+                result = await session.run(
+                    """
+                    MATCH (e:Person)-[:HAS_DATA]->(d:DataItem)
+                    WHERE d.project_id = $project_id
+                    WITH e, d
+                    MATCH (d2:DataItem)
+                    WHERE d2.id <> d.id
+                      AND (
+                        (d.hash IS NOT NULL AND d2.hash = d.hash)
+                        OR (d.value IS NOT NULL AND d2.value = d.value)
+                      )
+                    OPTIONAL MATCH (e2:Person)-[:HAS_DATA]->(d2)
+                    RETURN e.id as source_entity_id,
+                           e.name as source_entity_name,
+                           e2.id as target_entity_id,
+                           e2.name as target_entity_name,
+                           d.id as data_id,
+                           d.type as data_type,
+                           d.value as data_value,
+                           CASE
+                             WHEN d.hash IS NOT NULL AND d2.hash = d.hash THEN 1.0
+                             WHEN d.value = d2.value THEN 0.95
+                             ELSE 0.7
+                           END as confidence_score,
+                           CASE
+                             WHEN d.hash IS NOT NULL AND d2.hash = d.hash THEN 'exact_hash'
+                             WHEN d.value = d2.value THEN 'exact_string'
+                             ELSE 'partial_string'
+                           END as match_type
+                    LIMIT $limit
+                    """,
+                    project_id=project_id,
+                    limit=limit * 2,  # Get extra for filtering
+                )
+                records = await result.data()
+
+        # Filter by config criteria
+        for record in records:
+            # Check confidence threshold
+            if record["confidence_score"] < body.min_confidence:
+                continue
+
+            # Check match type filter
+            if body.match_types and record["match_type"] not in body.match_types:
+                continue
+
+            # Check data type filter
+            if body.data_types and record["data_type"] not in body.data_types:
+                continue
+
+            preview_items.append(AutoAcceptPreviewItem(
+                source_entity_id=record["source_entity_id"],
+                source_entity_name=record.get("source_entity_name"),
+                target_entity_id=record.get("target_entity_id"),
+                target_entity_name=record.get("target_entity_name"),
+                data_id=record["data_id"],
+                data_type=record["data_type"] or "unknown",
+                data_value=str(record["data_value"] or ""),
+                confidence_score=record["confidence_score"],
+                match_type=record["match_type"],
+                proposed_action=body.action,
+            ))
+
+            if len(preview_items) >= limit:
+                break
+
+        # Build HATEOAS links
+        links = {
+            "self": LinkModel(href=f"{base_url}/api/v1/suggestions/auto-accept/preview", method="POST"),
+            "execute": LinkModel(href=f"{base_url}/api/v1/suggestions/auto-accept/execute", method="POST"),
+        }
+
+        # Log response time
+        elapsed = time.time() - start_time
+        logger.info(f"Auto-accept preview: {len(preview_items)} matches, {elapsed:.3f}s")
+
+        return AutoAcceptPreviewResponse(
+            config=body,
+            preview=preview_items,
+            total_matches=len(records) if records else 0,
+            would_accept=len(preview_items),
+            _links=links,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in auto-accept preview: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate preview: {str(e)}",
+        )
+
+
+@router.post(
+    "/auto-accept/execute",
+    response_model=AutoAcceptExecuteResponse,
+    summary="Execute auto-accept",
+    description="Execute auto-accept for suggestions matching criteria",
+    responses={
+        200: {"description": "Auto-accept executed successfully"},
+        400: {"model": ErrorResponse, "description": "Bad request"},
+        429: {"model": ErrorResponse, "description": "Rate limit exceeded"},
+        500: {"model": ErrorResponse, "description": "Internal server error"},
+    },
+)
+async def execute_auto_accept(
+    request: Request,
+    body: AutoAcceptConfigRequest,
+    project_id: str = Query(..., description="Project ID to process"),
+    limit: int = Query(100, ge=1, le=500, description="Maximum suggestions to process"),
+    _rate_limit: None = Depends(check_rate_limit),
+) -> AutoAcceptExecuteResponse:
+    """
+    Execute auto-accept for suggestions matching the given criteria.
+
+    **WARNING**: This endpoint makes PERMANENT changes. Use /preview first
+    to verify what will be accepted.
+
+    **Safety Features:**
+    - Requires dry_run=false in config to actually execute
+    - Each action is logged with full audit trail
+    - Actions can be reviewed via /linking/history endpoint
+    - Rate limited to prevent abuse
+
+    **Recommended Workflow:**
+    1. Call /auto-accept/preview with your config
+    2. Review the preview results
+    3. If satisfied, call /auto-accept/execute with dry_run=false
+    """
+    start_time = time.time()
+
+    try:
+        # Safety check: require explicit dry_run=false
+        if body.dry_run:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Set dry_run=false to execute. Use /preview first to review matches.",
+            )
+
+        # Get base URL for HATEOAS links
+        base_url = str(request.base_url).rstrip("/")
+
+        # First, get the preview to know what to process
+        preview_response = await preview_auto_accept(
+            request=request,
+            body=AutoAcceptConfigRequest(
+                enabled=body.enabled,
+                min_confidence=body.min_confidence,
+                match_types=body.match_types,
+                data_types=body.data_types,
+                action=body.action,
+                relationship_type=body.relationship_type,
+                dry_run=True,  # Preview mode
+            ),
+            project_id=project_id,
+            limit=limit,
+            _rate_limit=None,  # Already checked
+        )
+
+        # Now execute each action
+        results: list[BatchActionResult] = []
+        successful_count = 0
+        failed_count = 0
+
+        async with AsyncNeo4jService() as neo4j:
+            linking_service = LinkingService(neo4j)
+
+            for idx, item in enumerate(preview_response.preview):
+                try:
+                    action_id = None
+
+                    if body.action == "link":
+                        # Link data items (if there's a target entity)
+                        if item.target_entity_id:
+                            result = await linking_service.create_relationship_from_suggestion(
+                                entity_id_1=item.source_entity_id,
+                                entity_id_2=item.target_entity_id,
+                                relationship_type="LINKED_DATA",
+                                reason=f"Auto-accepted: {item.match_type} match with {item.confidence_score:.0%} confidence",
+                                confidence="high",
+                                created_by="auto_accept",
+                            )
+                            action_id = result["action_id"]
+
+                    elif body.action == "relationship":
+                        # Create relationship
+                        if item.target_entity_id:
+                            relationship_type = body.relationship_type or "RELATED_TO"
+                            result = await linking_service.create_relationship_from_suggestion(
+                                entity_id_1=item.source_entity_id,
+                                entity_id_2=item.target_entity_id,
+                                relationship_type=relationship_type,
+                                reason=f"Auto-accepted: {item.match_type} match with {item.confidence_score:.0%} confidence",
+                                confidence="high",
+                                created_by="auto_accept",
+                            )
+                            action_id = result["action_id"]
+
+                    results.append(BatchActionResult(
+                        suggestion_index=idx,
+                        success=True,
+                        action_id=action_id,
+                        error=None,
+                    ))
+                    successful_count += 1
+
+                except Exception as e:
+                    results.append(BatchActionResult(
+                        suggestion_index=idx,
+                        success=False,
+                        action_id=None,
+                        error=str(e),
+                    ))
+                    failed_count += 1
+                    logger.warning(f"Auto-accept item {idx} failed: {e}")
+
+        # Build HATEOAS links
+        links = {
+            "self": LinkModel(href=f"{base_url}/api/v1/suggestions/auto-accept/execute", method="POST"),
+            "preview": LinkModel(href=f"{base_url}/api/v1/suggestions/auto-accept/preview", method="POST"),
+            "history": LinkModel(href=f"{base_url}/api/v1/suggestions/linking/history"),
+        }
+
+        # Log response time
+        elapsed = time.time() - start_time
+        logger.info(f"Auto-accept execute: {successful_count} succeeded, {failed_count} failed, {elapsed:.3f}s")
+
+        return AutoAcceptExecuteResponse(
+            success=(failed_count == 0),
+            config=body,
+            total_processed=len(preview_response.preview),
+            successful_count=successful_count,
+            failed_count=failed_count,
+            results=results,
+            _links=links,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in auto-accept execute: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to execute auto-accept: {str(e)}",
         )

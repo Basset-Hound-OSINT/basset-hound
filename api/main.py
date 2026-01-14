@@ -15,6 +15,7 @@ from typing import Any, Callable
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 # Add parent directory to path to import existing modules
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -183,11 +184,11 @@ def create_application() -> FastAPI:
             "database": db_status,
         }
 
-    # Root endpoint
-    @app.get("/", tags=["Root"])
-    async def root():
+    # API Root endpoint (moved to /api to avoid conflict with frontend)
+    @app.get("/api", tags=["Root"])
+    async def api_root():
         """
-        Root endpoint.
+        API root endpoint.
 
         Returns basic API information and links to documentation.
         """
@@ -234,6 +235,23 @@ def create_application() -> FastAPI:
     app.include_router(project_relationships_router, prefix="/api/v1")
     app.include_router(file_serve_router)
     app.include_router(report_serve_router)
+
+    # Include Frontend routers (migrated from Flask)
+    from api.routers.frontend import router as frontend_router
+    from api.routers.frontend_profiles import router as frontend_profiles_router
+    from api.routers.frontend_reports import router as frontend_reports_router
+
+    # Frontend routes - these serve HTML templates and handle form submissions
+    app.include_router(frontend_router)
+    app.include_router(frontend_profiles_router)
+    app.include_router(frontend_reports_router)
+
+    # Mount static files directory
+    # This serves CSS, JS, images, etc. from /static/*
+    static_dir = Path(__file__).parent.parent / "static"
+    if static_dir.exists():
+        app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+        logger.info(f"Mounted static files from {static_dir}")
 
     return app
 

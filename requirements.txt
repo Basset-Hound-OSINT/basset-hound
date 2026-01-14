@@ -1,16 +1,21 @@
-# Core Flask (legacy, maintained for backwards compatibility)
-Flask==3.1.0
+# Flask (DEPRECATED - migration to FastAPI complete)
+# Flask==3.1.0
+# The Flask files (app.py, profiles.py, reports.py) are deprecated.
+# All routes have been migrated to FastAPI in api/routers/frontend*.py
+# Flask can be safely removed from the project.
 
-# Core FastAPI (new API)
+# Core FastAPI (handles both API and frontend templates)
 fastapi>=0.115.0
 uvicorn[standard]>=0.32.0
 starlette>=0.41.0
+jinja2>=3.1.0  # Template rendering for frontend
 
 # Configuration
 python-dotenv==1.1.0
 PyYAML==6.0.2
-pydantic>=2.10.0
+pydantic[email]>=2.10.0
 pydantic-settings>=2.6.0
+email-validator>=2.1.0
 
 # Database
 neo4j==5.28.1
