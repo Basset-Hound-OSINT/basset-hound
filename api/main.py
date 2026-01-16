@@ -227,9 +227,16 @@ def create_application() -> FastAPI:
     from api.routers.relationships import project_relationships_router
     from api.routers.files import file_serve_router
     from api.routers.reports import report_serve_router
+    from api.routers.mcp import router as mcp_router
 
     # Main API router with all sub-routers
     app.include_router(api_router, prefix="/api/v1")
+
+    # MCP router - mounted at /mcp for external service integration
+    # This enables PalletAI and other orchestrators to discover and invoke tools
+    # Integration direction: PalletAI -> Basset Hound (one-way)
+    app.include_router(mcp_router)
+    logger.info("MCP endpoints enabled at /mcp/*")
 
     # Additional standalone routers
     app.include_router(project_relationships_router, prefix="/api/v1")

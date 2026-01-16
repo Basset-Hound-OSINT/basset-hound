@@ -89,6 +89,7 @@ from .verification import router as verification_router
 from .osint import router as osint_router
 from .suggestions import router as suggestions_router
 from .integrations import router as integrations_router
+from .mcp import router as mcp_router
 
 # Create main API router
 api_router = APIRouter()
