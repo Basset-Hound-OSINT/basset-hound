@@ -12,8 +12,8 @@ services:
     container_name: neo4j_osint_db
     restart: unless-stopped
     ports:
-      - "7474:7474"  # HTTP for Neo4j Browser
-      - "7687:7687"  # Bolt for applications
+      - "7475:7474"  # HTTP for Neo4j Browser (mapped to 7475 to avoid conflict)
+      - "7688:7687"  # Bolt for applications (mapped to 7688 to avoid conflict)
     volumes:
       - neo4j_data:/data
       - neo4j_logs:/logs
