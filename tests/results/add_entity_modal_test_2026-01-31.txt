@@ -1,0 +1,105 @@
+======================================================================
+ADD ENTITY MODAL IMPLEMENTATION TEST REPORT
+Generated: 2026-01-31 17:45:39
+======================================================================
+
+SUMMARY: 4 passed, 1 failed out of 5 tests
+
+
+============================================================
+TEST: Modal HTML Exists in Dashboard
+STATUS: PASSED
+============================================================
+  Found dashboard.html at /home/devel/basset-hound/templates/dashboard.html
+  Found entityTypeModal modal element
+  Found entityTypeModalLabel label element
+  Found entity-type-list container
+  Found add-entity-btn button
+  Button has proper Bootstrap modal triggers
+
+
+============================================================
+TEST: Entity Type Buttons for All 7 Types
+STATUS: PASSED
+============================================================
+  Found button for entity type: person
+  Found button for entity type: organization
+  Found button for entity type: government
+  Found button for entity type: group
+  Found button for entity type: sock_puppet
+  Found button for entity type: location
+  Found button for entity type: unknown
+  
+Summary: Found 7/7 entity type buttons
+
+
+============================================================
+TEST: JavaScript Function Exports
+STATUS: PASSED
+============================================================
+  Found ui-form-handlers.js at /home/devel/basset-hound/static/js/ui-form-handlers.js
+  Found setupEntityTypeModal function export
+  Found createPersonForm function export
+  createPersonForm accepts entityType parameter
+  Found ENTITY_TYPE_LABELS constant
+  Form creates hidden entity_type field
+  Found window.selectedEntityType global variable
+  Found dashboard.js at /home/devel/basset-hound/static/js/dashboard.js
+  dashboard.js imports setupEntityTypeModal
+  dashboard.js calls setupEntityTypeModal()
+
+
+============================================================
+TEST: Backend Entity Type Handling
+STATUS: FAILED
+============================================================
+  Found frontend_profiles.py at /home/devel/basset-hound/api/routers/frontend_profiles.py
+  
+RECOMMENDED FIX:
+  In add_person function, add after form_data = await request.form():
+    entity_type = form_data.get("entity_type", "person")
+    person_data["entity_type"] = entity_type
+
+ISSUES:
+  - Backend has no reference to 'entity_type' - NEEDS IMPLEMENTATION
+
+
+============================================================
+TEST: API Accepts entity_type Parameter
+STATUS: PASSED
+============================================================
+  Server is running at http://localhost:8080
+  add_person endpoint exists (OPTIONS returned 405)
+  add_person endpoint accepts POST (status: 302)
+  Note: Full test requires active project session
+  
+NOTE: Full API integration test requires:
+    - Active project session
+    - Valid session cookie
+    - Neo4j database running
+
+
+======================================================================
+ALL ISSUES REQUIRING ATTENTION:
+======================================================================
+  1. Backend has no reference to 'entity_type' - NEEDS IMPLEMENTATION
+
+======================================================================
+IMPLEMENTATION STATUS SUMMARY
+======================================================================
+
+FRONTEND (templates/dashboard.html):
+  - Modal HTML structure: OK
+  - Entity type buttons (7 types): OK
+
+FRONTEND (static/js/*):
+  - setupEntityTypeModal function: OK
+  - createPersonForm with entityType: OK
+  - Hidden entity_type form field: OK
+
+BACKEND (api/routers/frontend_profiles.py):
+  - entity_type handling: NEEDS IMPLEMENTATION
+    Required changes:
+      1. Extract entity_type from form_data in add_person()
+      2. Store entity_type in person_data before creating entity
+      3. Consider adding entity_type to update_person() as well

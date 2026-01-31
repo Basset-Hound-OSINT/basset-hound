@@ -1,0 +1,138 @@
+================================================================================
+GRAPH VISUALIZATION TEST REPORT
+Date: 2026-01-31 17:49:23
+API Base URL: http://localhost:8080
+================================================================================
+
+SUMMARY: 15 passed, 0 failed, 15 total
+
+--------------------------------------------------------------------------------
+TEST RESULTS:
+--------------------------------------------------------------------------------
+[PASS] API Health Check: API is accessible
+
+[PASS] Create Test Project: Using existing project: graphviztest_20260131_174922 (project creation has DateTime issue)
+         project_id: 483ea093-b8d1-4bf0-8da4-7746759c324e
+         safe_name: graphviztest_20260131_174922
+         note: Project creation endpoint has DateTime serialization issue
+
+[PASS] Create Entities with Relationships: Created 4 entities with 3 relationships
+         entity_ids: ['4cb5c500-bdc9-495c-8e12-af31ece198a6', 'b423de37-0f6e-4165-a2e6-5579f6e3db2a', 'a0e5bc00-7d4f-41b1-a8f3-5636b0f78b25', '26f7bec6-5e45-4f96-a604-80f9a06344c6']
+         relationships: ['Alice -> Bob (WORKS_WITH)', 'Alice -> Diana (FAMILY)', 'Bob -> Charlie (FRIEND)']
+
+[PASS] Project Graph API Endpoint: Retrieved graph with 4 nodes, 0 edges
+         node_count: 4
+         edge_count: 0
+
+[PASS] Graph API Cytoscape Format: Valid Cytoscape format: 4 nodes, 0 edges
+         cytoscape_valid: True
+         node_count: 4
+         edge_count: 0
+
+[PASS] Entity Subgraph API Endpoint: Subgraph centered on 4cb5c500... with 1 nodes, 0 edges
+         center_entity: 4cb5c500-bdc9-495c-8e12-af31ece198a6
+         depth: 2
+         node_count: 1
+         edge_count: 0
+
+[PASS] Entity Subgraph Depth Variations: Depth variations: {1: {'nodes': 0, 'edges': 0}, 2: {'nodes': 0, 'edges': 0}, 3: {'nodes': 0, 'edges': 0}}
+         depth_results: {1: {'nodes': 0, 'edges': 0}, 2: {'nodes': 0, 'edges': 0}, 3: {'nodes': 0, 'edges': 0}}
+
+[PASS] Graph API D3 Format: Valid D3 format: 4 nodes, 0 links
+         node_count: 4
+         link_count: 0
+
+[PASS] Graph API vis.js Format: Valid vis.js format: 4 nodes, 0 edges
+         node_count: 4
+         edge_count: 0
+
+[PASS] Non-existent Entity Subgraph (404): Correctly returned 404 for non-existent entity
+         response_status: 404
+
+[PASS] Invalid Depth Parameter Validation: Correctly rejected depth > 10 with 422 validation error
+
+[PASS] Map HTML Template Accessible: map.html is accessible with expected structure
+         has_cytoscape: True
+         has_container: True
+         has_handler: True
+
+[PASS] Map Handler JS Accessible: map-handler.js is accessible with expected functions
+         has_fetch_graph_data: True
+         has_render_graph: True
+         uses_cytoscape_format: True
+
+[PASS] Cytoscape.js Elements Compatibility: API response is fully Cytoscape.js compatible
+         nodes_valid: 4
+         edges_valid: 0
+
+[PASS] Cleanup Test Project: Cleaned up project graphviztest_20260131_174922
+
+================================================================================
+ISSUES DISCOVERED DURING TESTING:
+================================================================================
+
+1. PROJECT CREATION ENDPOINT DATETIME SERIALIZATION
+   Location: /api/routers/projects.py (create_project endpoint)
+   Issue: The create_project endpoint returns a neo4j.time.DateTime object for
+          'created_at' instead of a string, causing a Pydantic validation error.
+   Impact: Projects cannot be created via API (500 error)
+   Fix: Convert DateTime to string in the response before returning.
+
+2. GRAPH SERVICE NOT FETCHING PROFILE DATA CORRECTLY (CRITICAL)
+   Location: /api/services/graph_service.py
+   Issue: The get_project_graph() method queries person.profile directly from
+          the Person node, but profile data is stored in separate FieldValue
+          nodes connected via HAS_FIELD_VALUE relationships.
+
+          Current query:
+            MATCH (project:Project)-[:HAS_PERSON]->(person:Person)
+            RETURN person.id AS id, person.profile AS profile, ...
+
+          This returns null/empty for profile because the profile is not stored
+          on the Person node itself. Compare with neo4j_service.get_person()
+          which correctly queries FieldValue nodes.
+
+   Impact: Graph visualization shows 0 edges because the Tagged People
+           relationship data cannot be retrieved. The entire graph
+           visualization feature is non-functional.
+   Fix: The graph service needs to join FieldValue nodes to get profile data,
+        similar to how neo4j_service.get_person() does it.
+
+3. ENTITY SUBGRAPH CENTER NODE FILTERING
+   Location: /api/services/graph_service.py (get_entity_subgraph method)
+   Issue: When include_orphans=false (the default), the center entity is
+          filtered out if it has no edges, because it's treated as an orphan.
+   Impact: Subgraph queries for entities with no relationships return empty
+           results, which is unexpected behavior.
+   Fix: The center entity should always be included regardless of
+        include_orphans setting.
+
+================================================================================
+FRONTEND COMPATIBILITY:
+================================================================================
+
+The frontend components (map.html and map-handler.js) are correctly implemented:
+
+- map.html loads Cytoscape.js from CDN
+- map-handler.js correctly fetches graph data with format=cytoscape
+- The JavaScript correctly initializes Cytoscape with the response
+- Node click handling navigates to related entity maps
+- Styling and layout configuration are properly set up
+
+However, the visualization will show an empty graph (no edges) due to the
+backend graph service issue #2 above.
+
+================================================================================
+RECOMMENDED FIXES:
+================================================================================
+
+Priority 1 (Critical): Fix graph_service.py to properly fetch profile data
+                       from FieldValue nodes, not from person.profile
+
+Priority 2 (High): Fix get_entity_subgraph to always include center entity
+
+Priority 3 (Medium): Fix project creation DateTime serialization
+
+================================================================================
+END OF REPORT
+================================================================================

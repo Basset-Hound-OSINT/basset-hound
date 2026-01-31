@@ -39,6 +39,38 @@
 
 ---
 
+## Frontend Status (2026-01-31)
+
+**Current State:** The frontend exposes approximately 5-10% of available API features.
+
+| Area | Frontend Support | Notes |
+|------|------------------|-------|
+| Project Management | ✅ Full | Create, list, open projects |
+| Entity CRUD | ✅ Basic | Add, view, edit, delete entities |
+| Entity Types | ✅ Implemented | Add Entity modal with type selection (Person, Organization, Government, Group, Sock Puppet, Location, Unknown) |
+| Basic Search | ✅ Basic | Search input in sidebar |
+| Graph Visualization | ⚠️ Exists | `/map.html` uses Cytoscape.js, needs testing |
+| File Management | ✅ Basic | File explorer overlay for uploads |
+| Relationships | ❌ None | API supports full relationship management |
+| Advanced Search | ❌ None | API has full-text, fuzzy, filtered search |
+| Deduplication/Merge | ❌ None | API supports entity merging |
+| Bulk Import | ❌ None | API supports CSV, JSON, Neo4j import |
+| Relationship Types | ❌ None | API has configurable relationship types |
+| Smart Suggestions | ❌ None | UI specs exist, no implementation |
+| Timeline Visualization | ❌ None | API ready (Phase 17) |
+
+### Recent Changes (2026-01-31)
+
+- **Add Entity Modal**: Changed from "Add Person" to "Add Entity" with entity type selection
+- Supports 7 entity types: Person, Organization, Government, Group, Sock Puppet, Location, Unknown
+- Form dynamically adapts based on selected entity type
+
+### Frontend Gap Analysis
+
+For detailed frontend status, see: [docs/frontend/FRONTEND-STATUS.md](frontend/FRONTEND-STATUS.md)
+
+---
+
 ## Recommendation
 
 - **basset-hound has achieved its core scope** as a storage backbone for OSINT investigations
@@ -1438,6 +1470,162 @@ GET  /api/v1/analytics/jobs           # List all analytics jobs
 GET  /api/v1/analytics/jobs/{job_id}  # Get job status
 POST /api/v1/analytics/jobs/{job_id}/cancel  # Cancel running job
 ```
+
+---
+
+## Phase 52: Frontend Feature Parity (PLANNED)
+
+**Goal:** Bring frontend UI closer to feature parity with the API, exposing the most valuable features to human operators.
+
+**Status:** Planned
+**Priority:** High - Currently only 5-10% of API features are accessible via frontend
+
+### Current Frontend Capabilities
+
+| Feature | Status | Files |
+|---------|--------|-------|
+| Project create/open | ✅ Complete | `templates/index.html` |
+| Entity list/view | ✅ Complete | `templates/dashboard.html` |
+| Add Entity (with type selection) | ✅ Complete | `templates/dashboard.html` (modal) |
+| Basic search | ✅ Basic | Sidebar search input |
+| File explorer | ✅ Basic | `static/js/file_explorer.js` |
+| Graph visualization | ⚠️ Exists | `templates/map.html`, `static/js/map-handler.js` |
+
+### Phase 52.1: Relationship Management UI (PLANNED)
+
+**Priority:** High - Core graph functionality not exposed in frontend
+
+**Gap:** API has full relationship CRUD (`/api/v1/relationships/`), but no frontend UI.
+
+**Required Components:**
+1. **Add Relationship Modal**
+   - Select relationship type from configured types
+   - Select target entity (with search/autocomplete)
+   - Add relationship properties (date range, confidence, notes)
+   - Bidirectional toggle
+
+2. **Relationship List View**
+   - Show all relationships for current entity
+   - Filter by type, confidence, date
+   - Quick actions: edit, delete, view target
+
+3. **Relationship Type Configuration UI**
+   - List available relationship types
+   - Add custom relationship types (admin)
+
+**API Endpoints Ready:**
+- `GET /api/v1/relationships/{project}/{entity_id}` - List relationships
+- `POST /api/v1/relationships/{project}` - Create relationship
+- `DELETE /api/v1/relationships/{project}/{relationship_id}` - Delete
+- `GET /api/v1/relationship-types` - List types
+
+### Phase 52.2: Advanced Search UI (PLANNED)
+
+**Priority:** High - Basic search is insufficient for investigations
+
+**Gap:** API has full-text search, fuzzy matching, and filters. Frontend only has basic text search.
+
+**Required Components:**
+1. **Search Modal/Panel**
+   - Full-text search across all fields
+   - Entity type filter
+   - Date range filter
+   - Relationship depth filter
+   - Field-specific search (e.g., "email contains")
+
+2. **Search Results View**
+   - Paginated results
+   - Sort by relevance, date, type
+   - Quick actions: view, add relationship, merge
+
+3. **Saved Searches**
+   - Save search criteria
+   - Quick access to frequent searches
+
+**API Endpoints Ready:**
+- `POST /api/v1/search/{project}/advanced` - Full-text search
+- `POST /api/v1/search/{project}/fuzzy` - Fuzzy matching
+- `GET /api/v1/saved-searches/{project}` - List saved searches
+
+### Phase 52.3: Deduplication & Merge UI (PLANNED)
+
+**Priority:** Medium - Data quality feature
+
+**Gap:** API supports entity merging and duplicate detection. No frontend UI.
+
+**Required Components:**
+1. **Duplicate Detection Panel**
+   - Show potential duplicates with confidence scores
+   - Side-by-side comparison view
+   - One-click merge or dismiss
+
+2. **Merge Preview Modal**
+   - Show what data will be merged
+   - Select which values to keep
+   - Reason/notes for audit trail
+
+3. **Merge History View**
+   - List past merges
+   - Undo capability (if implemented)
+
+**API Endpoints Ready:**
+- `GET /api/v1/suggestions/{project}` - Get match suggestions
+- `POST /api/v1/entities/{project}/merge` - Merge entities
+- `GET /api/v1/deduplication/{project}/candidates` - Duplicate candidates
+
+### Phase 52.4: Bulk Import UI (PLANNED)
+
+**Priority:** Medium - Data ingestion feature
+
+**Gap:** API supports CSV, JSON, and Neo4j import. No frontend UI.
+
+**Required Components:**
+1. **Import Wizard**
+   - File upload (CSV, JSON)
+   - Field mapping interface
+   - Preview imported data
+   - Validation errors display
+
+2. **Import History**
+   - List past imports
+   - View import statistics
+   - Revert capability
+
+**API Endpoints Ready:**
+- `POST /api/v1/import/{project}/csv` - CSV import
+- `POST /api/v1/import/{project}/json` - JSON import
+- `GET /api/v1/import/{project}/history` - Import history
+
+### Phase 52.5: Graph Visualization Enhancement (PLANNED)
+
+**Priority:** Low - Basic visualization exists, needs polish
+
+**Gap:** `/map.html` exists but needs testing and enhancement.
+
+**Required Improvements:**
+1. **Test existing map.html** - Verify it works with current API
+2. **Add entity type icons** - Different icons for Person, Org, Location, etc.
+3. **Add relationship labels** - Show relationship type on edges
+4. **Add filtering** - Filter by entity type, relationship type
+5. **Add layout options** - Force-directed, hierarchical, circular
+6. **Link from dashboard** - Easy navigation to graph view
+
+### Implementation Priority
+
+| Phase | Priority | Effort | Value |
+|-------|----------|--------|-------|
+| 52.1 Relationships | High | Medium | High - Core graph feature |
+| 52.2 Advanced Search | High | Medium | High - Investigation essential |
+| 52.3 Deduplication | Medium | Medium | Medium - Data quality |
+| 52.4 Bulk Import | Medium | High | Medium - Data ingestion |
+| 52.5 Graph Enhancement | Low | Low | Low - Polish existing |
+
+### Technical Notes
+
+- Frontend uses vanilla JS + Bootstrap 5
+- Use existing patterns from `dashboard.html` and `static/js/` modules
+- API endpoints are already implemented and tested
+- UI component specs exist in `docs/UI-COMPONENTS-SPECIFICATION.md`
 
 ---
 

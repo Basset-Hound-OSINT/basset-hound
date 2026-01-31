@@ -129,6 +129,10 @@ async def add_person(
     # Parse form data
     form_data = await request.form()
 
+    # Extract entity_type from form data (default to "person" for backwards compatibility)
+    entity_type = form_data.get("entity_type", "person")
+    person_data["entity_type"] = entity_type
+
     # Process form data by section
     for section in config.get("sections", []):
         section_id = section["id"]
@@ -281,6 +285,11 @@ async def update_person(
     # Handle form submission
     form_data = await request.form()
     updated_data = {"profile": {}}
+
+    # Extract entity_type from form data if provided
+    entity_type = form_data.get("entity_type")
+    if entity_type:
+        updated_data["entity_type"] = entity_type
 
     for section in config.get("sections", []):
         section_id = section["id"]

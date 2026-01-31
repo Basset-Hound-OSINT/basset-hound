@@ -38,13 +38,25 @@ class GraphService:
         Returns:
             Dict with 'nodes' and 'edges' lists containing raw graph data
         """
+        import json
+
         with self.neo4j.driver.session() as session:
-            # Get all entities in the project
+            # Get all entities in the project with their field values
+            # Profile data is stored in FieldValue nodes, not on the Person node
             entities_query = """
                 MATCH (project:Project {safe_name: $project_safe_name})
                       -[:HAS_PERSON]->(person:Person)
-                RETURN person.id AS id, person.profile AS profile,
-                       person.created_at AS created_at
+                OPTIONAL MATCH (person)-[:HAS_FIELD_VALUE]->(fv:FieldValue)
+                WITH person,
+                     COLLECT({
+                         section_id: fv.section_id,
+                         field_id: fv.field_id,
+                         value: fv.value
+                     }) AS field_values
+                RETURN person.id AS id,
+                       person.created_at AS created_at,
+                       person.entity_type AS entity_type,
+                       field_values
                 ORDER BY person.created_at DESC
             """
             entities_result = session.run(
@@ -59,18 +71,40 @@ class GraphService:
                 entity_id = record["id"]
                 entity_ids.add(entity_id)
 
-                profile = record["profile"] or {}
+                # Reconstruct profile from field values
+                profile = {}
+                for fv in record["field_values"]:
+                    if fv["section_id"] is None:
+                        continue
+                    section_id = fv["section_id"]
+                    field_id = fv["field_id"]
+                    value = fv["value"]
+
+                    if section_id not in profile:
+                        profile[section_id] = {}
+
+                    # Try to parse JSON strings
+                    if isinstance(value, str):
+                        try:
+                            value = json.loads(value)
+                        except (json.JSONDecodeError, TypeError):
+                            pass
+
+                    profile[section_id][field_id] = value
 
                 # Extract display name from profile
                 display_name = self._extract_display_name(profile, entity_id)
 
+                entity_type = record.get("entity_type") or "person"
+
                 nodes.append({
                     "id": entity_id,
                     "label": display_name,
-                    "type": "Person",
+                    "type": entity_type.capitalize(),
                     "properties": {
                         "profile": profile,
-                        "created_at": record["created_at"]
+                        "created_at": record["created_at"],
+                        "entity_type": entity_type
                     }
                 })
 
