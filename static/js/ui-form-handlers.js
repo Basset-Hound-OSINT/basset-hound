@@ -143,14 +143,48 @@ export function addFieldInstance(container, sectionId, field, index) {
     container.appendChild(fieldInstance);
 }
 
-export function createPersonForm(container, config, person = null) {
+// Global variable to track selected entity type for new entities
+window.selectedEntityType = 'person';
+
+// Entity type display names mapping
+const ENTITY_TYPE_LABELS = {
+    'person': 'Person',
+    'organization': 'Organization',
+    'government': 'Government',
+    'group': 'Group',
+    'sock_puppet': 'Sock Puppet',
+    'location': 'Location',
+    'unknown': 'Unknown'
+};
+
+export function createPersonForm(container, config, person = null, entityType = 'person') {
     container.innerHTML = '';
+
+    // Use the entity type from the person if editing, otherwise use the provided entityType
+    const currentEntityType = person?.entity_type || entityType || 'person';
+    const entityTypeLabel = ENTITY_TYPE_LABELS[currentEntityType] || 'Entity';
 
     const form = document.createElement('form');
     form.id = 'person-form';
     form.className = 'needs-validation';
     form.noValidate = true;
     form.enctype = 'multipart/form-data';
+
+    // Add hidden input for entity type
+    const hiddenEntityTypeInput = document.createElement('input');
+    hiddenEntityTypeInput.type = 'hidden';
+    hiddenEntityTypeInput.name = 'entity_type';
+    hiddenEntityTypeInput.value = currentEntityType;
+    form.appendChild(hiddenEntityTypeInput);
+
+    // Add entity type badge at top of form
+    const entityTypeBadge = document.createElement('div');
+    entityTypeBadge.className = 'alert alert-info d-flex align-items-center mb-3';
+    entityTypeBadge.innerHTML = `<i class="fas fa-info-circle me-2"></i> Creating new <strong class="ms-1">${entityTypeLabel}</strong>`;
+    if (person) {
+        entityTypeBadge.innerHTML = `<i class="fas fa-info-circle me-2"></i> Editing <strong class="ms-1">${entityTypeLabel}</strong>`;
+    }
+    form.appendChild(entityTypeBadge);
 
     if (person) {
         const hiddenIdInput = document.createElement('input');
@@ -334,7 +368,7 @@ export function createPersonForm(container, config, person = null) {
     const saveButton = document.createElement('button');
     saveButton.type = 'submit';
     saveButton.className = 'btn btn-primary';
-    saveButton.textContent = person ? 'Update Person' : 'Add Person';
+    saveButton.textContent = person ? `Update ${entityTypeLabel}` : `Add ${entityTypeLabel}`;
 
     actionButtons.appendChild(cancelButton);
     actionButtons.appendChild(saveButton);
@@ -378,8 +412,8 @@ export function createPersonForm(container, config, person = null) {
                 window.location.reload();
 
             } catch (error) {
-                console.error('[ERROR] Failed to add person', error);
-                alert('Failed to add person. Please try again.');
+                console.error('[ERROR] Failed to add entity', error);
+                alert('Failed to add entity. Please try again.');
             }
         });
     }
@@ -817,9 +851,32 @@ export function deletePerson(personId) {
     .catch(err => console.error("Failed to delete person", err));
 }
 
-document.getElementById('add-person-btn').addEventListener('click', () => {
-    const container = document.getElementById('person-form-container');
-    createPersonForm(container, window.appConfig);
-    container.style.display = 'block';
-    document.getElementById('person-details').style.display = 'none';
+// Setup entity type modal handlers
+export function setupEntityTypeModal() {
+    const entityTypeList = document.getElementById('entity-type-list');
+    if (!entityTypeList) return;
+
+    entityTypeList.querySelectorAll('[data-entity-type]').forEach(button => {
+        button.addEventListener('click', function() {
+            const entityType = this.getAttribute('data-entity-type');
+            window.selectedEntityType = entityType;
+
+            // Close the modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('entityTypeModal'));
+            if (modal) {
+                modal.hide();
+            }
+
+            // Open the form with the selected entity type
+            const container = document.getElementById('person-form-container');
+            createPersonForm(container, window.appConfig, null, entityType);
+            container.style.display = 'block';
+            document.getElementById('person-details').style.display = 'none';
+        });
+    });
+}
+
+// Initialize entity type modal when DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+    setupEntityTypeModal();
 });

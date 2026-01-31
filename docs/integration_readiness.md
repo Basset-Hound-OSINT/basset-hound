@@ -1,6 +1,6 @@
 # basset-hound Integration Readiness
 
-**Last Updated**: 2026-01-14
+**Last Updated**: 2026-01-31
 **Status**: ✅ READY FOR INTEGRATION
 
 ---
@@ -15,8 +15,32 @@
 | API documentation | ✅ Present | OpenAPI at `/docs`, comprehensive README |
 | Independent startup | ✅ Present | `python -m basset_mcp` or Docker |
 | Graceful error handling | ✅ Present | Try/except with fallbacks, validation errors |
+| Single-port entry | ✅ Present | nginx reverse proxy on port 8080 |
+| Docker network isolation | ✅ Present | `basset-hound` network for internal communication |
 
 **Overall Readiness**: ✅ **READY**
+
+---
+
+## Docker Network Architecture (2026-01-31)
+
+All services run on the `basset-hound` Docker network with a single external port:
+
+```
+                         ┌──────────────────────────────────┐
+                         │     basset-hound network         │
+  External               │                                  │
+     │                   │   nginx ──> basset_api           │
+     │  Port 8080        │     │           │                │
+     └──────────────────>│     │      ┌────┴────┐           │
+                         │     │      │   neo4j │           │
+                         │     │      │   redis │           │
+                         │     v      └─────────┘           │
+                         │  neo4j browser                   │
+                         └──────────────────────────────────┘
+```
+
+**Single Entry Point**: `http://localhost:8080`
 
 ---
 
@@ -24,11 +48,12 @@
 
 ### As Integration Target (Other Projects → basset-hound)
 
-| Interface | Port | Description |
-|-----------|------|-------------|
-| REST API | 8000 | 42 routers, full CRUD operations |
-| MCP Server | 8000 | 130 tools for AI agent integration |
-| WebSocket | 8000 | Real-time notifications |
+| Interface | Port | URL | Description |
+|-----------|------|-----|-------------|
+| REST API | 8080 | `/api/v1/*` | 42 routers, full CRUD operations |
+| MCP Server | 8080 | `/mcp/*` | 130 tools for AI agent integration |
+| WebSocket | 8080 | `/ws/*` | Real-time notifications |
+| Neo4j Browser | 8080 | `/neo4j/` | Admin database access |
 
 ### As Integration Source (basset-hound → Other Projects)
 
@@ -43,6 +68,10 @@
 ## Health Endpoint
 
 ```bash
+# Via nginx (production)
+curl http://localhost:8080/health
+
+# Direct API (development mode with docker-compose.dev.yml)
 curl http://localhost:8000/health
 ```
 
@@ -50,9 +79,8 @@ Response:
 ```json
 {
   "status": "healthy",
-  "version": "2.0.0",
-  "database": "connected",
-  "timestamp": "2026-01-14T00:00:00Z"
+  "version": "0.1.0",
+  "database": "connected"
 }
 ```
 
@@ -61,15 +89,42 @@ Response:
 ## Startup Commands
 
 ```bash
-# Development
-python -m basset_mcp
+# Production (single port via nginx)
+docker compose up -d
 
-# Production (Docker)
-docker-compose up -d
+# Development (with direct port access for debugging)
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
 
-# With Neo4j
-docker-compose -f docker-compose.yml up -d
+# View logs
+docker compose logs -f basset_api
+docker compose logs -f nginx
+
+# Stop and clean
+docker compose down -v
 ```
+
+---
+
+## Connection URLs
+
+### From External Host
+
+| Service | URL |
+|---------|-----|
+| API | `http://localhost:8080/api/v1/` |
+| MCP | `http://localhost:8080/mcp/` |
+| Docs | `http://localhost:8080/docs` |
+| Health | `http://localhost:8080/health` |
+| Neo4j Browser | `http://localhost:8080/neo4j/` |
+
+### From Other Docker Containers (on basset-hound network)
+
+| Service | URL |
+|---------|-----|
+| API | `http://basset_api:8000/api/v1/` |
+| MCP | `http://basset_api:8000/mcp/` |
+| Neo4j Bolt | `bolt://neo4j:7687` |
+| Redis | `redis://redis:6379` |
 
 ---
 
@@ -78,7 +133,9 @@ docker-compose -f docker-compose.yml up -d
 | Dependency | Required By | Notes |
 |------------|-------------|-------|
 | Neo4j 5.x | Core | Graph database |
-| Python 3.11+ | Core | Runtime |
+| Redis 7.x | Celery | Message broker & cache |
+| Python 3.12+ | Core | Runtime |
+| nginx | Production | Reverse proxy |
 | httpx | External clients | Async HTTP |
 
 ---
@@ -89,10 +146,13 @@ docker-compose -f docker-compose.yml up -d
 2. **Rate Limiting**: External services may have rate limits
 3. **Timeouts**: Default 10s timeout for external calls
 4. **Error Handling**: All external calls wrapped in try/except
+5. **Single Port**: All services accessible via port 8080 through nginx
+6. **Network Isolation**: Internal services (neo4j, redis) not exposed externally
 
 ---
 
 ## Integration Documentation
 
 - [basset-verify Integration](integration_basset-verify.md)
+- [Docker Network Setup](findings/DOCKER-NETWORK-SINGLE-PORT-2026-01-31.md)
 - [Integration Findings](findings/basset-verify-integration/)

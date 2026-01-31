@@ -1,0 +1,51 @@
+Docker Network Deployment Test Results
+=======================================
+Date: 2026-01-31
+Base URL: http://localhost:8080
+
+Test 1: Docker Network Exists
+PASS: basset-hound network exists
+
+Test 2: All Containers on Network
+PASS: basset_nginx connected to basset-hound network
+PASS: basset_api connected to basset-hound network
+PASS: basset_redis connected to basset-hound network
+PASS: neo4j_osint_db connected to basset-hound network
+PASS: basset_celery_worker connected to basset-hound network
+PASS: basset_celery_beat connected to basset-hound network
+
+Test 3: Single Port Entry (8080)
+PASS: Port 8080 exposed via nginx
+
+Test 4: Endpoints via Nginx Proxy
+PASS: /nginx-health returns 200, content: healthy
+PASS: /health returns 200, content: {"status":"healthy","version":"0.1.0","database":"connected"}
+PASS: /api returns 200, content: Basset Hound API
+PASS: /docs returns 200
+PASS: /redoc returns 200
+PASS: /openapi.json returns 200
+PASS: /neo4j/ returns 200
+
+Test 5: Internal Services Not Exposed (from main docker-compose.yml)
+PASS: Port 7474 not directly exposed (neo4j internal)
+PASS: Port 7687 not directly exposed (neo4j bolt internal)
+PASS: Port 6379 not directly exposed (redis internal)
+PASS: Port 8000 not directly exposed (basset_api internal)
+
+=======================================
+Summary: PASSED=17, FAILED=0
+RESULT: ALL TESTS PASSED
+
+Docker Container Status:
+NAME                   STATUS                   PORTS
+basset_nginx           healthy                  8080:8080
+basset_api             healthy                  (internal only)
+basset_redis           healthy                  (internal only)
+neo4j_osint_db         healthy                  (internal only)
+basset_celery_worker   running                  (internal only)
+basset_celery_beat     running                  (internal only)
+
+Network Configuration:
+- Network Name: basset-hound
+- Driver: bridge
+- External Port: 8080 (nginx only)

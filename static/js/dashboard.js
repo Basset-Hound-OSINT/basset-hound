@@ -1,7 +1,7 @@
 // dashboard.js - Entry point for the application
 
 import { fetchPeople } from './api.js';
-import { setupAddButtons, createPersonForm } from './ui-form-handlers.js';
+import { setupAddButtons, createPersonForm, setupEntityTypeModal } from './ui-form-handlers.js';
 import { renderPeopleList, setupSearch } from './ui-people-list.js';
 import { initTagModal } from './tag-handler.js';
 
@@ -25,6 +25,7 @@ async function initApp() {
         setupAddButtons();
         setupSearch(window.people);
         setupFormHandlers();
+        setupEntityTypeModal();
         initTagModal();
 
         // Setup download button
@@ -40,22 +41,11 @@ async function initApp() {
 }
 
 
-// Setup form handlers for adding new people
+// Setup form handlers for adding new entities
 function setupFormHandlers() {
-    // Add person button
-    const addPersonBtn = document.getElementById('add-person-btn');
-    if (addPersonBtn) {
-        addPersonBtn.addEventListener('click', function () {
-            const container = document.getElementById('person-form-container');
-            if (container) {
-                container.style.display = 'block';
-                document.getElementById('person-details').style.display = 'none';
-                createPersonForm(container, window.appConfig, null); // null = Add Mode
-            }
-        });
-    }
+    // Note: Add Entity button now uses modal via data-bs-toggle, handled by setupEntityTypeModal()
 
-    // Cancel add person
+    // Cancel add entity
     const cancelAdd = document.getElementById('cancel-add');
     if (cancelAdd) {
         cancelAdd.addEventListener('click', function () {
