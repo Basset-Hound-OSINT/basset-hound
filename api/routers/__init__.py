@@ -90,6 +90,10 @@ from .osint import router as osint_router
 from .suggestions import router as suggestions_router
 from .integrations import router as integrations_router
 from .mcp import router as mcp_router
+from .browser_actions import router as browser_actions_router
+from .cletus_integration import router as cletus_integration_router
+from .platforms import router as platforms_router
+from .accounts import router as accounts_router
 
 # Create main API router
 api_router = APIRouter()
@@ -155,6 +159,10 @@ api_router.include_router(verification_router)
 api_router.include_router(osint_router)
 api_router.include_router(suggestions_router)
 api_router.include_router(integrations_router)
+api_router.include_router(browser_actions_router)
+api_router.include_router(cletus_integration_router)
+api_router.include_router(platforms_router)
+api_router.include_router(accounts_router)
 
 __all__ = [
     "api_router",
@@ -217,4 +225,8 @@ __all__ = [
     "osint_router",
     "suggestions_router",
     "integrations_router",
+    "browser_actions_router",
+    "cletus_integration_router",
+    "platforms_router",
+    "accounts_router",
 ]

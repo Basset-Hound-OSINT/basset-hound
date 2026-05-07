@@ -1,8 +1,8 @@
 # Cletus Integration - News Aggregation Data Source
 
 **Date**: 2026-02-10
-**Integration Version**: Proposed (not yet implemented)
-**Status**: PLANNING
+**Integration Version**: 1.0 (Stream 9)
+**Status**: IMPLEMENTED (2026-05-06)
 
 ## Overview
 
@@ -135,8 +135,140 @@ GET /api/export/feed/atom           # Atom feed of reports
 3. Should Cletus expose a webhook/notification when new events are created, or is polling sufficient?
 4. What Basset Hound entity types best map to news events? (Existing types, or new custom types?)
 
+## Implementation Details (Stream 9)
+
+### Client: `api/clients/cletus_client.py`
+
+Async HTTP client for Cletus API with methods:
+
+```python
+class CletusClient:
+    async def health_check() -> bool
+    async def list_events(category, status, severity) -> List[Dict]
+    async def get_event(event_id) -> Dict
+    async def get_event_stats() -> Dict
+    async def search_events(query) -> List[Dict]
+    async def list_reports() -> List[Dict]
+    async def get_report(report_id) -> str
+    async def export_articles_json(category, limit) -> List[Dict]
+```
+
+Features:
+- Connection pooling via httpx.AsyncClient
+- Automatic reconnection with timeout handling
+- Graceful degradation on connection failure
+- Context manager for lifecycle management
+
+### Service: `api/services/cletus_ingestion.py`
+
+Maps Cletus events to basset-hound entities:
+
+```python
+class CletusIngestionService:
+    async def ingest_all_events() -> Dict[str, Any]
+    async def ingest_event(client, event) -> str
+    async def ingest_event_by_id(event_id) -> str
+```
+
+Entity Creation Strategy:
+- **NewsEvent**: Created as Person entity with "News Event Details" profile section
+  - Stores: title, summary, category, severity, status, keywords, timestamps
+  - Includes cletus_event_id for deduplication
+- **Category**: Created as Person entity (type="news_category")
+- **Organization**: Created as Person entity (type="organization")
+
+Relationship Types:
+- `IN_CATEGORY`: Event → Category
+- `INVOLVES`: Event → Organization (from sources_mentioned)
+- `SHARES_KEYWORDS`: Event → Event (bidirectional keyword overlap)
+
+### Router: `api/routers/cletus_integration.py`
+
+REST endpoints:
+
+```
+GET /api/v1/cletus/status              # Check Cletus health
+GET /api/v1/cletus/stats               # Get event statistics
+GET /api/v1/cletus/events              # List events with filters
+GET /api/v1/cletus/events/search?q=    # Search events
+GET /api/v1/cletus/events/{event_id}   # Get event details
+POST /api/v1/cletus/ingest             # Ingest all events
+POST /api/v1/cletus/ingest/{event_id}  # Ingest specific event
+```
+
+Query Parameters:
+- `project_safe_name` (required for ingest endpoints): Target project
+- `category` (optional): Filter by news category
+- `status` (optional): Filter by status (active, dormant, closed)
+- `severity` (optional): Filter by severity level
+- `q` (required for search): Search query
+
+Response Examples:
+
+Health Check:
+```json
+{
+  "status": "available",
+  "message": "Cletus is healthy and responding"
+}
+```
+
+Ingestion Results:
+```json
+{
+  "success": true,
+  "message": "Successfully ingested 42/45 events",
+  "total": 45,
+  "created": 42,
+  "errors": [
+    "Event evt_123: Missing required fields",
+    "Event evt_456: Organization creation failed"
+  ]
+}
+```
+
+### Configuration
+
+Environment variable `CLETUS_BASE_URL` (default: http://localhost:9000):
+
+```env
+CLETUS_BASE_URL=http://localhost:9000
+```
+
+### Testing
+
+Integration tests in `tests/integration/test_cletus_integration.py`:
+- Client initialization and configuration
+- Health checks and connectivity
+- Mock event ingestion
+- Entity and relationship creation
+- Organization extraction
+- Category handling
+
+Run with:
+```bash
+pytest tests/integration/test_cletus_integration.py -v
+```
+
 ## Notes
 - Cletus is designed as an information aggregation platform, NOT an information management platform
 - Comprehensive relationship management is explicitly out of Cletus's scope
 - The integration is one-directional: Basset Hound consumes from Cletus, not vice versa
 - Cletus will have its own lightweight timeline visualization (D3.js/vis.js) for the frontend, separate from Basset Hound's deep graph analysis
+
+## Future Enhancements
+
+Phase 9.1: Advanced Entity Extraction
+- NER-based extraction of people/entities from key_developments text
+- Linking extracted entities to existing project entities
+- Confidence scoring for mentions
+
+Phase 9.2: Temporal Analysis
+- Track entity connections over time as new events emerge
+- Detect temporal patterns (sudden spikes, correlations)
+- Timeline visualization of event evolution
+
+Phase 9.3: Webhook Support
+- Cletus → Basset Hound webhooks for real-time ingestion
+- Event stream processing with configurable debouncing
+- Automatic background ingestion of new events
