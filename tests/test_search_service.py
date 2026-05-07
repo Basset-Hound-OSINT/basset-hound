@@ -120,10 +120,12 @@ class TestSearchQuery:
         assert query.project_id is None
         assert query.entity_types is None
         assert query.fields is None
-        assert query.limit == 20
+        assert query.limit == 10  # Changed from 20 to 10 for pagination
         assert query.offset == 0
         assert query.fuzzy is True
         assert query.highlight is True
+        assert query.facets is True  # New field
+        assert query.facet_filters is None  # New field
 
     def test_search_query_limit_validation(self):
         """Test that limit is validated."""
@@ -247,7 +249,7 @@ class TestSearchServiceSearch:
         from api.services.search_service import SearchQuery
 
         query = SearchQuery(query="")
-        results, total = await search_service.search(query)
+        results, total, facets = await search_service.search(query)
 
         assert results == []
         assert total == 0
@@ -258,7 +260,7 @@ class TestSearchServiceSearch:
         from api.services.search_service import SearchQuery
 
         query = SearchQuery(query="   ")
-        results, total = await search_service.search(query)
+        results, total, facets = await search_service.search(query)
 
         assert results == []
         assert total == 0
@@ -269,7 +271,7 @@ class TestSearchServiceSearch:
         from api.services.search_service import SearchQuery
 
         query = SearchQuery(query="John")
-        results, total = await search_service.search(query)
+        results, total, facets = await search_service.search(query)
 
         # Should find entity-1 with "John" in name
         assert len(results) >= 1
@@ -282,7 +284,7 @@ class TestSearchServiceSearch:
         from api.services.search_service import SearchQuery
 
         query = SearchQuery(query="JOHN")
-        results, total = await search_service.search(query)
+        results, total, facets = await search_service.search(query)
 
         # Should still find entity-1
         entity_ids = [r.entity_id for r in results]
@@ -294,7 +296,7 @@ class TestSearchServiceSearch:
         from api.services.search_service import SearchQuery
 
         query = SearchQuery(query="John", project_id="project-1")
-        results, total = await search_service.search(query)
+        results, total, facets = await search_service.search(query)
 
         # All results should have the correct project_id
         for result in results:
@@ -306,7 +308,7 @@ class TestSearchServiceSearch:
         from api.services.search_service import SearchQuery
 
         query = SearchQuery(query="NonExistentSearchTerm12345", fuzzy=False)
-        results, total = await search_service.search(query)
+        results, total, facets = await search_service.search(query)
 
         assert len(results) == 0
         assert total == 0
@@ -355,7 +357,7 @@ class TestSearchServicePagination:
         from api.services.search_service import SearchQuery
 
         query = SearchQuery(query="test", limit=10)
-        results, total = await search_service.search(query)
+        results, total, facets = await search_service.search(query)
 
         assert len(results) <= 10
 
@@ -366,11 +368,11 @@ class TestSearchServicePagination:
 
         # First page
         query1 = SearchQuery(query="test", limit=5, offset=0)
-        results1, _ = await search_service.search(query1)
+        results1, _, _ = await search_service.search(query1)
 
         # Second page
         query2 = SearchQuery(query="test", limit=5, offset=5)
-        results2, _ = await search_service.search(query2)
+        results2, _, _ = await search_service.search(query2)
 
         # Results should be different
         ids1 = {r.entity_id for r in results1}
@@ -418,7 +420,7 @@ class TestSearchServiceHighlighting:
         from api.services.search_service import SearchQuery
 
         query = SearchQuery(query="John", highlight=True)
-        results, _ = await search_service.search(query)
+        results, _, _ = await search_service.search(query)
 
         if results:
             # Should have highlights
@@ -430,7 +432,7 @@ class TestSearchServiceHighlighting:
         from api.services.search_service import SearchQuery
 
         query = SearchQuery(query="John", highlight=False)
-        results, _ = await search_service.search(query)
+        results, _, _ = await search_service.search(query)
 
         # Highlights should be empty when disabled
         for result in results:
@@ -520,7 +522,7 @@ class TestSearchServiceFuzzy:
 
         # Search for "Michael" should find both "Michael" and "Micheal"
         query = SearchQuery(query="Michael", fuzzy=True)
-        results, total = await search_service.search(query)
+        results, total, facets = await search_service.search(query)
 
         entity_ids = [r.entity_id for r in results]
         # Should find exact match
@@ -532,7 +534,7 @@ class TestSearchServiceFuzzy:
         from api.services.search_service import SearchQuery
 
         query = SearchQuery(query="Michiel", fuzzy=False)  # Misspelling
-        results, total = await search_service.search(query)
+        results, total, facets = await search_service.search(query)
 
         # Without fuzzy, exact misspelling won't match
         # (actual behavior depends on implementation)
@@ -583,7 +585,7 @@ class TestSearchServiceFieldSpecific:
 
         # Search only in email field
         query = SearchQuery(query="john", fields=["email"])
-        results, _ = await search_service.search(query)
+        results, _, _ = await search_service.search(query)
 
         # Should find match in email
         if results:
@@ -596,7 +598,7 @@ class TestSearchServiceFieldSpecific:
         from api.services.search_service import SearchQuery
 
         query = SearchQuery(query="john", fields=["name", "email", "twitter"])
-        results, _ = await search_service.search(query)
+        results, _, _ = await search_service.search(query)
 
         # Should work with multiple field filters
         assert isinstance(results, list)
@@ -982,7 +984,7 @@ class TestSearchServiceMultiProject:
 
         # Search without project_id to search all
         query = SearchQuery(query="John", project_id=None)
-        results, total = await search_service.search(query)
+        results, total, facets = await search_service.search(query)
 
         # Should find results from both projects
         project_ids = {r.project_id for r in results}
@@ -995,7 +997,7 @@ class TestSearchServiceMultiProject:
 
         # Search only in project-1
         query = SearchQuery(query="John", project_id="project_one")
-        results, total = await search_service.search(query)
+        results, total, facets = await search_service.search(query)
 
         # All results should be from project-1
         for result in results:

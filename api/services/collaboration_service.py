@@ -300,10 +300,7 @@ class CollaborationService:
         self.offline_queue[queue_key].append(update)
 
         logger.info(
-            "offline_update_queued",
-            user=user,
-            project_id=project_id,
-            entity_id=entity_id,
+            f"offline_update_queued: user={user}, project_id={project_id}, entity_id={entity_id}"
         )
 
     # ===== Concurrent Edit Detection & Conflict Resolution =====
@@ -347,10 +344,7 @@ class CollaborationService:
                 )
                 self.conflicts[conflict.conflict_id] = conflict
                 logger.warning(
-                    "concurrent_edit_detected",
-                    entity_id=entity_id,
-                    user_1=lock_user,
-                    user_2=user,
+                    f"concurrent_edit_detected: entity_id={entity_id}, user_1={lock_user}, user_2={user}"
                 )
                 return conflict
 
@@ -390,10 +384,7 @@ class CollaborationService:
 
         conflict.resolved = True
         logger.info(
-            "conflict_resolved",
-            conflict_id=conflict.conflict_id,
-            entity_id=conflict.entity_id,
-            strategy=strategy.value,
+            f"conflict_resolved: conflict_id={conflict.conflict_id}, entity_id={conflict.entity_id}, strategy={strategy.value}"
         )
 
         return merged_data
@@ -474,7 +465,7 @@ class CollaborationService:
                 details=json.dumps(activity.details),
             )
         except Exception as e:
-            logger.error("failed_to_log_activity", error=str(e))
+            logger.error(f"failed_to_log_activity: {str(e)}")
 
         return activity
 
@@ -530,7 +521,7 @@ class CollaborationService:
                 activities.append(activity_data)
             return activities
         except Exception as e:
-            logger.error("failed_to_get_activity_feed", error=str(e))
+            logger.error(f"failed_to_get_activity_feed: {str(e)}")
             return []
 
     async def archive_old_activities(self, project_id: str, days: int = 30) -> int:
@@ -562,7 +553,7 @@ class CollaborationService:
             if result:
                 return result[0][0]
         except Exception as e:
-            logger.error("failed_to_archive_activities", error=str(e))
+            logger.error(f"failed_to_archive_activities: {str(e)}")
 
         return 0
 
@@ -660,7 +651,7 @@ class CollaborationService:
         presence_key = f"{project_id}:{user}"
         if presence_key in self.presence:
             del self.presence[presence_key]
-            logger.info("presence_removed", user=user, project_id=project_id)
+            logger.info(f"presence_removed: user={user}, project_id={project_id}")
             return True
         return False
 
@@ -677,7 +668,7 @@ class CollaborationService:
             if result:
                 return dict(result[0][0])
         except Exception as e:
-            logger.error("failed_to_get_entity_data", entity_id=entity_id, error=str(e))
+            logger.error(f"failed_to_get_entity_data: entity_id={entity_id}, error={str(e)}")
         return None
 
     async def release_entity_lock(self, entity_id: str, user: str) -> bool:
@@ -693,7 +684,7 @@ class CollaborationService:
         """
         if self.entity_locks.get(entity_id) == user:
             del self.entity_locks[entity_id]
-            logger.info("entity_lock_released", entity_id=entity_id, user=user)
+            logger.info(f"entity_lock_released: entity_id={entity_id}, user={user}")
             return True
         return False
 
@@ -717,7 +708,7 @@ class CollaborationService:
             del self.presence[key]
 
         if stale_keys:
-            logger.info("stale_presence_cleaned", count=len(stale_keys))
+            logger.info(f"stale_presence_cleaned: count={len(stale_keys)}")
 
         return len(stale_keys)
 

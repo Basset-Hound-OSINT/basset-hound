@@ -325,7 +325,7 @@ class TestSearchServiceAdvanced:
             advanced=True
         )
 
-        results, total = await search_service.search(query)
+        results, total, facets = await search_service.search(query)
 
         assert total >= 1
         # Should find person-1 with john.doe@gmail.com
@@ -340,7 +340,7 @@ class TestSearchServiceAdvanced:
             advanced=True
         )
 
-        results, total = await search_service.search(query)
+        results, total, facets = await search_service.search(query)
 
         # Should find person-1 (John with Gmail)
         assert any(r.entity_id == "person-1" for r in results)
@@ -354,7 +354,7 @@ class TestSearchServiceAdvanced:
             advanced=True
         )
 
-        results, total = await search_service.search(query)
+        results, total, facets = await search_service.search(query)
 
         # Should find both Gmail and example.com users
         assert total >= 2
@@ -368,7 +368,7 @@ class TestSearchServiceAdvanced:
             advanced=True
         )
 
-        results, total = await search_service.search(query)
+        results, total, facets = await search_service.search(query)
 
         # Should exclude person-1 (active suspect)
         # Should include person-3 (active contact)
@@ -385,7 +385,7 @@ class TestSearchServiceAdvanced:
             advanced=True
         )
 
-        results, total = await search_service.search(query)
+        results, total, facets = await search_service.search(query)
 
         # Should find person-1 and person-2 with 555 prefix
         assert total >= 2
@@ -402,7 +402,7 @@ class TestSearchServiceAdvanced:
             advanced=True
         )
 
-        results, total = await search_service.search(query)
+        results, total, facets = await search_service.search(query)
 
         # Should match "John"
         assert total >= 1
@@ -417,7 +417,7 @@ class TestSearchServiceAdvanced:
             advanced=True
         )
 
-        results, total = await search_service.search(query)
+        results, total, facets = await search_service.search(query)
 
         # Should find exact match for "John Doe"
         assert total >= 1
@@ -432,7 +432,7 @@ class TestSearchServiceAdvanced:
             advanced=True
         )
 
-        results, total = await search_service.search(query)
+        results, total, facets = await search_service.search(query)
 
         # Should find person-1 (active suspect)
         # Should NOT find person-2 (cleared person_of_interest)
@@ -449,7 +449,7 @@ class TestSearchServiceAdvanced:
             advanced=True
         )
 
-        results, total = await search_service.search(query)
+        results, total, facets = await search_service.search(query)
 
         # Should find person-1 (gmail, active)
         # Should NOT find person-2 (example.com, cleared)
@@ -465,7 +465,7 @@ class TestSearchServiceAdvanced:
             advanced=True
         )
 
-        results, total = await search_service.search(query)
+        results, total, facets = await search_service.search(query)
 
         assert total >= 1
         assert any(r.entity_id == "person-1" for r in results)
@@ -479,7 +479,7 @@ class TestSearchServiceAdvanced:
             advanced=True
         )
 
-        results, total = await search_service.search(query)
+        results, total, facets = await search_service.search(query)
 
         # Should find person-1, person-2 (555*) and person-3 (777*)
         assert total >= 2
@@ -496,7 +496,7 @@ class TestSearchServiceAdvanced:
             highlight=True
         )
 
-        results, total = await search_service.search(query)
+        results, total, facets = await search_service.search(query)
 
         if total > 0:
             # Check that highlights are generated
@@ -651,7 +651,7 @@ class TestEdgeCases:
             advanced=True
         )
 
-        results, total = await search_service.search(query)
+        results, total, facets = await search_service.search(query)
 
         # Should return no results for nonexistent field
         assert total == 0
@@ -664,7 +664,7 @@ class TestEdgeCases:
             advanced=True
         )
 
-        results, total = await search_service.search(query)
+        results, total, facets = await search_service.search(query)
 
         # Should search across all projects
         assert total >= 0
@@ -686,7 +686,7 @@ class TestEdgeCases:
             advanced=False  # Simple search
         )
 
-        results, total = await search_service.search(query)
+        results, total, facets = await search_service.search(query)
 
         # Should still work with simple search
         assert total >= 0
@@ -706,7 +706,7 @@ class TestAdvancedSearchIntegration:
             project_id="project-123",
             advanced=True
         )
-        results1, total1 = await search_service.search(query1)
+        results1, total1, _ = await search_service.search(query1)
         gmail_users = [r.entity_id for r in results1]
 
         assert len(gmail_users) >= 1
@@ -717,7 +717,7 @@ class TestAdvancedSearchIntegration:
             project_id="project-123",
             advanced=True
         )
-        results2, total2 = await search_service.search(query2)
+        results2, total2, _ = await search_service.search(query2)
         active_suspects = [r.entity_id for r in results2]
 
         # Step 3: Find Gmail users who are active suspects
@@ -726,7 +726,7 @@ class TestAdvancedSearchIntegration:
             project_id="project-123",
             advanced=True
         )
-        results3, total3 = await search_service.search(query3)
+        results3, total3, _ = await search_service.search(query3)
         gmail_active_suspects = [r.entity_id for r in results3]
 
         # Verify logical consistency
@@ -744,7 +744,7 @@ class TestAdvancedSearchIntegration:
             advanced=True
         )
 
-        results, total = await search_service.search(query)
+        results, total, facets = await search_service.search(query)
         entity_ids = [r.entity_id for r in results]
 
         # Should include person-3 (active contact)
@@ -761,7 +761,7 @@ class TestAdvancedSearchIntegration:
             advanced=True
         )
 
-        results, total = await search_service.search(query)
+        results, total, facets = await search_service.search(query)
 
         # Should find John Doe with Gmail
         assert any(r.entity_id == "person-1" for r in results)
@@ -776,7 +776,7 @@ class TestAdvancedSearchIntegration:
             advanced=True
         )
 
-        results, total = await search_service.search(query)
+        results, total, facets = await search_service.search(query)
 
         # Should find person-1, person-2 (555*) and person-3 (777*)
         assert total >= 2
@@ -815,7 +815,7 @@ class TestPerformance:
             advanced=True
         )
 
-        results, total = await search_service.search(query)
+        results, total, facets = await search_service.search(query)
 
         # Should complete without errors
         assert total >= 0
