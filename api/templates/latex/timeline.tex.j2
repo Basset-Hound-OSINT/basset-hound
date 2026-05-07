@@ -1,0 +1,47 @@
+\documentclass{report}
+\usepackage[utf-8]{inputenc}
+\usepackage[margin=1in]{geometry}
+\usepackage{hyperref}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{booktabs}
+
+\title{{{ title }}}
+\author{Basset Hound OSINT Report}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\section{Timeline}
+
+{% if events %}
+\textbf{Total Events:} {{ events|length }}
+
+{% if timeline_image %}
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.9\textwidth]{{{ timeline_image }}}
+\caption{Investigation timeline visualization}
+\end{figure}
+{% endif %}
+
+\subsection{Event Details}
+
+\begin{itemize}
+{% for event in events %}
+\item \textbf{{{ event.date | default('Unknown date') }}:} {{ event.description | default('No description') }}
+{% if event.details %}
+  \begin{itemize}
+  {% for detail_key, detail_value in event.details.items() %}
+    \item {{ detail_key }}: {{ detail_value }}
+  {% endfor %}
+  \end{itemize}
+{% endif %}
+{% endfor %}
+\end{itemize}
+{% else %}
+\textit{No timeline events found for this entity.}
+{% endif %}
+
+\end{document}

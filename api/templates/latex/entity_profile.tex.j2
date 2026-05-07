@@ -1,0 +1,80 @@
+\documentclass{report}
+\usepackage[utf-8]{inputenc}
+\usepackage[margin=1in]{geometry}
+\usepackage{hyperref}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{tcolorbox}
+\usepackage{tabularx}
+\usepackage{booktabs}
+
+\title{{{ title }}}
+\author{Basset Hound OSINT Report}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\section{{{ entity.name }}}
+
+\begin{tcolorbox}[colback=blue!5, title=Entity Profile]
+\textbf{Type:} {{ entity.entity_type }} \\
+\textbf{ID:} {{ entity.id }} \\
+{% if entity.created_at %}
+\textbf{Created:} {{ entity.created_at }} \\
+{% endif %}
+{% if entity.updated_at %}
+\textbf{Last Updated:} {{ entity.updated_at }}
+{% endif %}
+\end{tcolorbox}
+
+\subsection{Profile Data}
+
+{% if entity.profile %}
+{% for section_name, section_data in entity.profile.items() %}
+\subsubsection*{{{ section_name }}}
+\begin{tabular}{ll}
+\toprule
+Field & Value \\
+\midrule
+{% for field_name, field_value in section_data.items() %}
+{{ field_name | replace('_', ' ') }} & {{ field_value }} \\
+{% endfor %}
+\bottomrule
+\end{tabular}
+
+{% endfor %}
+{% else %}
+\textit{No profile data available}
+{% endif %}
+
+\subsection{Relationships}
+
+{% if entity.relationships %}
+\begin{itemize}
+{% for rel in entity.relationships %}
+\item \textbf{{{ rel.type | default('Related') }}} $\rightarrow$ {{ rel.target_name | default(rel.target_id) }}
+{% if rel.properties %}
+  \begin{itemize}
+  {% for prop_name, prop_value in rel.properties.items() %}
+  \item {{ prop_name }}: {{ prop_value }}
+  {% endfor %}
+  \end{itemize}
+{% endif %}
+{% endfor %}
+\end{itemize}
+{% else %}
+\textit{No relationships found}
+{% endif %}
+
+{% if network_image %}
+\subsection{Relationship Network}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.8\textwidth]{{{ network_image }}}
+\caption{Entity relationship network diagram}
+\end{figure}
+{% endif %}
+
+\end{document}

@@ -54,6 +54,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
     libmagic1 \
     curl \
+    texlive-latex-base \
+    texlive-latex-extra \
+    texlive-fonts-recommended \
+    texlive-pictures \
+    latexmk \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 

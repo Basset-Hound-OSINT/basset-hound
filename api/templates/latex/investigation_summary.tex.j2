@@ -1,0 +1,90 @@
+\documentclass{report}
+\usepackage[utf-8]{inputenc}
+\usepackage[margin=1in]{geometry}
+\usepackage{hyperref}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{tcolorbox}
+\usepackage{booktabs}
+
+\title{{{ title }}}
+\author{Basset Hound OSINT Report}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\chapter{Investigation Summary}
+
+\section*{BLUF (Bottom Line Up Front)}
+{% if entities|length > 1 %}
+This investigation involves {{ entities|length }} entities:
+\begin{itemize}
+{% for entity in entities %}
+\item {{ entity.name }} ({{ entity.entity_type }})
+{% endfor %}
+\end{itemize}
+{% elif entities|length == 1 %}
+This investigation focuses on: {{ entities[0].name }} ({{ entities[0].entity_type }})
+{% else %}
+No entities found in this investigation.
+{% endif %}
+
+\section{Key Entities}
+
+{% if entities %}
+{% for entity in entities %}
+\subsection{{{ entity.name }}}
+
+\textbf{Type:} {{ entity.entity_type }}
+
+\textbf{Key Information:}
+\begin{itemize}
+{% if entity.profile %}
+{% for section_name, section_data in entity.profile.items() %}
+  \item \textbf{{{ section_name }}:}
+  {% if section_data.items()|length > 0 %}
+    \begin{itemize}
+    {% for key, value in section_data.items() %}
+      \item {{ key }}: {{ value }}
+    {% endfor %}
+    \end{itemize}
+  {% else %}
+    No data
+  {% endif %}
+{% endfor %}
+{% else %}
+  \item No profile data available
+{% endif %}
+\end{itemize}
+
+{% endfor %}
+{% else %}
+No entities to display.
+{% endif %}
+
+\section{Relationship Summary}
+
+{{ relationship_summary }}
+
+\section{Entity Type Distribution}
+
+{% if entity_types %}
+The following entity types are included in this investigation:
+
+\begin{itemize}
+{% for etype, count in entity_types.items() %}
+\item {{ etype }}: {{ count }} entit{{ 'y' if count == 1 else 'ies' }}
+{% endfor %}
+\end{itemize}
+{% endif %}
+
+{% if distribution_image %}
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.7\textwidth]{{{ distribution_image }}}
+\caption{Distribution of entity types in this investigation}
+\end{figure}
+{% endif %}
+
+\end{document}

@@ -3,6 +3,8 @@ import { editPerson, deletePerson } from './ui-form-handlers.js';
 import { openTagModal } from './tag-handler.js'; // Add this import
 import { generateReport } from './report-handler.js'; // Add this import
 import { openFileExplorer } from './file_explorer.js';
+import { initRelationshipManager } from './relationship-manager.js';
+import { initMergeUI } from './merge-ui.js';
 
 export async function renderPersonDetails(container, person) {
     if (!person) {
@@ -160,6 +162,44 @@ export async function renderPersonDetails(container, person) {
     reportBtn.innerHTML = '<i class="fas fa-file-alt"></i> Report';
     reportBtn.addEventListener('click', () => generateReport(person.id));
     actionsCol.appendChild(reportBtn);
+
+    const pdfBtn = document.createElement('button');
+    pdfBtn.className = 'btn btn-success';
+    pdfBtn.id = 'download-pdf-btn';
+    pdfBtn.innerHTML = '<i class="fas fa-file-pdf"></i> PDF';
+    pdfBtn.addEventListener('click', async () => {
+        try {
+            pdfBtn.disabled = true;
+            pdfBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+
+            const projectName = window.currentProjectId || 'default';
+            const response = await fetch(
+                `/api/v1/projects/${projectName}/reports/pdf/entity/${person.id}`,
+                { method: 'POST' }
+            );
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            const blob = await response.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${person.id}_profile.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } catch (error) {
+            console.error('Error downloading PDF:', error);
+            alert(`Failed to download PDF: ${error.message}`);
+        } finally {
+            pdfBtn.disabled = false;
+            pdfBtn.innerHTML = '<i class="fas fa-file-pdf"></i> PDF';
+        }
+    });
+    actionsCol.appendChild(pdfBtn);
 
     const filesBtn = document.createElement('button');
     filesBtn.className = 'btn btn-secondary';
@@ -416,6 +456,13 @@ export async function renderPersonDetails(container, person) {
     await renderToolReportsSection(sectionsContainer, person.id);
     await renderTaggedPeopleSection(sectionsContainer, person.id);
     await renderTransitivePeopleSection(sectionsContainer, person.id);
+
+    // Initialize relationship manager for this entity
+    const projectName = window.currentProjectSafeName || 'default';
+    await initRelationshipManager(person.id, projectName);
+
+    // Initialize merge UI for duplicate detection
+    await initMergeUI(person.id, projectName);
 }
 
 async function renderTaggedPeopleSection(container, personId) {
