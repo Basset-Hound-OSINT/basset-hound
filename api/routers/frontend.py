@@ -32,8 +32,18 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent
 TEMPLATES_DIR = PROJECT_ROOT / "templates"
 STATIC_DIR = PROJECT_ROOT / "static"
 
-# Initialize Jinja2 templates
-templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+# Initialize Jinja2 templates with disabled cache to fix unhashable type error
+from jinja2 import Environment, FileSystemLoader
+from starlette.templating import Jinja2Templates as StarletteJinja2Templates
+
+# Custom Jinja2Templates that disables caching to fix unhashable type error
+class NoCacheJinja2Templates(StarletteJinja2Templates):
+    def __init__(self, directory):
+        super().__init__(directory=directory)
+        # Replace cache with a simple dict that doesn't have hashing issues
+        self.env.cache = {}
+
+templates = NoCacheJinja2Templates(directory=str(TEMPLATES_DIR))
 
 # Session state (in-memory for single-user local-first operation)
 # In production, this would use proper session management
@@ -71,7 +81,13 @@ async def index(request: Request):
 
     Renders the index template for selecting or creating projects.
     """
-    return templates.TemplateResponse("index.html", {"request": request})
+    try:
+        template = templates.get_template("index.html")
+        html = template.render(request=request)
+        return html
+    except Exception as e:
+        logger.error(f"Template rendering error: {e}")
+        return {"error": str(e)}
 
 
 @router.get("/map.html", response_class=HTMLResponse, name="map_page")
