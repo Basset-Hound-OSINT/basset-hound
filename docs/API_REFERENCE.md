@@ -20,8 +20,15 @@
 12. [Verification Endpoints](#verification-endpoints)
 13. [Webhook Endpoints](#webhook-endpoints)
 14. [WebSocket Endpoints](#websocket-endpoints)
-15. [Administrative Endpoints](#administrative-endpoints)
-16. [Error Codes](#error-codes)
+15. **[Phase 8 New Features](#phase-8-new-features)** (50+ endpoints)
+    - [Cache Management Endpoints](#cache-management-endpoints)
+    - [ML Analytics Endpoints](#ml-analytics-endpoints)
+    - [Real-Time Collaboration Endpoints](#real-time-collaboration-endpoints)
+    - [Plugin System Endpoints](#plugin-system-endpoints)
+    - [Export Endpoints](#export-endpoints)
+    - [Performance Metrics Endpoints](#performance-metrics-endpoints)
+16. [Administrative Endpoints](#administrative-endpoints)
+17. [Error Codes](#error-codes)
 
 ---
 
@@ -1456,6 +1463,517 @@ WS /ws/projects/{project_id}
 - `relationship_deleted`
 - `import_started`
 - `import_completed`
+
+---
+
+## Phase 8 New Features
+
+Phase 8 introduces 50+ new endpoints across 6 major feature areas. These endpoints are optional and controlled by feature flags in `.env`.
+
+### Cache Management Endpoints
+
+**View Cache Statistics**
+
+```
+GET /api/v1/cache/stats
+```
+
+**Response (200 OK)**
+
+```json
+{
+  "status": "success",
+  "data": {
+    "hit_rate": 0.62,
+    "miss_rate": 0.38,
+    "total_requests": 10000,
+    "total_hits": 6200,
+    "total_misses": 3800,
+    "memory_used_mb": 85,
+    "memory_limit_mb": 256,
+    "entries_count": 450,
+    "entries_max": 1000,
+    "avg_hit_latency_ms": 0.5,
+    "avg_miss_latency_ms": 45
+  }
+}
+```
+
+**Clear All Cache**
+
+```
+POST /api/v1/cache/clear
+```
+
+**Clear Specific Cache Key**
+
+```
+POST /api/v1/cache/clear/{key}
+```
+
+**Get Cache Hit Rate**
+
+```
+GET /api/v1/cache/hit-rate
+```
+
+**Warm Cache with Common Queries**
+
+```
+POST /api/v1/cache/warm
+```
+
+**List Cached Keys**
+
+```
+GET /api/v1/cache/keys?pattern=entity:*
+```
+
+### ML Analytics Endpoints
+
+**Find Duplicate Entities**
+
+```
+GET /api/v1/ml/duplicates?entity_id={id}&confidence_threshold=0.75&limit=10
+```
+
+**Response**
+
+```json
+{
+  "status": "success",
+  "data": {
+    "entity_id": "ent_123",
+    "duplicates": [
+      {
+        "id": "ent_456",
+        "name": "John Smith",
+        "similarity": 0.92,
+        "reason": "Same email domain and name similarity"
+      }
+    ]
+  }
+}
+```
+
+**Merge Duplicate Entities**
+
+```
+POST /api/v1/ml/duplicates/merge
+Content-Type: application/json
+
+{
+  "source_id": "ent_456",
+  "target_id": "ent_123",
+  "strategy": "merge_fields"
+}
+```
+
+**Predict Link Relationships**
+
+```
+GET /api/v1/ml/link-prediction?entity_id={id}&top_k=10
+```
+
+**Accept Predicted Link**
+
+```
+POST /api/v1/ml/link-prediction/accept
+Content-Type: application/json
+
+{
+  "source_id": "ent_123",
+  "target_id": "ent_456",
+  "relationship_type": "KNOWS",
+  "confidence": 0.85
+}
+```
+
+**Detect Communities**
+
+```
+GET /api/v1/ml/communities?project_id={id}&algorithm=louvain&min_size=3
+```
+
+**Detect Anomalies**
+
+```
+GET /api/v1/ml/anomalies?project_id={id}&threshold=0.7
+```
+
+**Extract ML Features**
+
+```
+POST /api/v1/ml/features/extract
+Content-Type: application/json
+
+{
+  "entity_id": "ent_123",
+  "feature_types": ["similarity", "embeddings", "network"]
+}
+```
+
+**Get ML Model Status**
+
+```
+GET /api/v1/ml/models/status
+```
+
+### Real-Time Collaboration Endpoints
+
+**Get Active Users in Project**
+
+```
+GET /api/v1/collaboration/presence?project_id={id}
+```
+
+**Response**
+
+```json
+{
+  "status": "success",
+  "data": {
+    "active_users": [
+      {
+        "user_id": "usr_123",
+        "name": "John Doe",
+        "status": "online",
+        "viewing_entity": "ent_456",
+        "last_action": "2026-05-07T12:00:00Z"
+      }
+    ]
+  }
+}
+```
+
+**Get Activity Feed**
+
+```
+GET /api/v1/collaboration/activity?project_id={id}&limit=50&offset=0
+```
+
+**Archive Old Activity**
+
+```
+POST /api/v1/collaboration/activity/archive
+Content-Type: application/json
+
+{
+  "project_id": "proj_123",
+  "older_than_minutes": 5
+}
+```
+
+**List Merge Conflicts**
+
+```
+GET /api/v1/collaboration/conflicts?project_id={id}
+```
+
+**Resolve Conflict**
+
+```
+POST /api/v1/collaboration/conflicts/resolve
+Content-Type: application/json
+
+{
+  "conflict_id": "conflict_123",
+  "resolution": "merge"
+}
+```
+
+**WebSocket Real-Time Sync**
+
+```
+WebSocket /ws/sync/{project_id}
+```
+
+Message format:
+```json
+{
+  "type": "entity_updated",
+  "entity_id": "ent_123",
+  "changes": {
+    "fields": {"email": "new@example.com"}
+  },
+  "user_id": "usr_456",
+  "timestamp": "2026-05-07T12:00:00Z"
+}
+```
+
+**Undo Operation (Collaborative)**
+
+```
+POST /api/v1/collaboration/undo
+Content-Type: application/json
+
+{
+  "project_id": "proj_123",
+  "operation_id": "op_789"
+}
+```
+
+### Plugin System Endpoints
+
+**List Available Plugins**
+
+```
+GET /api/v1/plugins
+```
+
+**Upload Custom Plugin**
+
+```
+POST /api/v1/plugins/upload
+Content-Type: multipart/form-data
+
+file: plugin.zip (max 5MB)
+```
+
+**Get Plugin Information**
+
+```
+GET /api/v1/plugins/{plugin_id}
+```
+
+**Install Plugin**
+
+```
+POST /api/v1/plugins/{plugin_id}/install
+```
+
+**Uninstall Plugin**
+
+```
+DELETE /api/v1/plugins/{plugin_id}
+```
+
+**Get Plugin Data**
+
+```
+GET /api/v1/plugins/{plugin_id}/data?start_date={date}&entity_type={type}
+```
+
+### Export Endpoints
+
+**Export as GraphML**
+
+```
+POST /api/v1/projects/{project_id}/export/graphml
+Content-Type: application/json
+
+{
+  "entity_types": ["Person"],
+  "tags": ["VIP"],
+  "include_properties": true
+}
+```
+
+**Export as CSV**
+
+```
+POST /api/v1/projects/{project_id}/export/csv
+Content-Type: application/json
+
+{
+  "filters": {
+    "created_after": "2026-01-01",
+    "entity_types": ["Person"]
+  },
+  "fields": ["id", "name", "email"],
+  "page": 1,
+  "limit": 1000
+}
+```
+
+**Export as JSON**
+
+```
+POST /api/v1/projects/{project_id}/export/json
+Content-Type: application/json
+
+{
+  "include_entities": true,
+  "include_relationships": true
+}
+```
+
+**Export as GeoJSON**
+
+```
+POST /api/v1/projects/{project_id}/export/geojson
+Content-Type: application/json
+
+{
+  "entity_type": "Location"
+}
+```
+
+**Export as PDF Report**
+
+```
+POST /api/v1/projects/{project_id}/export/pdf
+Content-Type: application/json
+
+{
+  "title": "Investigation Report",
+  "include_charts": true,
+  "include_metrics": true
+}
+```
+
+**Export Full Database Dump**
+
+```
+POST /api/v1/projects/{project_id}/export/database
+Content-Type: application/json
+
+{
+  "encrypt": true,
+  "password": "secure_password",
+  "compression": "gzip"
+}
+```
+
+### Performance Metrics Endpoints
+
+**Get Overall Performance Metrics**
+
+```
+GET /api/v1/metrics/performance
+```
+
+**Response**
+
+```json
+{
+  "status": "success",
+  "data": {
+    "cpu_usage_percent": 25.5,
+    "memory_usage_mb": 450,
+    "memory_available_mb": 8192,
+    "open_connections": 45,
+    "requests_per_second": 150,
+    "avg_response_time_ms": 45,
+    "p95_response_time_ms": 95,
+    "p99_response_time_ms": 120,
+    "cache_hit_rate": 0.62,
+    "api_errors_per_minute": 2,
+    "database_queries_per_minute": 200,
+    "uptime_minutes": 45280
+  }
+}
+```
+
+**Get Latency Distribution**
+
+```
+GET /api/v1/metrics/latency
+```
+
+**Get Request Throughput**
+
+```
+GET /api/v1/metrics/throughput
+```
+
+**Get Database Metrics**
+
+```
+GET /api/v1/metrics/database
+```
+
+**Get Memory Usage Statistics**
+
+```
+GET /api/v1/metrics/memory
+```
+
+**Get Query Performance Analysis**
+
+```
+GET /api/v1/queries/slow?limit=20
+```
+
+**Analyze Query Execution Plan**
+
+```
+POST /api/v1/queries/analyze
+Content-Type: application/json
+
+{
+  "query": "MATCH (p:Person) RETURN p LIMIT 10"
+}
+```
+
+**List Database Indexes**
+
+```
+GET /api/v1/indexes
+```
+
+**Analyze Index Usage**
+
+```
+POST /api/v1/indexes/analyze
+```
+
+### Search Optimization Endpoints
+
+**Full-Text Search with Advanced Operators**
+
+```
+GET /api/v1/search/full-text?q=query&limit=20
+```
+
+**Advanced Faceted Search**
+
+```
+GET /api/v1/search/advanced?entity_type=Person&tags=VIP&created_after=2026-01-01
+```
+
+**Entity Autocomplete**
+
+```
+GET /api/v1/search/autocomplete?q=john&limit=10
+```
+
+**Did You Mean (Fuzzy)**
+
+```
+GET /api/v1/search/did-you-mean?q=jon+smith
+```
+
+**Search Analytics**
+
+```
+GET /api/v1/search/analytics?days=30
+```
+
+**Rebuild Search Indexes**
+
+```
+POST /api/v1/search/index/build
+```
+
+**Get Available Facets**
+
+```
+GET /api/v1/search/facets
+```
+
+**Save Search for Later**
+
+```
+POST /api/v1/search/save
+Content-Type: application/json
+
+{
+  "name": "My Search",
+  "query": "...",
+  "filters": {...}
+}
+```
 
 ---
 

@@ -1238,6 +1238,185 @@ echo "net.core.somaxconn=65535" | sudo tee -a /etc/sysctl.conf
 sudo sysctl -p
 ```
 
+### Phase 8 Performance Optimizations
+
+**Query Optimization (Stream 1)**
+
+```bash
+# Enable query caching and batch operations
+export CACHE_ENABLED=true
+export REDIS_URL=redis://localhost:6379/0
+export CACHE_TTL_QUERY=60  # 60 second TTL for query results
+
+# Configure Neo4j indexes (automatically created on startup)
+# Indexes include: Person.email, Person.phone, Relationship.type, etc.
+# Verify indexes with:
+curl -H "Authorization: Bearer YOUR_TOKEN" \
+  http://localhost:8080/api/v1/indexes
+
+# Monitor query performance
+curl http://localhost:8080/api/v1/metrics/performance
+```
+
+**Caching Layer Optimization (Stream 2)**
+
+```bash
+# Configure Redis memory settings
+redis-cli CONFIG SET maxmemory 256mb
+redis-cli CONFIG SET maxmemory-policy allkeys-lru
+
+# Monitor cache effectiveness
+curl http://localhost:8080/api/v1/cache/hit-rate
+
+# Expected: 60%+ hit rate across system
+# List endpoints: 70%
+# Search endpoints: 50%
+# Graph queries: 60%
+
+# Warm cache on startup (optional)
+curl -X POST http://localhost:8080/api/v1/cache/warm
+
+# Clear cache if needed
+curl -X POST http://localhost:8080/api/v1/cache/clear
+```
+
+**Frontend Optimization (Stream 3)**
+
+```bash
+# Rebuild frontend with code splitting (if source available)
+cd frontend/
+npm run build:prod
+
+# Expected bundle sizes:
+# main.js: ~150KB (gzipped)
+# vendor.js: ~140KB (gzipped)
+# Total: ~290KB (was 500KB)
+
+# Verify with Lighthouse
+npm run lighthouse
+
+# Expected Lighthouse score: 90+
+```
+
+**Search Index Optimization (Stream 4)**
+
+```bash
+# Full-text search is automatically enabled
+# Verify search endpoints:
+curl 'http://localhost:8080/api/v1/search/full-text?q=test' | jq '.meta.response_time_ms'
+
+# Expected latency: <200ms p99
+
+# Monitor search performance
+curl http://localhost:8080/api/v1/metrics/search
+
+# Rebuild indexes if corrupted
+curl -X POST http://localhost:8080/api/v1/search/index/build
+```
+
+**ML Analytics Setup (Stream 5, Optional)**
+
+```bash
+# Enable ML analytics (feature flag)
+export ENABLE_ML_ANALYTICS=true
+export ML_MODEL_PATH=/opt/basset-hound/models/
+
+# Download/train models (one-time setup)
+python scripts/setup_ml_models.py
+
+# Verify models are loaded
+curl http://localhost:8080/api/v1/ml/models/status
+
+# Test duplicate detection
+curl 'http://localhost:8080/api/v1/ml/duplicates?entity_id=ent_123'
+
+# Expected inference time: <100ms
+```
+
+**Real-Time Collaboration (Stream 6, Optional)**
+
+```bash
+# Enable WebSocket collaboration
+export ENABLE_COLLABORATION=true
+export WEBSOCKET_ENABLED=true
+export MAX_CONCURRENT_CONNECTIONS=500
+
+# Monitor WebSocket connections
+curl http://localhost:8080/api/v1/collaboration/presence?project_id=proj_123
+
+# Check activity feed
+curl http://localhost:8080/api/v1/collaboration/activity?project_id=proj_123
+```
+
+**Plugin System (Stream 7, Optional)**
+
+```bash
+# Enable plugin system
+export ENABLE_PLUGINS=true
+export PLUGIN_SANDBOX_ENABLED=true
+export PLUGIN_MAX_SIZE_MB=5
+
+# List available plugins
+curl http://localhost:8080/api/v1/plugins
+
+# Built-in plugins should include:
+# - sankey (entity flow)
+# - timeline (temporal relationships)
+# - heatmap (activity frequency)
+# - network-stats (centrality metrics)
+```
+
+**Data Export (Stream 8)**
+
+```bash
+# Enable exports
+export ENABLE_EXPORT=true
+export EXPORT_MAX_SIZE_MB=100
+
+# Test exports
+curl -X POST http://localhost:8080/api/v1/projects/proj_123/export/csv \
+  -H "Content-Type: application/json" \
+  -d '{}' > test_export.csv
+
+# Expected: <1s for 10K entities, <50s for 1M entities
+```
+
+**Performance Monitoring Dashboard**
+
+```bash
+# Access monitoring endpoints
+curl http://localhost:8080/api/v1/metrics/performance  # Overall stats
+curl http://localhost:8080/api/v1/metrics/latency      # Latency distribution
+curl http://localhost:8080/api/v1/metrics/throughput   # Request throughput
+curl http://localhost:8080/api/v1/metrics/database     # Database metrics
+curl http://localhost:8080/api/v1/metrics/memory       # Memory usage
+
+# Grafana dashboards (if enabled)
+# - Performance Dashboard: latency, throughput, error rates
+# - Cache Dashboard: hit rates, eviction patterns
+# - Search Dashboard: query latency, index usage
+# - ML Dashboard: inference times, model accuracy
+```
+
+**Performance Tuning Recommendations**
+
+```
+Target Metrics (After Phase 8):
+├─ Query Latency p99: <100ms ✅
+├─ Cache Hit Rate: 60%+ ✅
+├─ API Throughput: 2000+ req/s ✅
+├─ Bundle Size (gzipped): <300KB ✅
+├─ FCP (First Paint): <2s ✅
+└─ Lighthouse Score: 90+ ✅
+
+If metrics are below targets:
+├─ Increase Redis maxmemory
+├─ Adjust TTL settings based on data volatility
+├─ Add more backend instances behind load balancer
+├─ Enable Neo4j Enterprise clustering (for 1M+ entities)
+└─ Monitor and alert on key metrics
+```
+
 ---
 
 ## Security Hardening

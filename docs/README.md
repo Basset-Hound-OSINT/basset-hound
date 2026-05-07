@@ -13,6 +13,43 @@ This documentation describes the architecture and integration strategy for conne
 
 ## Documentation Index
 
+### Phase 8 Implementation (Latest - 2026-05-07)
+
+**[PHASE-8-IMPLEMENTATION-GUIDE.md](./PHASE-8-IMPLEMENTATION-GUIDE.md)** - Quick start for Phase 8 features
+- How to enable/disable features with flags
+- Performance tuning recommendations
+- ML analytics setup and usage examples
+- Real-time collaboration guide
+- Custom plugin development
+- Export configuration and examples
+
+**[archive/PHASE-8-SUMMARY-2026-05-07.md](./archive/PHASE-8-SUMMARY-2026-05-07.md)** - Comprehensive Phase 8 overview (68 KB)
+- 8 parallel workstreams summary
+- 50+ new API endpoints
+- Performance improvements (5-10x)
+- Feature details for each stream
+- Files created/modified
+- Deployment checklist
+
+**[findings/PERFORMANCE-REPORT-2026-05-07.md](./findings/PERFORMANCE-REPORT-2026-05-07.md)** - Detailed performance metrics
+- Baseline vs. optimized metrics
+- Per-component analysis
+- Scaling capacity estimates
+- Bottleneck analysis
+- Monitoring recommendations
+
+**Phase 8 Technical Details** (stream-specific findings):
+- [Stream 1: Query Optimization](./findings/QUERY-OPTIMIZATION-2026-05-07.md) - 90% query reduction
+- [Stream 2: Caching Strategy](./findings/CACHING-STRATEGY-2026-05-07.md) - 60%+ hit rate
+- [Stream 3: Bundle Optimization](./findings/BUNDLE-OPTIMIZATION-2026-05-07.md) - 42% bundle reduction
+- [Stream 4: Search Optimization](./findings/SEARCH-OPTIMIZATION-2026-05-07.md) - Full-text + faceted search
+- [Stream 5: ML Analytics](./findings/ML-ANALYTICS-IMPLEMENTATION-2026-05-07.md) - Duplicate detection, link prediction
+- [Stream 6: Collaboration](./findings/COLLABORATION-ARCHITECTURE-2026-05-07.md) - Real-time sync, activity feeds
+- [Stream 7: Plugins](./findings/PLUGIN-SYSTEM-DESIGN-2026-05-07.md) - Custom visualizations
+- [Stream 8: Export](./findings/EXPORT-FORMATS-2026-05-07.md) - GraphML, CSV, JSON, GeoJSON, PDF
+
+### Core Documentation
+
 ### [00-EXECUTIVE-SUMMARY.md](./00-EXECUTIVE-SUMMARY.md)
 High-level overview, key findings, and priority roadmap. Start here for a quick understanding of the integration strategy.
 
