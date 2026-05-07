@@ -1278,7 +1278,8 @@ class CacheService:
         for direction in ["all", "incoming", "outgoing"]:
             key = self._relationship_key(project_id, entity_id, direction)
             # Cascade invalidate across L1 and L2
-            await self._cascade_invalidate(key, tags)
+            cascade_count = await self._cascade_invalidate(key, tags)
+            count += cascade_count
             # Also delete from main backend
             if await self._backend.delete(key):
                 count += 1

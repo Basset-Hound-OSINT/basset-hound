@@ -135,6 +135,152 @@
             "legendFormat": "{{method}} {{path}}"
           }
         ]
+      },
+      {
+        "id": 8,
+        "title": "Cache Hit Rate by Level",
+        "type": "graph",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 40
+        },
+        "targets": [
+          {
+            "expr": "basset_cache_hit_rate_percent",
+            "legendFormat": "{{cache_level}}"
+          }
+        ],
+        "alert": {
+          "name": "Low Cache Hit Rate",
+          "message": "Cache hit rate is below 20%",
+          "conditions": [
+            {
+              "evaluator": {
+                "type": "lt",
+                "params": [20]
+              },
+              "operator": {
+                "type": "and"
+              },
+              "query": {
+                "params": ["basset_cache_hit_rate_percent", "5m", "now"]
+              },
+              "type": "query"
+            }
+          ]
+        }
+      },
+      {
+        "id": 9,
+        "title": "Cache Items by Level",
+        "type": "graph",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 40
+        },
+        "targets": [
+          {
+            "expr": "basset_cache_items",
+            "legendFormat": "{{cache_level}}"
+          }
+        ]
+      },
+      {
+        "id": 10,
+        "title": "Cache Hits/Misses (L1 In-Memory)",
+        "type": "graph",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 48
+        },
+        "targets": [
+          {
+            "expr": "rate(basset_cache_hits_total{cache_level=\"l1\"}[1m])",
+            "legendFormat": "Hits/sec"
+          },
+          {
+            "expr": "rate(basset_cache_misses_total{cache_level=\"l1\"}[1m])",
+            "legendFormat": "Misses/sec"
+          }
+        ]
+      },
+      {
+        "id": 11,
+        "title": "Cache Hits/Misses (L2 Redis)",
+        "type": "graph",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 48
+        },
+        "targets": [
+          {
+            "expr": "rate(basset_cache_hits_total{cache_level=\"l2\"}[1m])",
+            "legendFormat": "Hits/sec"
+          },
+          {
+            "expr": "rate(basset_cache_misses_total{cache_level=\"l2\"}[1m])",
+            "legendFormat": "Misses/sec"
+          }
+        ]
+      },
+      {
+        "id": 12,
+        "title": "Cache Evictions by Reason",
+        "type": "graph",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 56
+        },
+        "targets": [
+          {
+            "expr": "rate(basset_cache_evictions_total[1m])",
+            "legendFormat": "{{cache_level}} - {{reason}}"
+          }
+        ]
+      },
+      {
+        "id": 13,
+        "title": "Cache Invalidations by Type",
+        "type": "graph",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 56
+        },
+        "targets": [
+          {
+            "expr": "rate(basset_cache_invalidations_total[1m])",
+            "legendFormat": "{{type}}"
+          }
+        ]
+      },
+      {
+        "id": 14,
+        "title": "Cache Size by Level",
+        "type": "graph",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 64
+        },
+        "targets": [
+          {
+            "expr": "basset_cache_size_bytes / 1024 / 1024",
+            "legendFormat": "{{cache_level}} (MB)"
+          }
+        ]
       }
     ],
     "refresh": "10s",

@@ -40,6 +40,49 @@ NEO4J_QUERY_LATENCY = Histogram(
     buckets=(0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0),
 )
 
+# Cache metrics (Stream 2: Caching Layer Enhancements)
+CACHE_HITS = Counter(
+    "basset_cache_hits_total",
+    "Total cache hits",
+    ["cache_level"],
+)
+
+CACHE_MISSES = Counter(
+    "basset_cache_misses_total",
+    "Total cache misses",
+    ["cache_level"],
+)
+
+CACHE_SIZE = Gauge(
+    "basset_cache_size_bytes",
+    "Current cache size in bytes",
+    ["cache_level"],
+)
+
+CACHE_ITEMS = Gauge(
+    "basset_cache_items",
+    "Number of items in cache",
+    ["cache_level"],
+)
+
+CACHE_EVICTION_RATE = Counter(
+    "basset_cache_evictions_total",
+    "Total cache evictions",
+    ["cache_level", "reason"],
+)
+
+CACHE_HIT_RATE = Gauge(
+    "basset_cache_hit_rate_percent",
+    "Cache hit rate percentage",
+    ["cache_level"],
+)
+
+CACHE_INVALIDATIONS = Counter(
+    "basset_cache_invalidations_total",
+    "Total cache invalidations",
+    ["type"],  # entity, relationship, query, cascade
+)
+
 
 class TimedMiddleware(BaseHTTPMiddleware):
     """
