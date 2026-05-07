@@ -1,5 +1,5 @@
-import J, { useState as ne, useCallback as z, useRef as ye, useEffect as le } from "react";
-function Wr(r) {
+import J, { useState as ne, useCallback as z, useRef as be, useEffect as le } from "react";
+function Ir(r) {
   return r && r.__esModule && Object.prototype.hasOwnProperty.call(r, "default") ? r.default : r;
 }
 var Oe = { exports: {} }, re = {};
@@ -13,18 +13,18 @@ var Oe = { exports: {} }, re = {};
  * LICENSE file in the root directory of this source tree.
  */
 var qe;
-function Nr() {
+function $r() {
   if (qe) return re;
   qe = 1;
   var r = J, n = Symbol.for("react.element"), s = Symbol.for("react.fragment"), i = Object.prototype.hasOwnProperty, o = r.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED.ReactCurrentOwner, u = { key: !0, ref: !0, __self: !0, __source: !0 };
-  function b(T, _, v) {
+  function y(T, _, v) {
     var l, f = {}, g = null, d = null;
     v !== void 0 && (g = "" + v), _.key !== void 0 && (g = "" + _.key), _.ref !== void 0 && (d = _.ref);
     for (l in _) i.call(_, l) && !u.hasOwnProperty(l) && (f[l] = _[l]);
     if (T && T.defaultProps) for (l in _ = T.defaultProps, _) f[l] === void 0 && (f[l] = _[l]);
     return { $$typeof: n, type: T, key: g, ref: d, props: f, _owner: o.current };
   }
-  return re.Fragment = s, re.jsx = b, re.jsxs = b, re;
+  return re.Fragment = s, re.jsx = y, re.jsxs = y, re;
 }
 var te = {};
 /**
@@ -37,13 +37,13 @@ var te = {};
  * LICENSE file in the root directory of this source tree.
  */
 var Xe;
-function Ir() {
+function Nr() {
   return Xe || (Xe = 1, process.env.NODE_ENV !== "production" && function() {
-    var r = J, n = Symbol.for("react.element"), s = Symbol.for("react.portal"), i = Symbol.for("react.fragment"), o = Symbol.for("react.strict_mode"), u = Symbol.for("react.profiler"), b = Symbol.for("react.provider"), T = Symbol.for("react.context"), _ = Symbol.for("react.forward_ref"), v = Symbol.for("react.suspense"), l = Symbol.for("react.suspense_list"), f = Symbol.for("react.memo"), g = Symbol.for("react.lazy"), d = Symbol.for("react.offscreen"), p = Symbol.iterator, y = "@@iterator";
+    var r = J, n = Symbol.for("react.element"), s = Symbol.for("react.portal"), i = Symbol.for("react.fragment"), o = Symbol.for("react.strict_mode"), u = Symbol.for("react.profiler"), y = Symbol.for("react.provider"), T = Symbol.for("react.context"), _ = Symbol.for("react.forward_ref"), v = Symbol.for("react.suspense"), l = Symbol.for("react.suspense_list"), f = Symbol.for("react.memo"), g = Symbol.for("react.lazy"), d = Symbol.for("react.offscreen"), p = Symbol.iterator, b = "@@iterator";
     function R(e) {
       if (e === null || typeof e != "object")
         return null;
-      var t = p && e[p] || e[y];
+      var t = p && e[p] || e[b];
       return typeof t == "function" ? t : null;
     }
     var j = r.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED;
@@ -64,10 +64,10 @@ function Ir() {
         k.unshift("Warning: " + t), Function.prototype.apply.call(console[e], console, k);
       }
     }
-    var $ = !1, F = !1, O = !1, x = !1, h = !1, B;
+    var W = !1, F = !1, O = !1, x = !1, h = !1, B;
     B = Symbol.for("react.module.reference");
-    function W(e) {
-      return !!(typeof e == "string" || typeof e == "function" || e === i || e === u || h || e === o || e === v || e === l || x || e === d || $ || F || O || typeof e == "object" && e !== null && (e.$$typeof === g || e.$$typeof === f || e.$$typeof === b || e.$$typeof === T || e.$$typeof === _ || // This needs to include all possible module reference object
+    function I(e) {
+      return !!(typeof e == "string" || typeof e == "function" || e === i || e === u || h || e === o || e === v || e === l || x || e === d || W || F || O || typeof e == "object" && e !== null && (e.$$typeof === g || e.$$typeof === f || e.$$typeof === y || e.$$typeof === T || e.$$typeof === _ || // This needs to include all possible module reference object
       // types supported by any Flight configuration anywhere since
       // we don't know which Flight build this will end up being used
       // with.
@@ -109,7 +109,7 @@ function Ir() {
           case T:
             var t = e;
             return we(t) + ".Consumer";
-          case b:
+          case y:
             var a = e;
             return we(a._context) + ".Provider";
           case _:
@@ -235,37 +235,37 @@ function Ir() {
           }), typeof Reflect == "object" && Reflect.construct) {
             try {
               Reflect.construct(C, []);
-            } catch (I) {
-              m = I;
+            } catch (N) {
+              m = N;
             }
             Reflect.construct(e, [], C);
           } else {
             try {
               C.call();
-            } catch (I) {
-              m = I;
+            } catch (N) {
+              m = N;
             }
             e.call(C.prototype);
           }
         } else {
           try {
             throw Error();
-          } catch (I) {
-            m = I;
+          } catch (N) {
+            m = N;
           }
           e();
         }
-      } catch (I) {
-        if (I && m && typeof I.stack == "string") {
-          for (var S = I.stack.split(`
-`), N = m.stack.split(`
-`), P = S.length - 1, L = N.length - 1; P >= 1 && L >= 0 && S[P] !== N[L]; )
+      } catch (N) {
+        if (N && m && typeof N.stack == "string") {
+          for (var S = N.stack.split(`
+`), $ = m.stack.split(`
+`), P = S.length - 1, L = $.length - 1; P >= 1 && L >= 0 && S[P] !== $[L]; )
             L--;
           for (; P >= 1 && L >= 0; P--, L--)
-            if (S[P] !== N[L]) {
+            if (S[P] !== $[L]) {
               if (P !== 1 || L !== 1)
                 do
-                  if (P--, L--, L < 0 || S[P] !== N[L]) {
+                  if (P--, L--, L < 0 || S[P] !== $[L]) {
                     var M = `
 ` + S[P].replace(" at new ", " at ");
                     return e.displayName && M.includes("<anonymous>") && (M = M.replace("<anonymous>", e.displayName)), typeof e == "function" && se.set(e, M), M;
@@ -316,13 +316,13 @@ function Ir() {
         }
       return "";
     }
-    var ee = Object.prototype.hasOwnProperty, Le = {}, $e = j.ReactDebugCurrentFrame;
+    var ee = Object.prototype.hasOwnProperty, Le = {}, We = j.ReactDebugCurrentFrame;
     function ae(e) {
       if (e) {
         var t = e._owner, a = ie(e.type, e._source, t ? t.type : null);
-        $e.setExtraStackFrame(a);
+        We.setExtraStackFrame(a);
       } else
-        $e.setExtraStackFrame(null);
+        We.setExtraStackFrame(null);
     }
     function mr(e, t, a, m, w) {
       {
@@ -332,8 +332,8 @@ function Ir() {
             var S = void 0;
             try {
               if (typeof e[C] != "function") {
-                var N = Error((m || "React class") + ": " + a + " type `" + C + "` is invalid; it must be a function, usually from the `prop-types` package, but received `" + typeof e[C] + "`.This often happens because of typos such as `PropTypes.function` instead of `PropTypes.func`.");
-                throw N.name = "Invariant Violation", N;
+                var $ = Error((m || "React class") + ": " + a + " type `" + C + "` is invalid; it must be a function, usually from the `prop-types` package, but received `" + typeof e[C] + "`.This often happens because of typos such as `PropTypes.function` instead of `PropTypes.func`.");
+                throw $.name = "Invariant Violation", $;
               }
               S = e[C](t, C, m, a, null, "SECRET_DO_NOT_PASS_THIS_OR_YOU_WILL_BE_FIRED");
             } catch (P) {
@@ -347,27 +347,27 @@ function Ir() {
     function ge(e) {
       return vr(e);
     }
-    function br(e) {
+    function yr(e) {
       {
         var t = typeof Symbol == "function" && Symbol.toStringTag, a = t && e[Symbol.toStringTag] || e.constructor.name || "Object";
         return a;
       }
     }
-    function yr(e) {
+    function br(e) {
       try {
-        return We(e), !1;
+        return Ie(e), !1;
       } catch {
         return !0;
       }
     }
-    function We(e) {
+    function Ie(e) {
       return "" + e;
     }
-    function Ne(e) {
-      if (yr(e))
-        return E("The provided key is an unsupported type %s. This value must be coerced to a string before before using it here.", br(e)), We(e);
+    function $e(e) {
+      if (br(e))
+        return E("The provided key is an unsupported type %s. This value must be coerced to a string before before using it here.", yr(e)), Ie(e);
     }
-    var Ie = j.ReactCurrentOwner, Er = {
+    var Ne = j.ReactCurrentOwner, Er = {
       key: !0,
       ref: !0,
       __self: !0,
@@ -390,7 +390,7 @@ function Ir() {
       return e.key !== void 0;
     }
     function Sr(e, t) {
-      typeof e.ref == "string" && Ie.current;
+      typeof e.ref == "string" && Ne.current;
     }
     function Or(e, t) {
       {
@@ -445,8 +445,8 @@ function Ir() {
     };
     function Rr(e, t, a, m, w) {
       {
-        var k, C = {}, S = null, N = null;
-        a !== void 0 && (Ne(a), S = "" + a), xr(t) && (Ne(t.key), S = "" + t.key), _r(t) && (N = t.ref, Sr(t, w));
+        var k, C = {}, S = null, $ = null;
+        a !== void 0 && ($e(a), S = "" + a), xr(t) && ($e(t.key), S = "" + t.key), _r(t) && ($ = t.ref, Sr(t, w));
         for (k in t)
           ee.call(t, k) && !Er.hasOwnProperty(k) && (C[k] = t[k]);
         if (e && e.defaultProps) {
@@ -454,11 +454,11 @@ function Ir() {
           for (k in P)
             C[k] === void 0 && (C[k] = P[k]);
         }
-        if (S || N) {
+        if (S || $) {
           var L = typeof e == "function" ? e.displayName || e.name || "Unknown" : e;
-          S && Or(C, L), N && Cr(C, L);
+          S && Or(C, L), $ && Cr(C, L);
         }
-        return wr(e, S, N, w, m, Ie.current, C);
+        return wr(e, S, $, w, m, Ne.current, C);
       }
     }
     var he = j.ReactCurrentOwner, ze = j.ReactDebugCurrentFrame;
@@ -574,12 +574,12 @@ Check the top-level render call using <` + a + ">.");
     var Ke = {};
     function Je(e, t, a, m, w, k) {
       {
-        var C = W(e);
+        var C = I(e);
         if (!C) {
           var S = "";
           (e === void 0 || typeof e == "object" && e !== null && Object.keys(e).length === 0) && (S += " You likely forgot to export your component from the file it's defined in, or you might have mixed up default and named imports.");
-          var N = jr();
-          N ? S += N : S += Ue();
+          var $ = jr();
+          $ ? S += $ : S += Ue();
           var P;
           e === null ? P = "null" : ge(e) ? P = "array" : e !== void 0 && e.$$typeof === n ? (P = "<" + (Y(e.type) || "Unknown") + " />", S = " Did you accidentally export a JSX literal instead of a component?") : P = typeof e, E("React.jsx: type is invalid -- expected a string (for built-in components) or a class/function (for composite components) but got: %s.%s", P, S);
         }
@@ -600,17 +600,17 @@ Check the top-level render call using <` + a + ">.");
               He(M, e);
         }
         if (ee.call(t, "key")) {
-          var K = Y(e), I = Object.keys(t).filter(function($r) {
-            return $r !== "key";
-          }), be = I.length > 0 ? "{key: someKey, " + I.join(": ..., ") + ": ...}" : "{key: someKey}";
-          if (!Ke[K + be]) {
-            var Lr = I.length > 0 ? "{" + I.join(": ..., ") + ": ...}" : "{}";
+          var K = Y(e), N = Object.keys(t).filter(function(Wr) {
+            return Wr !== "key";
+          }), ye = N.length > 0 ? "{key: someKey, " + N.join(": ..., ") + ": ...}" : "{key: someKey}";
+          if (!Ke[K + ye]) {
+            var Lr = N.length > 0 ? "{" + N.join(": ..., ") + ": ...}" : "{}";
             E(`A props object containing a "key" prop is being spread into JSX:
   let props = %s;
   <%s {...props} />
 React keys must be passed directly to JSX without using spread:
   let props = %s;
-  <%s key={someKey} {...props} />`, be, K, Lr, K), Ke[K + be] = !0;
+  <%s key={someKey} {...props} />`, ye, K, Lr, K), Ke[K + ye] = !0;
           }
         }
         return e === i ? Fr(L) : kr(L), L;
@@ -626,7 +626,7 @@ React keys must be passed directly to JSX without using spread:
     te.Fragment = i, te.jsx = Pr, te.jsxs = Br;
   }()), te;
 }
-process.env.NODE_ENV === "production" ? Oe.exports = Nr() : Oe.exports = Ir();
+process.env.NODE_ENV === "production" ? Oe.exports = $r() : Oe.exports = Nr();
 var c = Oe.exports;
 const Ze = {
   high: 0.9,
@@ -681,7 +681,7 @@ const Ze = {
   low: "ℹ️"
   // Info
 };
-function yt(r) {
+function bt(r) {
   return r >= Ze.high ? "high" : r >= Ze.medium ? "medium" : "low";
 }
 function zr(r) {
@@ -730,23 +730,21 @@ async function G(r, n = {}) {
 }
 async function Yr(r, n) {
   return G(
-    `/projects/${r}/entities/${n}/suggestions`
+    `/suggestions/entity/${n}`
   );
 }
 async function Gr(r, n) {
   return G(
-    `/projects/${r}/entities/${n}/suggestions/compute`,
+    `/suggestions/entity/${n}/refresh`,
     { method: "POST" }
   );
 }
 async function Hr(r, n, s, i) {
   return G(
-    `/projects/${r}/linking/dismiss`,
+    `/suggestions/${s}/dismiss?entity_id=${encodeURIComponent(n)}`,
     {
       method: "POST",
       body: JSON.stringify({
-        entity_id: n,
-        data_id: s,
         reason: i
       })
     }
@@ -754,7 +752,7 @@ async function Hr(r, n, s, i) {
 }
 async function Kr(r, n, s, i, o, u) {
   return G(
-    `/projects/${r}/linking/relationship`,
+    "/suggestions/linking/create-relationship",
     {
       method: "POST",
       body: JSON.stringify({
@@ -769,7 +767,7 @@ async function Kr(r, n, s, i, o, u) {
 }
 async function Jr(r, n, s, i, o) {
   return G(
-    `/projects/${r}/linking/merge`,
+    "/suggestions/linking/merge-entities",
     {
       method: "POST",
       body: JSON.stringify({
@@ -783,7 +781,7 @@ async function Jr(r, n, s, i, o) {
 }
 async function _t(r, n, s, i, o) {
   return G(
-    `/projects/${r}/linking/data`,
+    "/suggestions/linking/data-items",
     {
       method: "POST",
       body: JSON.stringify({
@@ -797,7 +795,7 @@ async function _t(r, n, s, i, o) {
 }
 async function xt(r, n, s, i) {
   return G(
-    `/projects/${r}/linking/orphan`,
+    "/suggestions/linking/orphan-to-entity",
     {
       method: "POST",
       body: JSON.stringify({
@@ -809,7 +807,7 @@ async function xt(r, n, s, i) {
   );
 }
 async function St(r) {
-  return G(`/projects/${r}/suggestions/summary`);
+  return G("/suggestions/summary");
 }
 const qr = {
   badge: {
@@ -854,10 +852,10 @@ function ue({
   showIcon: o = !0,
   className: u = ""
 }) {
-  const b = ar[r], T = Mr[r], _ = Vr[r], v = zr(r), l = cr(n), f = qr[s], g = {
-    backgroundColor: b.background,
-    color: b.text,
-    border: `1px solid ${b.border}`
+  const y = ar[r], T = Mr[r], _ = Vr[r], v = zr(r), l = cr(n), f = qr[s], g = {
+    backgroundColor: y.background,
+    color: y.text,
+    border: `1px solid ${y.border}`
   };
   return /* @__PURE__ */ c.jsxs(
     "span",
@@ -1012,10 +1010,10 @@ function Qr({
   onMerge: i,
   onViewProfile: o,
   isExpanded: u,
-  onExpandChange: b,
+  onExpandChange: y,
   className: T = ""
 }) {
-  const [_, v] = ne(!1), [l, f] = ne(""), [g, d] = ne(!1), p = u ?? _, y = b ?? v, R = ar[r.confidenceLevel], j = z(() => {
+  const [_, v] = ne(!1), [l, f] = ne(""), [g, d] = ne(!1), p = u ?? _, b = y ?? v, R = ar[r.confidenceLevel], j = z(() => {
     g && l.trim() ? (n == null || n(r, l.trim()), d(!1), f("")) : d(!0);
   }, [r, n, l, g]), E = z(() => {
     d(!1), f("");
@@ -1025,12 +1023,12 @@ function Qr({
     fuzzy_match: "Fuzzy Match",
     partial_match: "Partial Match",
     cross_entity: "Cross-Entity Match"
-  })[F] || F, $ = (F) => {
+  })[F] || F, W = (F) => {
     const O = /* @__PURE__ */ new Date(), x = new Date(F), h = O.getTime() - x.getTime(), B = Math.floor(h / 6e4);
     if (B < 60) return `${B} minute${B !== 1 ? "s" : ""} ago`;
-    const W = Math.floor(B / 60);
-    if (W < 24) return `${W} hour${W !== 1 ? "s" : ""} ago`;
-    const q = Math.floor(W / 24);
+    const I = Math.floor(B / 60);
+    if (I < 24) return `${I} hour${I !== 1 ? "s" : ""} ago`;
+    const q = Math.floor(I / 24);
     return `${q} day${q !== 1 ? "s" : ""} ago`;
   };
   return /* @__PURE__ */ c.jsxs(
@@ -1089,7 +1087,7 @@ function Qr({
           /* @__PURE__ */ c.jsxs(
             "button",
             {
-              onClick: () => y(!p),
+              onClick: () => b(!p),
               style: A.expandButton,
               children: [
                 /* @__PURE__ */ c.jsx("span", { children: "ℹ️" }),
@@ -1109,7 +1107,7 @@ function Qr({
             ] }),
             /* @__PURE__ */ c.jsxs("div", { style: A.lastUpdated, children: [
               "Last Updated: ",
-              $(r.updatedAt)
+              W(r.updatedAt)
             ] })
           ] }),
           g && /* @__PURE__ */ c.jsxs("div", { style: { marginTop: "12px" }, children: [
@@ -1211,22 +1209,22 @@ function tt() {
   function n(f, g) {
     return f === g && (f !== 0 || 1 / f === 1 / g) || f !== f && g !== g;
   }
-  var s = typeof Object.is == "function" ? Object.is : n, i = r.useState, o = r.useEffect, u = r.useLayoutEffect, b = r.useDebugValue;
+  var s = typeof Object.is == "function" ? Object.is : n, i = r.useState, o = r.useEffect, u = r.useLayoutEffect, y = r.useDebugValue;
   function T(f, g) {
-    var d = g(), p = i({ inst: { value: d, getSnapshot: g } }), y = p[0].inst, R = p[1];
+    var d = g(), p = i({ inst: { value: d, getSnapshot: g } }), b = p[0].inst, R = p[1];
     return u(
       function() {
-        y.value = d, y.getSnapshot = g, _(y) && R({ inst: y });
+        b.value = d, b.getSnapshot = g, _(b) && R({ inst: b });
       },
       [f, d, g]
     ), o(
       function() {
-        return _(y) && R({ inst: y }), f(function() {
-          _(y) && R({ inst: y });
+        return _(b) && R({ inst: b }), f(function() {
+          _(b) && R({ inst: b });
         });
       },
       [f]
-    ), b(d), d;
+    ), y(d), d;
   }
   function _(f) {
     var g = f.getSnapshot;
@@ -1264,22 +1262,22 @@ function nt() {
       l || o.startTransition === void 0 || (l = !0, console.error(
         "You are using an outdated, pre-release alpha of React 18 that does not support useSyncExternalStore. The use-sync-external-store shim will not work correctly. Upgrade to a newer pre-release."
       ));
-      var y = p();
+      var b = p();
       if (!f) {
         var R = p();
-        u(y, R) || (console.error(
+        u(b, R) || (console.error(
           "The result of getSnapshot should be cached to avoid an infinite loop"
         ), f = !0);
       }
-      R = b({
-        inst: { value: y, getSnapshot: p }
+      R = y({
+        inst: { value: b, getSnapshot: p }
       });
       var j = R[0].inst, E = R[1];
       return _(
         function() {
-          j.value = y, j.getSnapshot = p, s(j) && E({ inst: j });
+          j.value = b, j.getSnapshot = p, s(j) && E({ inst: j });
         },
-        [d, y, p]
+        [d, b, p]
       ), T(
         function() {
           return s(j) && E({ inst: j }), d(function() {
@@ -1287,14 +1285,14 @@ function nt() {
           });
         },
         [d]
-      ), v(y), y;
+      ), v(b), b;
     }
     function s(d) {
       var p = d.getSnapshot;
       d = d.value;
       try {
-        var y = p();
-        return !u(d, y);
+        var b = p();
+        return !u(d, b);
       } catch {
         return !0;
       }
@@ -1303,7 +1301,7 @@ function nt() {
       return p();
     }
     typeof __REACT_DEVTOOLS_GLOBAL_HOOK__ < "u" && typeof __REACT_DEVTOOLS_GLOBAL_HOOK__.registerInternalModuleStart == "function" && __REACT_DEVTOOLS_GLOBAL_HOOK__.registerInternalModuleStart(Error());
-    var o = J, u = typeof Object.is == "function" ? Object.is : r, b = o.useState, T = o.useEffect, _ = o.useLayoutEffect, v = o.useDebugValue, l = !1, f = !1, g = typeof window > "u" || typeof window.document > "u" || typeof window.document.createElement > "u" ? i : n;
+    var o = J, u = typeof Object.is == "function" ? Object.is : r, y = o.useState, T = o.useEffect, _ = o.useLayoutEffect, v = o.useDebugValue, l = !1, f = !1, g = typeof window > "u" || typeof window.document > "u" || typeof window.document.createElement > "u" ? i : n;
     xe.useSyncExternalStore = o.useSyncExternalStore !== void 0 ? o.useSyncExternalStore : g, typeof __REACT_DEVTOOLS_GLOBAL_HOOK__ < "u" && typeof __REACT_DEVTOOLS_GLOBAL_HOOK__.registerInternalModuleStop == "function" && __REACT_DEVTOOLS_GLOBAL_HOOK__.registerInternalModuleStop(Error());
   }()), xe;
 }
@@ -1328,29 +1326,29 @@ function ot() {
   function s(v, l) {
     return v === l && (v !== 0 || 1 / v === 1 / l) || v !== v && l !== l;
   }
-  var i = typeof Object.is == "function" ? Object.is : s, o = n.useSyncExternalStore, u = r.useRef, b = r.useEffect, T = r.useMemo, _ = r.useDebugValue;
+  var i = typeof Object.is == "function" ? Object.is : s, o = n.useSyncExternalStore, u = r.useRef, y = r.useEffect, T = r.useMemo, _ = r.useDebugValue;
   return Ee.useSyncExternalStoreWithSelector = function(v, l, f, g, d) {
     var p = u(null);
     if (p.current === null) {
-      var y = { hasValue: !1, value: null };
-      p.current = y;
-    } else y = p.current;
+      var b = { hasValue: !1, value: null };
+      p.current = b;
+    } else b = p.current;
     p = T(
       function() {
         function j(O) {
           if (!E) {
-            if (E = !0, D = O, O = g(O), d !== void 0 && y.hasValue) {
-              var x = y.value;
+            if (E = !0, D = O, O = g(O), d !== void 0 && b.hasValue) {
+              var x = b.value;
               if (d(x, O))
-                return $ = x;
+                return W = x;
             }
-            return $ = O;
+            return W = O;
           }
-          if (x = $, i(D, O)) return x;
+          if (x = W, i(D, O)) return x;
           var h = g(O);
-          return d !== void 0 && d(x, h) ? (D = O, x) : (D = O, $ = h);
+          return d !== void 0 && d(x, h) ? (D = O, x) : (D = O, W = h);
         }
-        var E = !1, D, $, F = f === void 0 ? null : f;
+        var E = !1, D, W, F = f === void 0 ? null : f;
         return [
           function() {
             return j(l());
@@ -1363,9 +1361,9 @@ function ot() {
       [l, f, g, d]
     );
     var R = o(v, p[0], p[1]);
-    return b(
+    return y(
       function() {
-        y.hasValue = !0, y.value = R;
+        b.hasValue = !0, b.value = R;
       },
       [R]
     ), _(R), R;
@@ -1388,30 +1386,30 @@ function st() {
       return v === l && (v !== 0 || 1 / v === 1 / l) || v !== v && l !== l;
     }
     typeof __REACT_DEVTOOLS_GLOBAL_HOOK__ < "u" && typeof __REACT_DEVTOOLS_GLOBAL_HOOK__.registerInternalModuleStart == "function" && __REACT_DEVTOOLS_GLOBAL_HOOK__.registerInternalModuleStart(Error());
-    var n = J, s = ur(), i = typeof Object.is == "function" ? Object.is : r, o = s.useSyncExternalStore, u = n.useRef, b = n.useEffect, T = n.useMemo, _ = n.useDebugValue;
+    var n = J, s = ur(), i = typeof Object.is == "function" ? Object.is : r, o = s.useSyncExternalStore, u = n.useRef, y = n.useEffect, T = n.useMemo, _ = n.useDebugValue;
     Se.useSyncExternalStoreWithSelector = function(v, l, f, g, d) {
       var p = u(null);
       if (p.current === null) {
-        var y = { hasValue: !1, value: null };
-        p.current = y;
-      } else y = p.current;
+        var b = { hasValue: !1, value: null };
+        p.current = b;
+      } else b = p.current;
       p = T(
         function() {
           function j(O) {
             if (!E) {
-              if (E = !0, D = O, O = g(O), d !== void 0 && y.hasValue) {
-                var x = y.value;
+              if (E = !0, D = O, O = g(O), d !== void 0 && b.hasValue) {
+                var x = b.value;
                 if (d(x, O))
-                  return $ = x;
+                  return W = x;
               }
-              return $ = O;
+              return W = O;
             }
-            if (x = $, i(D, O))
+            if (x = W, i(D, O))
               return x;
             var h = g(O);
-            return d !== void 0 && d(x, h) ? (D = O, x) : (D = O, $ = h);
+            return d !== void 0 && d(x, h) ? (D = O, x) : (D = O, W = h);
           }
-          var E = !1, D, $, F = f === void 0 ? null : f;
+          var E = !1, D, W, F = f === void 0 ? null : f;
           return [
             function() {
               return j(l());
@@ -1424,9 +1422,9 @@ function st() {
         [l, f, g, d]
       );
       var R = o(v, p[0], p[1]);
-      return b(
+      return y(
         function() {
-          y.hasValue = !0, y.value = R;
+          b.hasValue = !0, b.value = R;
         },
         [R]
       ), _(R), R;
@@ -1435,7 +1433,7 @@ function st() {
 }
 process.env.NODE_ENV === "production" ? Ce.exports = ot() : Ce.exports = st();
 var it = Ce.exports;
-const at = /* @__PURE__ */ Wr(it), lr = {}, { useDebugValue: ct } = J, { useSyncExternalStoreWithSelector: ut } = at;
+const at = /* @__PURE__ */ Ir(it), lr = {}, { useDebugValue: ct } = J, { useSyncExternalStoreWithSelector: ut } = at;
 let sr = !1;
 const lt = (r) => r;
 function dt(r, n = lt, s) {
@@ -1512,7 +1510,7 @@ const ir = (r) => {
       return {
         suggestions: {
           ...o.suggestions,
-          [s]: u.filter((b) => b.id !== i)
+          [s]: u.filter((y) => y.id !== i)
         },
         // Update summary counts
         summaries: {
@@ -1534,7 +1532,7 @@ const ir = (r) => {
         suggestions: {
           ...o.suggestions,
           [s]: u.map(
-            (b) => b.id === i && b.status === "pending" ? { ...b, status: "viewed" } : b
+            (y) => y.id === i && y.status === "pending" ? { ...y, status: "viewed" } : y
           )
         }
       };
@@ -1575,9 +1573,9 @@ const ir = (r) => {
       case "data_linked":
       case "orphan_linked":
         o.affectedEntities && o.affectedEntities.forEach((u) => {
-          r((b) => ({
-            suggestions: { ...b.suggestions, [u]: [] },
-            summaries: { ...b.summaries, [u]: void 0 }
+          r((y) => ({
+            suggestions: { ...y.suggestions, [u]: [] },
+            summaries: { ...y.summaries, [u]: void 0 }
           }));
         });
         break;
@@ -1597,16 +1595,16 @@ function vt({
   reconnectDelay: i = 1e3,
   maxReconnectAttempts: o = 5
 }) {
-  const u = ye(null), b = ye(0), T = ye(null), [_, v] = ne("disconnected"), [l, f] = ne(null), g = U((E) => E.handleWebSocketEvent), d = z(() => {
-    var $;
-    if ((($ = u.current) == null ? void 0 : $.readyState) === WebSocket.OPEN)
+  const u = be(null), y = be(0), T = be(null), [_, v] = ne("disconnected"), [l, f] = ne(null), g = U((E) => E.handleWebSocketEvent), d = z(() => {
+    var W;
+    if (((W = u.current) == null ? void 0 : W.readyState) === WebSocket.OPEN)
       return;
     v("connecting"), f(null);
     const D = `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/api/v1/ws/suggestions/${r}`;
     try {
       const F = new WebSocket(D);
       u.current = F, F.onopen = () => {
-        v("connected"), b.current = 0, console.log(`[WebSocket] Connected to ${D}`);
+        v("connected"), y.current = 0, console.log(`[WebSocket] Connected to ${D}`);
       }, F.onmessage = (O) => {
         try {
           const x = JSON.parse(O.data);
@@ -1629,10 +1627,10 @@ function vt({
       }, F.onerror = (O) => {
         console.error("[WebSocket] Error:", O), v("error"), f("WebSocket connection error");
       }, F.onclose = (O) => {
-        if (console.log(`[WebSocket] Closed: ${O.code} ${O.reason}`), v("disconnected"), u.current = null, s && b.current < o) {
-          const x = i * Math.pow(2, b.current);
+        if (console.log(`[WebSocket] Closed: ${O.code} ${O.reason}`), v("disconnected"), u.current = null, s && y.current < o) {
+          const x = i * Math.pow(2, y.current);
           console.log(`[WebSocket] Reconnecting in ${x}ms...`), T.current = window.setTimeout(() => {
-            b.current += 1, d();
+            y.current += 1, d();
           }, x);
         }
       };
@@ -1641,7 +1639,7 @@ function vt({
     }
   }, [r, s, i, o, g, n]), p = z(() => {
     T.current && (window.clearTimeout(T.current), T.current = null), u.current && (u.current.close(1e3, "Client disconnect"), u.current = null), v("disconnected");
-  }, []), y = z(() => {
+  }, []), b = z(() => {
     var E;
     ((E = u.current) == null ? void 0 : E.readyState) === WebSocket.OPEN && u.current.send(JSON.stringify({ type: "ping" }));
   }, []), R = z((E) => {
@@ -1662,14 +1660,14 @@ function vt({
     );
   }, []);
   return le(() => (d(), () => p()), [d, p]), le(() => {
-    const E = window.setInterval(y, 3e4);
+    const E = window.setInterval(b, 3e4);
     return () => window.clearInterval(E);
-  }, [y]), {
+  }, [b]), {
     state: _,
     error: l,
     connect: d,
     disconnect: p,
-    ping: y,
+    ping: b,
     subscribeToEntity: R,
     unsubscribeFromEntity: j
   };
@@ -1758,24 +1756,24 @@ function Ot({
   onViewEntity: s,
   className: i = ""
 }) {
-  const o = U(pt(n)), u = U(gt(n)), b = U(ht(n)), T = U(mt(n)), _ = U((h) => h.fetchSuggestions), v = U((h) => h.refreshSuggestions), l = U((h) => h.dismissSuggestion), f = U((h) => h.clearError), g = U((h) => h.setExpandedSuggestion), d = U((h) => h.expandedSuggestionId), { state: p, subscribeToEntity: y, unsubscribeFromEntity: R } = vt({
+  const o = U(pt(n)), u = U(gt(n)), y = U(ht(n)), T = U(mt(n)), _ = U((h) => h.fetchSuggestions), v = U((h) => h.refreshSuggestions), l = U((h) => h.dismissSuggestion), f = U((h) => h.clearError), g = U((h) => h.setExpandedSuggestion), d = U((h) => h.expandedSuggestionId), { state: p, subscribeToEntity: b, unsubscribeFromEntity: R } = vt({
     projectId: r
   });
   le(() => {
     _(r, n);
   }, [r, n, _]), le(() => {
     if (p === "connected")
-      return y(n), () => R(n);
-  }, [p, n, y, R]);
+      return b(n), () => R(n);
+  }, [p, n, b, R]);
   const j = z(() => {
     v(r, n);
   }, [r, n, v]), E = z(
     async (h, B) => {
       try {
-        const W = h.matchedOrphanId || h.id;
-        await Hr(r, n, W, B), l(n, h.id);
-      } catch (W) {
-        console.error("Failed to dismiss suggestion:", W);
+        const I = h.matchedOrphanId || h.id;
+        await Hr(r, n, I, B), l(n, h.id);
+      } catch (I) {
+        console.error("Failed to dismiss suggestion:", I);
       }
     },
     [r, n, l]
@@ -1792,18 +1790,18 @@ function Ot({
             "RELATED_TO",
             B
           ), l(n, h.id);
-        } catch (W) {
-          console.error("Failed to link entities:", W);
+        } catch (I) {
+          console.error("Failed to link entities:", I);
         }
     },
     [r, n, l]
-  ), $ = z(
+  ), W = z(
     async (h) => {
       if (!h.matchedEntityId || !confirm(
         "This will merge these two entities. This action cannot be undone. Continue?"
       )) return;
-      const W = prompt("Reason for merging these entities:");
-      if (W)
+      const I = prompt("Reason for merging these entities:");
+      if (I)
         try {
           await Jr(
             r,
@@ -1811,7 +1809,7 @@ function Ot({
             h.matchedEntityId,
             n,
             // Keep current entity
-            W
+            I
           ), l(n, h.id), j();
         } catch (q) {
           console.error("Failed to merge entities:", q);
@@ -1897,14 +1895,14 @@ function Ot({
           "button",
           {
             onClick: j,
-            disabled: b,
+            disabled: y,
             style: {
               ...V.refreshButton,
-              opacity: b ? 0.5 : 1,
-              cursor: b ? "not-allowed" : "pointer"
+              opacity: y ? 0.5 : 1,
+              cursor: y ? "not-allowed" : "pointer"
             },
             children: [
-              /* @__PURE__ */ c.jsx("span", { style: { transform: b ? "rotate(360deg)" : "none" }, children: "🔄" }),
+              /* @__PURE__ */ c.jsx("span", { style: { transform: y ? "rotate(360deg)" : "none" }, children: "🔄" }),
               /* @__PURE__ */ c.jsx("span", { children: "Refresh" })
             ]
           }
@@ -1931,8 +1929,8 @@ function Ot({
       )
     ] }),
     /* @__PURE__ */ c.jsxs("div", { style: V.body, children: [
-      b && o.length === 0 && /* @__PURE__ */ c.jsx("div", { style: V.loading, children: /* @__PURE__ */ c.jsx("span", { children: "Loading suggestions..." }) }),
-      !b && o.length === 0 && /* @__PURE__ */ c.jsxs("div", { style: V.empty, children: [
+      y && o.length === 0 && /* @__PURE__ */ c.jsx("div", { style: V.loading, children: /* @__PURE__ */ c.jsx("span", { children: "Loading suggestions..." }) }),
+      !y && o.length === 0 && /* @__PURE__ */ c.jsxs("div", { style: V.empty, children: [
         /* @__PURE__ */ c.jsx("div", { style: V.emptyIcon, children: "✓" }),
         /* @__PURE__ */ c.jsx("div", { style: { fontWeight: 500, marginBottom: "8px" }, children: "No suggestions found" }),
         /* @__PURE__ */ c.jsx("div", { style: { fontSize: "13px" }, children: "This entity has no pending match suggestions." })
@@ -1943,7 +1941,7 @@ function Ot({
           suggestion: h,
           onDismiss: E,
           onLink: D,
-          onMerge: $,
+          onMerge: W,
           onViewProfile: F,
           isExpanded: d === h.id,
           onExpandChange: (B) => g(B ? h.id : null)
@@ -1970,7 +1968,7 @@ export {
   cr as formatConfidence,
   Et as getConfidenceClasses,
   zr as getConfidenceLabel,
-  yt as getConfidenceLevel,
+  bt as getConfidenceLevel,
   _t as linkDataItems,
   Kr as linkEntities,
   xt as linkOrphanToEntity,

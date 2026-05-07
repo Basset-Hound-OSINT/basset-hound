@@ -34,11 +34,11 @@ async function fetchApi<T>(
  * Fetch suggestions for an entity
  */
 export async function fetchEntitySuggestions(
-  projectId: string,
+  _projectId: string,
   entityId: string
 ): Promise<SuggestionsResponse> {
   return fetchApi<SuggestionsResponse>(
-    `/projects/${projectId}/entities/${entityId}/suggestions`
+    `/suggestions/entity/${entityId}`
   );
 }
 
@@ -46,11 +46,11 @@ export async function fetchEntitySuggestions(
  * Compute fresh suggestions for an entity
  */
 export async function computeSuggestions(
-  projectId: string,
+  _projectId: string,
   entityId: string
 ): Promise<SuggestionsResponse> {
   return fetchApi<SuggestionsResponse>(
-    `/projects/${projectId}/entities/${entityId}/suggestions/compute`,
+    `/suggestions/entity/${entityId}/refresh`,
     { method: 'POST' }
   );
 }
@@ -59,18 +59,16 @@ export async function computeSuggestions(
  * Dismiss a suggestion
  */
 export async function dismissSuggestion(
-  projectId: string,
+  _projectId: string,
   entityId: string,
-  dataId: string,
+  suggestionId: string,
   reason: string
 ): Promise<ActionResult> {
   return fetchApi<ActionResult>(
-    `/projects/${projectId}/linking/dismiss`,
+    `/suggestions/${suggestionId}/dismiss?entity_id=${encodeURIComponent(entityId)}`,
     {
       method: 'POST',
       body: JSON.stringify({
-        entity_id: entityId,
-        data_id: dataId,
         reason,
       }),
     }
@@ -81,7 +79,7 @@ export async function dismissSuggestion(
  * Link two entities
  */
 export async function linkEntities(
-  projectId: string,
+  _projectId: string,
   entityId1: string,
   entityId2: string,
   relationshipType: string,
@@ -89,7 +87,7 @@ export async function linkEntities(
   confidence?: string
 ): Promise<ActionResult> {
   return fetchApi<ActionResult>(
-    `/projects/${projectId}/linking/relationship`,
+    `/suggestions/linking/create-relationship`,
     {
       method: 'POST',
       body: JSON.stringify({
@@ -107,14 +105,14 @@ export async function linkEntities(
  * Merge two entities
  */
 export async function mergeEntities(
-  projectId: string,
+  _projectId: string,
   entityId1: string,
   entityId2: string,
   keepEntityId: string,
   reason: string
 ): Promise<ActionResult> {
   return fetchApi<ActionResult>(
-    `/projects/${projectId}/linking/merge`,
+    `/suggestions/linking/merge-entities`,
     {
       method: 'POST',
       body: JSON.stringify({
@@ -131,14 +129,14 @@ export async function mergeEntities(
  * Link data items
  */
 export async function linkDataItems(
-  projectId: string,
+  _projectId: string,
   dataId1: string,
   dataId2: string,
   reason: string,
   confidence?: number
 ): Promise<ActionResult> {
   return fetchApi<ActionResult>(
-    `/projects/${projectId}/linking/data`,
+    `/suggestions/linking/data-items`,
     {
       method: 'POST',
       body: JSON.stringify({
@@ -155,13 +153,13 @@ export async function linkDataItems(
  * Link orphan to entity
  */
 export async function linkOrphanToEntity(
-  projectId: string,
+  _projectId: string,
   orphanId: string,
   entityId: string,
   reason: string
 ): Promise<ActionResult> {
   return fetchApi<ActionResult>(
-    `/projects/${projectId}/linking/orphan`,
+    `/suggestions/linking/orphan-to-entity`,
     {
       method: 'POST',
       body: JSON.stringify({
@@ -177,7 +175,7 @@ export async function linkOrphanToEntity(
  * Fetch suggestion summary for multiple entities
  */
 export async function fetchProjectSuggestionsSummary(
-  projectId: string
+  _projectId: string
 ): Promise<{ entities: Array<{ entityId: string; summary: { totalCount: number; highConfidenceCount: number } }> }> {
-  return fetchApi(`/projects/${projectId}/suggestions/summary`);
+  return fetchApi(`/suggestions/summary`);
 }
