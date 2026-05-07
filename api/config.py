@@ -191,6 +191,12 @@ class Settings(BaseSettings):
         description="Maximum number of templates to store in memory"
     )
 
+    # ML Analytics Feature Flag (Phase 8, Stream 5)
+    enable_ml_analytics: bool = Field(
+        default=True,
+        description="Enable/disable ML analytics features (feature engineering, duplicate detection, etc.)"
+    )
+
     # MLAnalytics memory limits - ARCHIVED (2026-01-13)
     # These settings were for the ML analytics service which has been moved to
     # archive/out-of-scope-ml/ as it's out of scope for the storage layer.

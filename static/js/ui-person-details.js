@@ -3,9 +3,8 @@ import { editPerson, deletePerson } from './ui-form-handlers.js';
 import { openTagModal } from './tag-handler.js'; // Add this import
 import { generateReport } from './report-handler.js'; // Add this import
 import { openFileExplorer } from './file_explorer.js';
-import { initRelationshipManager } from './relationship-manager.js';
-import { initMergeUI } from './merge-ui.js';
-import { initAccountManager } from './account-manager.js';
+// OPTIMIZED: Lazy-load heavy modules (relationship, merge, account managers)
+// These are loaded on-demand when person details are shown
 
 export async function renderPersonDetails(container, person) {
     if (!person) {
@@ -458,15 +457,17 @@ export async function renderPersonDetails(container, person) {
     await renderTaggedPeopleSection(sectionsContainer, person.id);
     await renderTransitivePeopleSection(sectionsContainer, person.id);
 
-    // Initialize relationship manager for this entity
+    // OPTIMIZED: Lazy-load heavy UI modules
     const projectName = window.currentProjectSafeName || 'default';
-    await initRelationshipManager(person.id, projectName);
 
-    // Initialize account manager for this entity
-    await initAccountManager(person.id, projectName);
-
-    // Initialize merge UI for duplicate detection
-    await initMergeUI(person.id, projectName);
+    // Load managers asynchronously without blocking render
+    Promise.all([
+        import('./relationship-manager.js').then(module => module.initRelationshipManager(person.id, projectName)),
+        import('./account-manager.js').then(module => module.initAccountManager(person.id, projectName)),
+        import('./merge-ui.js').then(module => module.initMergeUI(person.id, projectName))
+    ]).catch(error => {
+        console.warn('Some managers failed to load:', error);
+    });
 }
 
 async function renderTaggedPeopleSection(container, personId) {

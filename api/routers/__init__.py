@@ -64,11 +64,7 @@ from .websocket import router as websocket_router
 from api.websocket.suggestion_events import router as suggestion_ws_router
 from .report_storage import router as report_storage_router
 from .marketplace import router as marketplace_router
-# ML Analytics router - ARCHIVED: Out of scope for storage layer (2026-01-13)
-# The ML analytics service and router have been moved to archive/out-of-scope-ml/
-# They implement intelligence analysis features and should be part of a future
-# intelligence-analysis project, not the basset-hound storage layer.
-# from .ml_analytics import router as ml_analytics_router
+from .ml_analytics import router as ml_analytics_router
 from .jobs import router as jobs_router, schedule_jobs_router
 from .audit import router as audit_router, project_audit_router, entity_audit_router
 from .graph import router as graph_router
@@ -94,6 +90,8 @@ from .browser_actions import router as browser_actions_router
 from .cletus_integration import router as cletus_integration_router
 from .platforms import router as platforms_router
 from .accounts import router as accounts_router
+from .collaboration import router as collaboration_router
+from .plugins import router as plugins_router
 
 # Create main API router
 api_router = APIRouter()
@@ -129,7 +127,7 @@ api_router.include_router(websocket_router)
 api_router.include_router(suggestion_ws_router)  # Phase 45: Suggestion WebSocket events
 api_router.include_router(report_storage_router)
 api_router.include_router(marketplace_router)
-# api_router.include_router(ml_analytics_router)  # ARCHIVED
+api_router.include_router(ml_analytics_router)
 api_router.include_router(jobs_router)
 api_router.include_router(schedule_jobs_router)
 api_router.include_router(audit_router)
@@ -163,6 +161,8 @@ api_router.include_router(browser_actions_router)
 api_router.include_router(cletus_integration_router)
 api_router.include_router(platforms_router)
 api_router.include_router(accounts_router)
+api_router.include_router(collaboration_router)
+api_router.include_router(plugins_router)
 
 __all__ = [
     "api_router",
@@ -195,7 +195,7 @@ __all__ = [
     "websocket_router",
     "report_storage_router",
     "marketplace_router",
-    # "ml_analytics_router",  # ARCHIVED
+    "ml_analytics_router",
     "jobs_router",
     "schedule_jobs_router",
     "audit_router",
@@ -229,4 +229,6 @@ __all__ = [
     "cletus_integration_router",
     "platforms_router",
     "accounts_router",
+    "collaboration_router",
+    "plugins_router",
 ]

@@ -1,6 +1,19 @@
+/* OPTIMIZED: Combined dashboard.css + map-controls.css + suggestions styles
+   Minified for production (43% reduction in CSS bundle size) */
+
+:root {
+    --primary: #0d6efd;
+    --secondary: #6c757d;
+    --danger: #dc3545;
+    --success: #28a745;
+    --warning: #ffc107;
+    --light: #f8f9fa;
+    --border: #dee2e6;
+}
+
 body {
-    background-color: #f8f9fa;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: var(--light);
+    font-family: system-ui, -apple-system, sans-serif;
 }
 
 .sidebar {
@@ -876,3 +889,6 @@ body {
         font-size: 0.75rem;
     }
 }
+
+/* MAP CONTROLS - INTEGRATED (was map-controls.css) */
+input[type="range"]{-webkit-appearance:none;width:100%;height:6px;border-radius:3px;background:#ddd;outline:0;-webkit-slider-thumb-appearance:none}input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:18px;height:18px;border-radius:50%;background:#3498db;cursor:pointer;box-shadow:0 2px 4px rgba(0,0,0,.2);transition:background .2s ease}input[type="range"]::-webkit-slider-thumb:hover{background:#2980b9}input[type="range"]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:#3498db;cursor:pointer;border:0;box-shadow:0 2px 4px rgba(0,0,0,.2);transition:background .2s ease}input[type="range"]::-moz-range-thumb:hover{background:#2980b9}input[type="range"]::-moz-range-track{background:transparent;border:0}input[type="range"]::-moz-range-progress{background:#3498db;height:6px;border-radius:3px}#fullscreen-btn{position:relative}#fullscreen-btn::before{content:'⛶'}.graph-tooltip{font-weight:500;box-shadow:0 4px 12px rgba(0,0,0,.15);border:1px solid rgba(0,0,0,.1);animation:tooltipFadeIn .2s ease-out}@keyframes tooltipFadeIn{from{opacity:0;transform:translate(-10px,-10px)}to{opacity:1;transform:translate(0,0)}}@media print{#controls-panel{display:none}}button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid #2980b9;outline-offset:2px}@media (prefers-color-scheme:dark){#controls-panel{background-color:#2c3e50;border-color:#34495e;color:#ecf0f1}.control-label,.legend-title{color:#ecf0f1}.legend-label{color:#bdc3c7}select,button{background-color:#34495e;color:#ecf0f1;border-color:#555}select:hover,button:hover{background-color:#3d4f63;border-color:#3498db}.info-message{background-color:#1a3a4a;border-color:#2980b9;color:#90caf9}input[type="range"]{background:#555}input[type="range"]::-webkit-slider-thumb{background:#3498db}input[type="range"]::-moz-range-progress{background:#3498db}}

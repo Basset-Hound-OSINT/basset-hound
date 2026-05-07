@@ -1,17 +1,85 @@
 // dashboard.js - Entry point for the application
+// OPTIMIZED: Lazy-load non-critical modules to reduce initial bundle size
 
 import { fetchPeople } from './api.js';
 import { setupAddButtons, createPersonForm, setupEntityTypeModal } from './ui-form-handlers.js';
 import { renderPeopleList, setupSearch } from './ui-people-list.js';
 import { initTagModal } from './tag-handler.js';
-import { initAdvancedSearch } from './advanced-search.js';
-import { initBulkImport } from './bulk-import.js';
+import { initExportHandlers } from './export-handler.js';
+
+// Lazy-load non-critical modules
+let advancedSearchInitialized = false;
+let bulkImportInitialized = false;
+let collaborationInitialized = false;
 
 // Global window variables
 window.people = [];
 window.selectedPersonId = null;
+window.collaborationManager = null;
 
-// Initialize the application
+// Lazy-load advanced search module
+async function loadAdvancedSearch(projectSafeName) {
+    if (advancedSearchInitialized) return;
+    try {
+        const module = await import('./advanced-search.js');
+        module.initAdvancedSearch(projectSafeName);
+        advancedSearchInitialized = true;
+    } catch (error) {
+        console.error('Error loading advanced search:', error);
+    }
+}
+
+// Lazy-load bulk import module
+async function loadBulkImport(projectSafeName) {
+    if (bulkImportInitialized) return;
+    try {
+        const module = await import('./bulk-import.js');
+        module.initBulkImport(projectSafeName);
+        bulkImportInitialized = true;
+    } catch (error) {
+        console.error('Error loading bulk import:', error);
+    }
+}
+
+// Lazy-load collaboration manager (Phase 8)
+async function loadCollaboration() {
+    if (collaborationInitialized) return;
+    try {
+        const module = await import('./collaboration-manager.js');
+        const projectId = window.currentProjectId;
+        const userId = window.userId || 'anonymous';
+
+        if (projectId) {
+            window.collaborationManager = new module.default(projectId, userId);
+            await window.collaborationManager.initialize();
+
+            // Setup event listeners for collaboration features
+            window.collaborationManager.on('presenceUpdated', (presence) => {
+                console.log('[Dashboard] User presence updated:', presence);
+            });
+
+            window.collaborationManager.on('syncConfirmed', (update) => {
+                console.log('[Dashboard] Update synchronized:', update);
+            });
+
+            window.collaborationManager.on('activityLogged', (activity) => {
+                console.log('[Dashboard] Activity logged:', activity);
+            });
+
+            window.collaborationManager.on('conflictDetected', (conflict) => {
+                console.log('[Dashboard] Conflict detected:', conflict);
+                window.collaborationManager.showMergeConflictDialog(conflict);
+            });
+
+            collaborationInitialized = true;
+            console.log('[Dashboard] Collaboration manager initialized');
+        }
+    } catch (error) {
+        console.error('Error loading collaboration manager:', error);
+    }
+}
+
+// Initialize the application (critical path only)
 async function initApp() {
     try {
         // Always fetch fresh config in case it was updated
@@ -20,32 +88,30 @@ async function initApp() {
         // Fetch people data
         window.people = await fetchPeople();
 
-        // Render people list
+        // Render people list (critical)
         renderPeopleList(window.people, window.selectedPersonId);
 
-        // Setup event listeners
+        // Setup event listeners (critical)
         setupAddButtons();
         setupSearch(window.people);
         setupFormHandlers();
         setupEntityTypeModal();
         initTagModal();
 
-        // Initialize advanced search
+        // Setup export handlers (Phase 8)
         const projectSafeName = window.currentProjectSafeName || sessionStorage.getItem('currentProjectSafeName') || '';
         if (projectSafeName) {
-            initAdvancedSearch(projectSafeName);
+            initExportHandlers(projectSafeName);
         }
 
-        // Initialize bulk import module
-        if (projectSafeName) {
-            initBulkImport(projectSafeName);
-        }
-
-        // Setup download button
-        const downloadBtn = document.getElementById('download-project-btn');
-        if (downloadBtn) {
-            downloadBtn.addEventListener('click', function() {
-                window.location.href = '/download_project';
+        // Lazy-load advanced search when search panel is opened
+        const searchInput = document.getElementById('search-input');
+        if (searchInput) {
+            searchInput.addEventListener('focus', async () => {
+                const projectSafeName = window.currentProjectSafeName || sessionStorage.getItem('currentProjectSafeName') || '';
+                if (projectSafeName) {
+                    await loadAdvancedSearch(projectSafeName);
+                }
             });
         }
 
@@ -61,6 +127,21 @@ async function initApp() {
                 });
             }
         });
+
+        // Lazy-load bulk import when "Bulk Import" button is clicked
+        document.addEventListener('click', async (event) => {
+            if (event.target?.id === 'bulk-import-btn' || event.target?.closest('#bulk-import-btn')) {
+                const projectSafeName = window.currentProjectSafeName || sessionStorage.getItem('currentProjectSafeName') || '';
+                if (projectSafeName) {
+                    await loadBulkImport(projectSafeName);
+                }
+            }
+        });
+
+        // Initialize collaboration manager (Phase 8)
+        if (window.currentProjectId) {
+            await loadCollaboration();
+        }
     } catch (error) {
         console.error('Error initializing app:', error);
     }
