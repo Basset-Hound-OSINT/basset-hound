@@ -140,6 +140,20 @@ class Settings(BaseSettings):
         description="Prefer Redis over in-memory cache when available"
     )
 
+    # Basset Verify Integration Settings (Phase 4.1)
+    basset_verify_url: str = Field(
+        default="http://localhost:8001",
+        description="Base URL for basset-verify microservice"
+    )
+    basset_verify_timeout: float = Field(
+        default=10.0,
+        description="Request timeout for basset-verify in seconds"
+    )
+    basset_verify_enabled: bool = Field(
+        default=True,
+        description="Enable/disable basset-verify integration"
+    )
+
     # Memory Limit Settings for In-Memory Caches (Phase 12: Performance Optimization)
     # JobRunner memory limits
     job_runner_max_jobs: int = Field(
