@@ -98,7 +98,7 @@ function setupToggleButton() {
 
     // Create toggle button wrapper
     const toggleWrapper = document.createElement('div');
-    toggleWrapper.className = 'd-flex gap-2 mt-2';
+    toggleWrapper.className = 'd-flex gap-2 mt-2 flex-wrap';
     toggleWrapper.innerHTML = `
         <button type="button" id="search-mode-toggle" class="btn btn-sm btn-outline-secondary" title="Toggle between basic and advanced search">
             <i class="fas fa-sliders-h"></i> Advanced
@@ -142,103 +142,109 @@ function setupAdvancedSearchPanel(state, projectName) {
     panel.style.display = 'none';
 
     panel.innerHTML = `
-        <div class="card-header bg-light">
+        <div class="card-header bg-light d-flex justify-content-between align-items-center">
             <h6 class="mb-0">Advanced Search</h6>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="close-advanced-panel" title="Close advanced search panel">
+                <i class="fas fa-chevron-up"></i>
+            </button>
         </div>
         <div class="card-body p-3">
-            <!-- Field-specific search -->
-            <div class="mb-3">
-                <label class="form-label small fw-bold">Field Filters</label>
-                <div class="input-group input-group-sm mb-2">
-                    <span class="input-group-text" style="width: 60px;">Name</span>
-                    <input type="text" id="filter-name" class="form-control" placeholder="First or last name">
+            <!-- Responsive form layout -->
+            <form id="advanced-search-form" class="needs-validation">
+                <!-- Field-specific search -->
+                <div class="mb-3">
+                    <label class="form-label small fw-bold">Field Filters</label>
+                    <div class="input-group input-group-sm mb-2">
+                        <span class="input-group-text">Name</span>
+                        <input type="text" id="filter-name" class="form-control" placeholder="First or last name" autocomplete="name">
+                    </div>
+                    <div class="input-group input-group-sm mb-2">
+                        <span class="input-group-text">Email</span>
+                        <input type="email" id="filter-email" class="form-control" placeholder="email@domain.com" autocomplete="email">
+                    </div>
+                    <div class="input-group input-group-sm mb-2">
+                        <span class="input-group-text">Phone</span>
+                        <input type="text" id="filter-phone" class="form-control" placeholder="+1-555-0000" autocomplete="tel">
+                    </div>
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text">Username</span>
+                        <input type="text" id="filter-username" class="form-control" placeholder="@username" autocomplete="username">
+                    </div>
                 </div>
-                <div class="input-group input-group-sm mb-2">
-                    <span class="input-group-text" style="width: 60px;">Email</span>
-                    <input type="email" id="filter-email" class="form-control" placeholder="email@domain.com">
+
+                <hr class="my-3">
+
+                <!-- Entity type filter -->
+                <div class="mb-3">
+                    <label class="form-label small fw-bold">Entity Types</label>
+                    <select id="filter-entity-types" class="form-select form-select-sm" multiple size="4">
+                        <option value="person">Person</option>
+                        <option value="organization">Organization</option>
+                        <option value="government">Government</option>
+                        <option value="group">Group</option>
+                        <option value="sock_puppet">Sock Puppet</option>
+                        <option value="location">Location</option>
+                        <option value="unknown">Unknown</option>
+                    </select>
+                    <small class="text-muted d-block mt-1">Hold Ctrl/Cmd to select multiple</small>
                 </div>
-                <div class="input-group input-group-sm mb-2">
-                    <span class="input-group-text" style="width: 60px;">Phone</span>
-                    <input type="text" id="filter-phone" class="form-control" placeholder="+1-555-0000">
+
+                <hr class="my-3">
+
+                <!-- Boolean mode -->
+                <div class="mb-3">
+                    <label class="form-label small fw-bold">Boolean Mode</label>
+                    <div class="btn-group btn-group-sm w-100" role="group">
+                        <input type="radio" class="btn-check" name="boolean-mode" id="bool-and" value="AND" checked>
+                        <label class="btn btn-outline-secondary" for="bool-and">AND</label>
+                        <input type="radio" class="btn-check" name="boolean-mode" id="bool-or" value="OR">
+                        <label class="btn btn-outline-secondary" for="bool-or">OR</label>
+                    </div>
+                    <small class="text-muted d-block mt-1">AND: all filters must match | OR: any filter can match</small>
                 </div>
-                <div class="input-group input-group-sm">
-                    <span class="input-group-text" style="width: 60px;">Username</span>
-                    <input type="text" id="filter-username" class="form-control" placeholder="@username">
+
+                <hr class="my-3">
+
+                <!-- Date range -->
+                <div class="mb-3">
+                    <label class="form-label small fw-bold">Created Date Range</label>
+                    <div class="input-group input-group-sm mb-2">
+                        <span class="input-group-text">After</span>
+                        <input type="date" id="filter-created-after" class="form-control">
+                    </div>
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text">Before</span>
+                        <input type="date" id="filter-created-before" class="form-control">
+                    </div>
                 </div>
-            </div>
 
-            <hr class="my-3">
+                <hr class="my-3">
 
-            <!-- Entity type filter -->
-            <div class="mb-3">
-                <label class="form-label small fw-bold">Entity Types</label>
-                <select id="filter-entity-types" class="form-select form-select-sm" multiple size="4">
-                    <option value="person">Person</option>
-                    <option value="organization">Organization</option>
-                    <option value="government">Government</option>
-                    <option value="group">Group</option>
-                    <option value="sock_puppet">Sock Puppet</option>
-                    <option value="location">Location</option>
-                    <option value="unknown">Unknown</option>
-                </select>
-                <small class="text-muted d-block mt-1">Hold Ctrl to select multiple</small>
-            </div>
-
-            <hr class="my-3">
-
-            <!-- Boolean mode -->
-            <div class="mb-3">
-                <label class="form-label small fw-bold">Boolean Mode</label>
-                <div class="btn-group btn-group-sm w-100" role="group">
-                    <input type="radio" class="btn-check" name="boolean-mode" id="bool-and" value="AND" checked>
-                    <label class="btn btn-outline-secondary" for="bool-and">AND</label>
-                    <input type="radio" class="btn-check" name="boolean-mode" id="bool-or" value="OR">
-                    <label class="btn btn-outline-secondary" for="bool-or">OR</label>
+                <!-- Custom query (advanced syntax) -->
+                <div class="mb-3">
+                    <label class="form-label small fw-bold">Advanced Query</label>
+                    <input type="text" id="filter-custom-query" class="form-control form-control-sm"
+                           placeholder='e.g., email:*@gmail.com AND tag:suspect'>
+                    <small class="text-muted d-block mt-1">
+                        <a href="#" id="syntax-help-link"><i class="fas fa-question-circle"></i> View syntax help</a>
+                    </small>
                 </div>
-                <small class="text-muted d-block mt-1">AND: all filters must match | OR: any filter can match</small>
-            </div>
 
-            <hr class="my-3">
-
-            <!-- Date range -->
-            <div class="mb-3">
-                <label class="form-label small fw-bold">Created Date Range</label>
-                <div class="input-group input-group-sm mb-2">
-                    <span class="input-group-text">After</span>
-                    <input type="date" id="filter-created-after" class="form-control">
+                <!-- Action buttons -->
+                <div class="d-flex gap-2 flex-wrap">
+                    <button type="button" id="search-apply-btn" class="btn btn-sm btn-primary flex-grow-1">
+                        <i class="fas fa-search"></i> Search
+                    </button>
+                    <button type="button" id="search-clear-btn" class="btn btn-sm btn-outline-secondary">
+                        <i class="fas fa-times"></i> Clear
+                    </button>
                 </div>
-                <div class="input-group input-group-sm">
-                    <span class="input-group-text">Before</span>
-                    <input type="date" id="filter-created-before" class="form-control">
+
+                <!-- Result count badge -->
+                <div id="search-result-badge" class="mt-3 p-2 bg-light text-center rounded-2 d-none">
+                    <small class="text-muted" id="search-count-text"></small>
                 </div>
-            </div>
-
-            <hr class="my-3">
-
-            <!-- Custom query (advanced syntax) -->
-            <div class="mb-3">
-                <label class="form-label small fw-bold">Advanced Query</label>
-                <input type="text" id="filter-custom-query" class="form-control form-control-sm"
-                       placeholder='e.g., email:*@gmail.com AND tag:suspect'>
-                <small class="text-muted d-block mt-1">
-                    <a href="#" id="syntax-help-link">View syntax help</a>
-                </small>
-            </div>
-
-            <!-- Action buttons -->
-            <div class="d-flex gap-2">
-                <button id="search-apply-btn" class="btn btn-sm btn-primary flex-grow-1">
-                    <i class="fas fa-search"></i> Search
-                </button>
-                <button id="search-clear-btn" class="btn btn-sm btn-outline-secondary">
-                    <i class="fas fa-times"></i> Clear
-                </button>
-            </div>
-
-            <!-- Result count badge -->
-            <div id="search-result-badge" class="mt-2 text-center">
-                <small class="text-muted" id="search-count-text"></small>
-            </div>
+            </form>
         </div>
     `;
 
@@ -285,6 +291,8 @@ function restoreSearchState(state) {
 function setupSearchListeners(state, projectName) {
     const applyBtn = document.getElementById('search-apply-btn');
     const clearBtn = document.getElementById('search-clear-btn');
+    const closeBtn = document.getElementById('close-advanced-panel');
+    const toggleBtn = document.getElementById('search-mode-toggle');
 
     applyBtn.addEventListener('click', async () => {
         // Gather filter values
@@ -298,6 +306,7 @@ function setupSearchListeners(state, projectName) {
     clearBtn.addEventListener('click', () => {
         state.clear();
         restoreSearchState(state);
+        document.getElementById('search-result-badge').classList.add('d-none');
         document.getElementById('search-count-text').textContent = '';
         // Clear results
         const personList = document.getElementById('person-list');
@@ -309,6 +318,21 @@ function setupSearchListeners(state, projectName) {
             personList.appendChild(noData);
         }
     });
+
+    // Setup close button
+    if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+            const panel = document.getElementById('advanced-search-panel');
+            if (panel) {
+                panel.style.display = 'none';
+                if (toggleBtn) {
+                    toggleBtn.classList.remove('active');
+                    document.getElementById('search-mode-indicator').textContent = 'Basic Mode';
+                    document.getElementById('search-input').style.display = 'block';
+                }
+            }
+        });
+    }
 
     // Allow Enter key to trigger search in input fields
     ['filter-name', 'filter-email', 'filter-phone', 'filter-username', 'filter-custom-query'].forEach(id => {
@@ -419,12 +443,18 @@ async function executeAdvancedSearch(state, projectName) {
  */
 function displaySearchResults(results, total) {
     const personList = document.getElementById('person-list');
+    const countBadge = document.getElementById('search-result-badge');
     const countText = document.getElementById('search-count-text');
 
     if (!personList) return;
 
+    // Show result badge
+    if (countBadge) {
+        countBadge.classList.remove('d-none');
+        countText.textContent = `Found ${total} result${total !== 1 ? 's' : ''}`;
+    }
+
     personList.innerHTML = '';
-    countText.textContent = `Found ${total} result${total !== 1 ? 's' : ''}`;
 
     if (results.length === 0) {
         const noData = document.createElement('li');
@@ -438,6 +468,7 @@ function displaySearchResults(results, total) {
     results.forEach(result => {
         const listItem = document.createElement('li');
         listItem.className = 'list-group-item person-item d-flex justify-content-between align-items-center';
+        listItem.style.cursor = 'pointer';
 
         // Build display info
         const displayName = result.entity_data?.name?.first_name
@@ -445,6 +476,7 @@ function displaySearchResults(results, total) {
             : result.entity_data?.name || 'Unknown';
 
         const personInfo = document.createElement('div');
+        personInfo.style.flex = '1';
 
         const nameDiv = document.createElement('div');
         nameDiv.className = 'fw-bold';
@@ -454,13 +486,13 @@ function displaySearchResults(results, total) {
         // Add type badge
         const typeDiv = document.createElement('small');
         typeDiv.className = 'text-muted';
-        typeDiv.textContent = `[${result.entity_type}] (Score: ${(result.score * 100).toFixed(0)}%)`;
+        typeDiv.textContent = `[${result.entity_type}] (${(result.score * 100).toFixed(0)}%)`;
         personInfo.appendChild(typeDiv);
 
         // Add matched fields
         if (result.matched_fields && result.matched_fields.length > 0) {
             const fieldsDiv = document.createElement('small');
-            fieldsDiv.className = 'text-secondary';
+            fieldsDiv.className = 'text-secondary d-block';
             fieldsDiv.textContent = `Matched: ${result.matched_fields.join(', ')}`;
             personInfo.appendChild(fieldsDiv);
         }
@@ -585,7 +617,10 @@ function setupBasicSearchInput(projectName, state) {
         const query = this.value.trim();
 
         if (!query) {
-            document.getElementById('search-count-text').textContent = '';
+            const countBadge = document.getElementById('search-result-badge');
+            const countText = document.getElementById('search-count-text');
+            if (countBadge) countBadge.classList.add('d-none');
+            if (countText) countText.textContent = '';
             return;
         }
 
@@ -599,7 +634,9 @@ function setupBasicSearchInput(projectName, state) {
                 const response = await fetch(url);
                 if (response.ok) {
                     const data = await response.json();
+                    const countBadge = document.getElementById('search-result-badge');
                     const countText = document.getElementById('search-count-text');
+                    if (countBadge) countBadge.classList.remove('d-none');
                     if (countText) {
                         countText.textContent = `Found ${data.total} result${data.total !== 1 ? 's' : ''}`;
                     }

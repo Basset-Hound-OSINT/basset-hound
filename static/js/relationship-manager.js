@@ -3,19 +3,47 @@
 import { getDisplayName } from './utils.js';
 import { filterPeople } from './ui-people-list.js';
 
-// Relationship types and their categories
+// Relationship types and their categories (comprehensive list from API)
 const RELATIONSHIP_TYPES = {
+    // Generic
+    'RELATED_TO': 'General',
     'KNOWS': 'Social',
+
+    // Professional
     'WORKS_WITH': 'Professional',
-    'WORKS_FOR': 'Professional',
-    'FAMILY': 'Personal',
-    'OWNS': 'Financial',
-    'LOCATED_IN': 'Location',
-    'ASSOCIATED_WITH': 'General',
-    'CONTROLS': 'Power',
-    'HAS_ACCOUNT_ON': 'Digital',
-    'MEMBER_OF': 'Membership',
-    'RELATED_TO': 'General'
+    'BUSINESS_PARTNER': 'Professional',
+    'REPORTS_TO': 'Professional',
+    'MANAGES': 'Professional',
+    'COLLEAGUE': 'Professional',
+    'CLIENT': 'Professional',
+    'EMPLOYER': 'Professional',
+    'EMPLOYEE': 'Professional',
+
+    // Family
+    'FAMILY': 'Family',
+    'MARRIED_TO': 'Family',
+    'PARENT_OF': 'Family',
+    'CHILD_OF': 'Family',
+    'SIBLING_OF': 'Family',
+    'SPOUSE': 'Family',
+
+    // Social
+    'FRIEND': 'Social',
+    'ACQUAINTANCE': 'Social',
+    'NEIGHBOR': 'Social',
+
+    // Organizational
+    'MEMBER_OF': 'Organizational',
+    'AFFILIATED_WITH': 'Organizational',
+
+    // Investigative
+    'ASSOCIATED_WITH': 'Investigative',
+    'SUSPECTED_ASSOCIATE': 'Investigative',
+    'ALIAS_OF': 'Investigative',
+
+    // Communication
+    'COMMUNICATES_WITH': 'Communication',
+    'CONTACTED': 'Communication'
 };
 
 let relationshipState = {
@@ -33,10 +61,16 @@ export async function initRelationshipManager(entityId, projectName) {
     try {
         // Fetch all entities for the project
         const entitiesRes = await fetch('/get_people');
+        if (!entitiesRes.ok) {
+            throw new Error(`Failed to fetch entities: ${entitiesRes.statusText}`);
+        }
         relationshipState.allEntities = await entitiesRes.json();
 
         // Fetch the current entity
         const currentEntityRes = await fetch(`/get_person/${entityId}`);
+        if (!currentEntityRes.ok) {
+            throw new Error(`Failed to fetch current entity: ${currentEntityRes.statusText}`);
+        }
         relationshipState.currentEntity = await currentEntityRes.json();
 
         // Fetch relationships from API with include_details
@@ -47,6 +81,11 @@ export async function initRelationshipManager(entityId, projectName) {
         if (relRes.ok) {
             const relData = await relRes.json();
             relationshipState.relationships = relData.tagged_people || [];
+        } else {
+            console.warn('Could not fetch relationships from API, using fallback');
+            // Fallback: extract from current entity profile
+            const taggedSection = relationshipState.currentEntity?.profile?.["Tagged People"] || {};
+            relationshipState.relationships = taggedSection.tagged_people || [];
         }
 
         // Create and inject the relationships tab UI
@@ -226,8 +265,15 @@ function renderRelationshipsList() {
 function setupRelationshipEventListeners() {
     const addBtn = document.getElementById('add-relationship-btn');
     if (addBtn) {
-        addBtn.removeEventListener('click', openRelationshipModal);
-        addBtn.addEventListener('click', () => openRelationshipModal());
+        // Remove old listeners to prevent duplicates
+        const newBtn = addBtn.cloneNode(true);
+        addBtn.parentNode?.replaceChild(newBtn, addBtn);
+
+        // Add new listener
+        const updatedBtn = document.getElementById('add-relationship-btn');
+        if (updatedBtn) {
+            updatedBtn.addEventListener('click', () => openRelationshipModal());
+        }
     }
 }
 
@@ -235,9 +281,18 @@ function openRelationshipModal(relationshipId = null) {
     const projectName = relationshipState.projectName;
     const currentEntityId = relationshipState.entityId;
 
-    // Remove existing modal if present
+    // Remove existing modal if present and clean up
     let modal = document.getElementById('relationship-modal');
     if (modal) {
+        try {
+            const bsModal = bootstrap.Modal.getInstance(modal);
+            if (bsModal) {
+                bsModal.hide();
+                bsModal.dispose();
+            }
+        } catch (e) {
+            // Modal instance doesn't exist, just remove the element
+        }
         modal.remove();
     }
 
@@ -349,8 +404,10 @@ function openRelationshipModal(relationshipId = null) {
         confidenceValue.textContent = e.target.value + '%';
     });
 
-    // Entity search
+    // Entity search with debouncing
+    let searchTimeout;
     targetSearchInput.addEventListener('input', (e) => {
+        clearTimeout(searchTimeout);
         const searchTerm = e.target.value.toLowerCase().trim();
 
         if (!searchTerm) {
@@ -358,41 +415,59 @@ function openRelationshipModal(relationshipId = null) {
             return;
         }
 
-        const filtered = relationshipState.allEntities.filter(entity => {
-            const displayName = getDisplayName(entity).toLowerCase();
-            const idMatch = entity.id.toLowerCase().includes(searchTerm);
-            const nameMatch = displayName.includes(searchTerm);
-            return (nameMatch || idMatch) && entity.id !== currentEntityId;
-        }).slice(0, 10);
+        searchTimeout = setTimeout(() => {
+            const filtered = relationshipState.allEntities.filter(entity => {
+                // Skip self-reference
+                if (entity.id === currentEntityId) return false;
 
-        if (filtered.length === 0) {
-            entitySearchResults.innerHTML = '<div class="list-group-item text-muted">No entities found</div>';
+                // Skip already tagged entities
+                if (relationshipState.relationships.includes(entity.id)) return false;
+
+                const displayName = getDisplayName(entity).toLowerCase();
+                const idMatch = entity.id.toLowerCase().includes(searchTerm);
+                const nameMatch = displayName.includes(searchTerm);
+                return nameMatch || idMatch;
+            }).slice(0, 15); // Increased from 10 to 15 results
+
+            if (filtered.length === 0) {
+                entitySearchResults.innerHTML = '<div class="list-group-item text-muted text-center py-3"><i class="fas fa-search me-2"></i>No entities found</div>';
+                entitySearchResults.style.display = 'block';
+                return;
+            }
+
+            entitySearchResults.innerHTML = filtered.map(entity => {
+                const displayName = getDisplayName(entity);
+                const displayNameLower = displayName.toLowerCase();
+                const highlightedName = displayName.replace(
+                    new RegExp(`(${searchTerm})`, 'gi'),
+                    '<strong>$1</strong>'
+                );
+                return `
+                <button type="button" class="list-group-item list-group-item-action" data-entity-id="${entity.id}">
+                    <div class="fw-bold">${highlightedName}</div>
+                    <small class="text-muted">ID: ${entity.id}</small>
+                </button>
+                `;
+            }).join('');
             entitySearchResults.style.display = 'block';
-            return;
-        }
 
-        entitySearchResults.innerHTML = filtered.map(entity => `
-        <button type="button" class="list-group-item list-group-item-action" data-entity-id="${entity.id}">
-            <div class="fw-bold">${getDisplayName(entity)}</div>
-            <small class="text-muted">ID: ${entity.id}</small>
-        </button>
-        `).join('');
-        entitySearchResults.style.display = 'block';
+            // Add click handlers
+            entitySearchResults.querySelectorAll('button').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const entityId = btn.dataset.entityId;
+                    const entity = relationshipState.allEntities.find(e => e.id === entityId);
 
-        // Add click handlers
-        entitySearchResults.querySelectorAll('button').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.preventDefault();
-                const entityId = btn.dataset.entityId;
-                const entity = relationshipState.allEntities.find(e => e.id === entityId);
-
-                targetEntityIdField.value = entityId;
-                selectedEntityName.textContent = getDisplayName(entity);
-                selectedEntityDisplay.style.display = 'block';
-                entitySearchResults.style.display = 'none';
-                targetSearchInput.value = '';
+                    if (entity) {
+                        targetEntityIdField.value = entityId;
+                        selectedEntityName.textContent = getDisplayName(entity);
+                        selectedEntityDisplay.style.display = 'block';
+                        entitySearchResults.style.display = 'none';
+                        targetSearchInput.value = '';
+                    }
+                });
             });
-        });
+        }, 300); // Debounce for 300ms
     });
 
     clearBtn.addEventListener('click', () => {
@@ -451,13 +526,19 @@ async function saveRelationship() {
     const notes = document.getElementById('relationship-notes').value;
 
     // Validation
-    if (!targetEntityId) {
+    if (!targetEntityId || targetEntityId.trim() === '') {
         showToast('Please select a target entity', 'warning');
         return;
     }
 
-    if (!relationshipType) {
+    if (!relationshipType || relationshipType.trim() === '') {
         showToast('Please select a relationship type', 'warning');
+        return;
+    }
+
+    // Prevent self-reference
+    if (targetEntityId === currentEntityId) {
+        showToast('Cannot create a relationship to the same entity', 'warning');
         return;
     }
 
@@ -483,11 +564,19 @@ async function saveRelationship() {
         // Build properties object
         const properties = {};
         if (since) properties.since = since;
-        if (confidence) properties.confidence = parseInt(confidence);
-        if (notes) properties.notes = notes;
+        if (confidence && parseInt(confidence) > 0) {
+            properties.confidence = parseInt(confidence);
+        }
+        if (notes && notes.trim()) {
+            properties.notes = notes.trim();
+        }
 
+        // Only set properties if we have something
         if (Object.keys(properties).length > 0) {
             currentRelProps[targetEntityId] = properties;
+        } else {
+            // Remove if no properties exist
+            delete currentRelProps[targetEntityId];
         }
 
         // Send update to API
@@ -506,17 +595,23 @@ async function saveRelationship() {
         );
 
         if (!updateRes.ok) {
-            throw new Error(`Failed to save relationship: ${updateRes.statusText}`);
+            const errorData = await updateRes.json().catch(() => ({}));
+            throw new Error(errorData.detail || `Failed to save relationship: ${updateRes.statusText}`);
         }
 
         showToast('Relationship saved successfully', 'success');
 
         // Close modal and refresh
-        const modal = bootstrap.Modal.getInstance(document.getElementById('relationship-modal'));
-        modal.hide();
+        const modal = document.getElementById('relationship-modal');
+        const bsModal = bootstrap.Modal.getInstance(modal);
+        if (bsModal) {
+            bsModal.hide();
+        }
 
         // Refresh relationships
-        await initRelationshipManager(currentEntityId, projectName);
+        setTimeout(() => {
+            initRelationshipManager(currentEntityId, projectName);
+        }, 300); // Small delay to allow modal to close
 
     } catch (error) {
         console.error('Error saving relationship:', error);
@@ -559,13 +654,16 @@ async function deleteRelationship(targetEntityId) {
         );
 
         if (!updateRes.ok) {
-            throw new Error(`Failed to delete relationship: ${updateRes.statusText}`);
+            const errorData = await updateRes.json().catch(() => ({}));
+            throw new Error(errorData.detail || `Failed to delete relationship: ${updateRes.statusText}`);
         }
 
         showToast('Relationship deleted successfully', 'success');
 
         // Refresh relationships
-        await initRelationshipManager(currentEntityId, projectName);
+        setTimeout(() => {
+            initRelationshipManager(currentEntityId, projectName);
+        }, 300);
 
     } catch (error) {
         console.error('Error deleting relationship:', error);
@@ -575,17 +673,45 @@ async function deleteRelationship(targetEntityId) {
 
 function getRelationshipTypeBadgeClass(relType) {
     const typeMap = {
+        // Generic
+        'RELATED_TO': 'bg-secondary',
         'KNOWS': 'bg-info',
+
+        // Professional
         'WORKS_WITH': 'bg-primary',
-        'WORKS_FOR': 'bg-primary',
+        'BUSINESS_PARTNER': 'bg-primary',
+        'REPORTS_TO': 'bg-primary',
+        'MANAGES': 'bg-primary',
+        'COLLEAGUE': 'bg-primary',
+        'CLIENT': 'bg-primary',
+        'EMPLOYER': 'bg-primary',
+        'EMPLOYEE': 'bg-primary',
+
+        // Family
         'FAMILY': 'bg-success',
-        'OWNS': 'bg-warning',
-        'LOCATED_IN': 'bg-secondary',
-        'ASSOCIATED_WITH': 'bg-secondary',
-        'CONTROLS': 'bg-danger',
-        'HAS_ACCOUNT_ON': 'bg-info',
+        'MARRIED_TO': 'bg-success',
+        'PARENT_OF': 'bg-success',
+        'CHILD_OF': 'bg-success',
+        'SIBLING_OF': 'bg-success',
+        'SPOUSE': 'bg-success',
+
+        // Social
+        'FRIEND': 'bg-info',
+        'ACQUAINTANCE': 'bg-info',
+        'NEIGHBOR': 'bg-info',
+
+        // Organizational
         'MEMBER_OF': 'bg-success',
-        'RELATED_TO': 'bg-secondary'
+        'AFFILIATED_WITH': 'bg-success',
+
+        // Investigative
+        'ASSOCIATED_WITH': 'bg-warning',
+        'SUSPECTED_ASSOCIATE': 'bg-warning',
+        'ALIAS_OF': 'bg-danger',
+
+        // Communication
+        'COMMUNICATES_WITH': 'bg-secondary',
+        'CONTACTED': 'bg-secondary'
     };
     return typeMap[relType] || 'bg-secondary';
 }
@@ -594,11 +720,32 @@ function formatRelationshipProperties(props) {
     if (!props || typeof props !== 'object') return '';
 
     const parts = [];
-    if (props.since) parts.push(`Since: ${props.since}`);
-    if (props.confidence) parts.push(`Confidence: ${props.confidence}%`);
-    if (props.notes) parts.push(`Notes: ${props.notes.substring(0, 30)}${props.notes.length > 30 ? '...' : ''}`);
+    if (props.since) {
+        // Handle both date strings and full ISO timestamps
+        const dateStr = props.since.split('T')[0]; // Extract just the date part
+        parts.push(`Since: ${dateStr}`);
+    }
+    if (props.confidence) {
+        const confValue = typeof props.confidence === 'number'
+            ? props.confidence
+            : parseInt(props.confidence);
+        parts.push(`Conf: ${confValue}%`);
+    }
+    if (props.source) parts.push(`Source: ${props.source}`);
+    if (props.notes) {
+        const notePreview = props.notes.substring(0, 25);
+        const truncated = props.notes.length > 25 ? '...' : '';
+        parts.push(`Notes: ${notePreview}${truncated}`);
+    }
+    if (props.timestamp) {
+        // Only show timestamp if it's different from 'since'
+        if (props.timestamp !== props.since) {
+            const dateStr = props.timestamp.split('T')[0];
+            parts.push(`Updated: ${dateStr}`);
+        }
+    }
 
-    return parts.join(' | ');
+    return parts.join(' • ');
 }
 
 function createToastContainer() {

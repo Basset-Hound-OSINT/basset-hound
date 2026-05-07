@@ -5,6 +5,7 @@ import { generateReport } from './report-handler.js'; // Add this import
 import { openFileExplorer } from './file_explorer.js';
 import { initRelationshipManager } from './relationship-manager.js';
 import { initMergeUI } from './merge-ui.js';
+import { initAccountManager } from './account-manager.js';
 
 export async function renderPersonDetails(container, person) {
     if (!person) {
@@ -460,6 +461,9 @@ export async function renderPersonDetails(container, person) {
     // Initialize relationship manager for this entity
     const projectName = window.currentProjectSafeName || 'default';
     await initRelationshipManager(person.id, projectName);
+
+    // Initialize account manager for this entity
+    await initAccountManager(person.id, projectName);
 
     // Initialize merge UI for duplicate detection
     await initMergeUI(person.id, projectName);

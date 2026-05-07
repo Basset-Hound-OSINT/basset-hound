@@ -3,8 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Person Network Map</title>
+    <meta name="description" content="Interactive network graph visualization for Basset Hound">
+    <title>Entity Network Map</title>
+    <!-- Cytoscape.js for graph rendering -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.23.0/cytoscape.min.js"></script>
+    <!-- Cytoscape layout plugins -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape-cose-bilkent/4.1.0/cytoscape-cose-bilkent.min.js"></script>
     <link rel="stylesheet" href="/static/css/map-controls.css">
     <style>
         * {
@@ -132,6 +136,16 @@
             border-top: 1px solid #eee;
             padding-top: 12px;
             margin-top: 12px;
+            margin-bottom: 0;
+        }
+
+        .legend-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: #333;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
         }
 
         .legend-item {
@@ -158,6 +172,22 @@
             color: #555;
         }
 
+        /* Info message */
+        .info-message {
+            background-color: #e3f2fd;
+            border: 1px solid #90caf9;
+            border-radius: 4px;
+            padding: 8px 10px;
+            font-size: 11px;
+            color: #1565c0;
+            margin-bottom: 12px;
+            line-height: 1.4;
+        }
+
+        .info-message strong {
+            font-weight: 600;
+        }
+
         /* Graph Tooltip */
         .graph-tooltip {
             display: none;
@@ -178,41 +208,47 @@
 </head>
 <body>
     <div id="controls-panel">
+        <!-- Info Message -->
+        <div class="info-message">
+            <strong>Tip:</strong> Click nodes to explore, adjust depth to find connections, change layouts to see patterns
+        </div>
+
         <!-- Depth Control -->
         <div class="control-group">
-            <label class="control-label">Graph Depth</label>
+            <label class="control-label" for="depth-slider">Graph Depth</label>
             <div class="control-row depth-slider-container">
-                <input type="range" id="depth-slider" min="1" max="5" value="2" step="1">
-                <span id="depth-value">2</span>
+                <input type="range" id="depth-slider" min="1" max="5" value="2" step="1" aria-label="Graph depth slider">
+                <span id="depth-value" aria-live="polite">2</span>
             </div>
-            <small style="color: #888; display: block; margin-top: 4px;">1-5 hops from center entity</small>
+            <small style="color: #888; display: block; margin-top: 4px;">Hops from center entity (1-5)</small>
         </div>
 
         <!-- Layout Selector -->
         <div class="control-group">
             <label class="control-label" for="layout-selector">Layout Algorithm</label>
-            <select id="layout-selector">
+            <select id="layout-selector" aria-label="Choose layout algorithm">
                 <option value="cose">Force-Directed (COSE)</option>
                 <option value="breadthfirst">Breadth First</option>
                 <option value="circle">Circle</option>
                 <option value="grid">Grid</option>
             </select>
+            <small style="color: #888; display: block; margin-top: 4px;">Rearrange node positions</small>
         </div>
 
         <!-- Control Buttons -->
         <div class="control-group">
             <label class="control-label">Actions</label>
             <div class="control-buttons">
-                <button id="center-btn" title="Center view on main entity">Center</button>
-                <button id="reset-view-btn" title="Reset to fit all nodes">Reset View</button>
-                <button id="export-btn" title="Export graph as GraphML">Export</button>
-                <button id="fullscreen-btn" title="Toggle fullscreen">Fullscreen</button>
+                <button id="center-btn" title="Center view on main entity" aria-label="Center on main entity">Center</button>
+                <button id="reset-view-btn" title="Reset zoom and pan" aria-label="Reset view">Reset</button>
+                <button id="export-btn" title="Export graph as GraphML" aria-label="Export graph">Export</button>
+                <button id="fullscreen-btn" title="Toggle fullscreen mode" aria-label="Toggle fullscreen">Full</button>
             </div>
         </div>
 
         <!-- Legend -->
         <div class="legend">
-            <div class="control-label">Entity Types</div>
+            <div class="legend-title">Entity Types</div>
             <div class="legend-item">
                 <div class="legend-color" style="background-color: #3498DB;"></div>
                 <span class="legend-label">Person</span>
@@ -226,12 +262,8 @@
                 <span class="legend-label">Location</span>
             </div>
             <div class="legend-item">
-                <div class="legend-color" style="background-color: #F39C12;"></div>
-                <span class="legend-label">Event</span>
-            </div>
-            <div class="legend-item">
                 <div class="legend-color" style="background-color: #9B59B6;"></div>
-                <span class="legend-label">Document</span>
+                <span class="legend-label">Group</span>
             </div>
             <div class="legend-item">
                 <div class="legend-color" style="background-color: #95A5A6;"></div>

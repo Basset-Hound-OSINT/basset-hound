@@ -1,0 +1,435 @@
+================================================================================
+END-TO-END PRODUCTION VERIFICATION TEST SUITE - PHASE 5B EXECUTION
+================================================================================
+
+PROJECT: Basset Hound OSINT Platform
+VERSION: Phase 5b
+DATE: 2026-05-07
+TEST FILE: tests/test_e2e_complete.py
+LINES OF CODE: 1142
+TOTAL TESTS: 41+
+
+================================================================================
+TEST STRUCTURE
+================================================================================
+
+1. PRE-REQUISITE SETUP (3 tests)
+   ├── TestPrerequisiteSetup
+   │   ├── test_docker_compose_startup
+   │   ├── test_health_check_all_services
+   │   └── test_api_availability
+   └── Purpose: Verify basic infrastructure and dependencies
+
+2. FRESH DEPLOYMENT WORKFLOW (20 tests)
+   ├── TestFreshDeployment
+   │   ├── test_01_health_check
+   │   ├── test_02_platforms_seeded
+   │   ├── test_03_create_project
+   │   ├── test_04_create_person_entity
+   │   ├── test_05_create_organization_entity
+   │   ├── test_06_create_group_entity
+   │   ├── test_07_add_tags_to_entities
+   │   ├── test_08_create_relationships
+   │   ├── test_09_view_relationships
+   │   ├── test_10_advanced_search
+   │   ├── test_11_get_graph_relationships
+   │   ├── test_12_link_accounts
+   │   ├── test_13_get_accounts
+   │   ├── test_14_generate_pdf_report
+   │   ├── test_15_verify_pdf_valid
+   │   ├── test_16_bulk_import
+   │   ├── test_17_verify_imports
+   │   ├── test_18_get_metrics
+   │   ├── test_19_entity_suggestions
+   │   └── test_20_cleanup_project
+   └── Purpose: Complete end-to-end workflow validation for fresh deployments
+
+3. GRAFANA & PROMETHEUS INTEGRATION (5 tests)
+   ├── TestMonitoring
+   │   ├── test_prometheus_health
+   │   ├── test_prometheus_targets_healthy
+   │   ├── test_metrics_endpoint
+   │   ├── test_grafana_dashboard
+   │   └── test_grafana_health
+   └── Purpose: Verify observability infrastructure and monitoring integration
+
+4. DEPLOYMENT TESTS (1 test)
+   ├── TestDeployment
+   │   └── test_run_deployment_tests
+   └── Purpose: Run existing deployment test suite (subprocess execution)
+
+5. INTEGRATION TESTS (1 test)
+   ├── TestIntegrations
+   │   └── test_run_integration_tests
+   └── Purpose: Run existing integration tests (graceful degradation)
+
+6. PERFORMANCE BENCHMARKS (7 tests)
+   ├── TestPerformance
+   │   ├── test_entity_creation_performance (< 1.0s)
+   │   ├── test_relationship_creation_performance (< 0.5s)
+   │   ├── test_search_performance_cached (< 0.1s)
+   │   ├── test_search_performance_uncached (< 0.5s)
+   │   ├── test_graph_fetch_performance (< 1.0s)
+   │   ├── test_pdf_generation_performance (< 10.0s)
+   │   └── test_metrics_export_performance (< 0.1s)
+   └── Purpose: Measure and validate operation latency and throughput
+
+7. SECURITY CHECKS (4 tests)
+   ├── TestSecurity
+   │   ├── test_no_credentials_in_code
+   │   ├── test_no_debug_code
+   │   ├── test_cors_headers_present
+   │   └── test_no_unhandled_exceptions
+   └── Purpose: Validate security posture and best practices
+
+ADDITIONAL FEATURES:
+   ├── Performance Tracking (@measure_performance decorator)
+   ├── HTML Report Generation (via pytest-html)
+   ├── JSON Report Generation (via pytest-json-report)
+   ├── Test Report Fixture (auto-generates JSON summary)
+   └── Graceful Test Degradation (skip non-critical tests)
+
+================================================================================
+TEST METRICS
+================================================================================
+
+Total Test Count:           41 tests + setup fixtures
+Expected Pass Rate:         95%+
+Graceful Degradation:       Yes (optional services can be unavailable)
+Expected Execution Time:    < 1 hour
+Performance Metrics:        7 benchmarks with thresholds
+Security Tests:             4 validation tests
+Report Formats:             HTML, JSON, TXT logs
+
+================================================================================
+WORKFLOW TEST STEPS (20-STEP WORKFLOW)
+================================================================================
+
+STEP 1:  Health Check
+         Endpoint: GET /health
+         Expected: 200 OK with health status
+         Validates: API responsiveness
+
+STEP 2:  Platform Seeding
+         Endpoint: GET /api/v1/platforms
+         Expected: 15+ platform definitions
+         Validates: Data initialization
+
+STEP 3:  Project Creation
+         Endpoint: POST /api/v1/projects
+         Expected: New project with ID
+         Validates: Core entity management
+
+STEP 4:  Entity Creation (Person, Organization, Group)
+         Endpoint: POST /api/v1/projects/{id}/entities
+         Expected: 3 entities created successfully
+         Validates: Multi-type entity support
+
+STEP 5:  Tag Addition
+         Endpoint: POST /api/v1/projects/{id}/entities/{id}/tags
+         Expected: Tags applied to entities
+         Validates: Metadata management
+
+STEP 6:  Relationship Creation
+         Endpoint: POST /api/v1/projects/{id}/relationships
+         Expected: KNOWS and WORKS_FOR relationships created
+         Validates: Graph relationship support
+
+STEP 7:  Relationship Viewing
+         Endpoint: GET /api/v1/projects/{id}/entities/{id}/relationships
+         Expected: Relationship list returned
+         Validates: Query capabilities
+
+STEP 8:  Advanced Search
+         Endpoint: GET /api/v1/projects/{id}/search/advanced
+         Expected: Search results returned
+         Validates: Search engine functionality
+
+STEP 9:  Graph Visualization
+         Endpoint: GET /api/v1/projects/{id}/visualization/graph/relationships
+         Expected: Graph data with nodes and edges
+         Validates: Visualization support
+
+STEP 10: Account Linking
+         Endpoint: POST /api/v1/projects/{id}/entities/{id}/accounts
+         Expected: Account linked to entity
+         Validates: External account integration
+
+STEP 11: Account Retrieval
+         Endpoint: GET /api/v1/projects/{id}/entities/{id}/accounts
+         Expected: Linked accounts returned
+         Validates: Account management
+
+STEP 12: PDF Generation
+         Endpoint: POST /api/v1/projects/{id}/reports/pdf/entity/{id}
+         Expected: PDF binary content
+         Validates: Report generation
+
+STEP 13: PDF Validation
+         Validation: Magic bytes (%PDF), size > 1KB
+         Expected: Valid PDF file
+         Validates: PDF integrity
+
+STEP 14: Bulk Import
+         Endpoint: POST /api/v1/projects/{id}/import
+         Expected: CSV data imported successfully
+         Validates: Batch operations
+
+STEP 15: Import Verification
+         Endpoint: GET /api/v1/projects/{id}/entities
+         Expected: Imported entities present
+         Validates: Data persistence
+
+STEP 16: Metrics Export
+         Endpoint: GET /metrics
+         Expected: Prometheus-format metrics
+         Validates: Monitoring infrastructure
+
+STEP 17: Entity Suggestions
+         Endpoint: GET /api/v1/suggestions/entity/{id}
+         Expected: Duplicate/linked entity suggestions
+         Validates: AI matching capabilities
+
+STEP 18: Cleanup
+         Endpoint: DELETE /api/v1/projects/{id}
+         Expected: Project deleted, 200/204 response
+         Validates: Resource cleanup
+
+================================================================================
+PERFORMANCE THRESHOLDS
+================================================================================
+
+Operation                   Threshold    Measured By         Includes
+─────────────────────────────────────────────────────────────────────────────
+Entity Creation             < 1.0s       HTTP round-trip     DB writes, indexing
+Relationship Creation       < 0.5s       HTTP round-trip     Graph updates
+Search (Cached)             < 0.1s       HTTP round-trip     Cache hit
+Search (Uncached)           < 0.5s       HTTP round-trip     Full DB search
+Graph Fetch                 < 1.0s       HTTP round-trip     Relationship traversal
+PDF Generation              < 10.0s      HTTP round-trip     Template rendering
+Metrics Export              < 0.1s       HTTP round-trip     Metric serialization
+
+================================================================================
+TEST EXECUTION MODES
+================================================================================
+
+MODE 1: Basic Test Run
+        Command: pytest tests/test_e2e_complete.py -v
+        Use Case: Quick validation with running deployment
+        Features: Console output, no report generation
+
+MODE 2: Fresh Deployment
+        Command: ./tests/run_e2e_verification.sh fresh
+        Use Case: Complete verification from scratch
+        Features: docker compose restart, all tests, full reports
+
+MODE 3: HTML Report
+        Command: ./tests/run_e2e_verification.sh html
+        Use Case: Management reporting, documentation
+        Features: HTML report auto-open, JSON report, detailed logs
+
+MODE 4: Monitor Mode
+        Command: ./tests/run_e2e_verification.sh monitor
+        Use Case: Debugging, development, troubleshooting
+        Features: Live output (-s flag), fresh deployment
+
+================================================================================
+REPORT OUTPUTS
+================================================================================
+
+Output Type     Location                          Format      Use Case
+─────────────────────────────────────────────────────────────────────────────
+HTML Report     tests/results/e2e_report_*.html   HTML        Visual inspection
+JSON Report     tests/results/e2e_report.json     JSON        Programmatic analysis
+Test Log        tests/results/e2e_test_*.log      Text        Debugging
+Coverage Report tests/results/coverage_*/         HTML        Code coverage analysis
+Console Output  stdout/stderr                      Text        Real-time monitoring
+
+================================================================================
+GRACEFUL DEGRADATION
+================================================================================
+
+The test suite is designed to handle partial system failures:
+
+CRITICAL SERVICES (tests must pass):
+  ✓ API Server (basset_api:8000)
+  ✓ Neo4j Database (neo4j:7687)
+  ✓ Redis Cache (redis:6379)
+
+OPTIONAL SERVICES (tests skip if unavailable):
+  ○ Prometheus (localhost:9090)
+  ○ Grafana (localhost:3001)
+  ○ basset-verify microservice
+  ○ cletus integration
+  ○ browser integration
+
+EXPECTED BEHAVIOR:
+  - Core workflow tests execute and report results
+  - Optional monitoring tests skip gracefully
+  - Integration tests skip for unavailable services
+  - Pass rate reflects available functionality
+  - No test crashes or unhandled exceptions
+
+================================================================================
+SUCCESS CRITERIA - PHASE 5B
+================================================================================
+
+REQUIREMENT                              STATUS      DETAILS
+─────────────────────────────────────────────────────────────────────────────
+40+ comprehensive tests                  ✓ MET       41 tests implemented
+95%+ pass rate                           ○ TARGET    With graceful degradation
+Fresh deployment workflow (20 steps)     ✓ MET       All 20 steps implemented
+Grafana & Prometheus (5 tests)           ✓ MET       Monitoring suite complete
+Deployment tests integration             ✓ MET       Subprocess execution
+Integration tests with graceful fail     ✓ MET       Skipable tests
+Performance benchmarks (7 tests)         ✓ MET       All thresholds defined
+Security checks (4 tests)                ✓ MET       Code scanning included
+HTML/JSON report generation              ✓ MET       Automatic generation
+Production readiness assessment          ✓ MET       Via pass rate analysis
+Execution time < 1 hour                  ○ TARGET    Depends on system resources
+
+================================================================================
+ENDPOINT COMPATIBILITY
+================================================================================
+
+The test suite automatically attempts multiple endpoint patterns:
+
+PATTERN 1: /api/v1/{resource}
+           Example: /api/v1/projects
+
+PATTERN 2: /{resource}
+           Example: /projects
+
+PATTERN 3: /api/{resource}
+           Example: /api/projects
+
+This ensures compatibility with various API versions and configurations.
+
+If tests skip due to endpoint not found, verify API configuration
+and check which endpoint pattern is in use in your deployment.
+
+================================================================================
+RUNNING THE TESTS
+================================================================================
+
+QUICK START:
+  cd /home/devel/basset-hound
+  ./tests/run_e2e_verification.sh fresh
+
+VIEW RESULTS:
+  open tests/results/e2e_report_*.html
+
+CHECK PERFORMANCE:
+  jq '.' tests/results/e2e_report.json
+
+DEBUG FAILURES:
+  tail -f tests/results/e2e_test_*.log
+
+CI/CD INTEGRATION:
+  Add ./tests/run_e2e_verification.sh fresh to your pipeline
+
+================================================================================
+KNOWN LIMITATIONS
+================================================================================
+
+1. Browser Tests
+   - Selenium/Playwright not included (separate test suite)
+   - Only API testing covered
+
+2. Load Testing
+   - Sequential execution only
+   - Stress testing via separate suite
+
+3. Authentication
+   - Tests assume open/unauthenticated API
+   - Add auth headers if needed
+
+4. Real-time Constraints
+   - No latency jitter analysis
+   - Thresholds are absolute
+
+5. Data Isolation
+   - Tests use sequential execution
+   - Some data state dependency between tests
+
+================================================================================
+CUSTOMIZATION
+================================================================================
+
+To customize the test suite:
+
+1. MODIFY THRESHOLDS:
+   Edit PERFORMANCE_THRESHOLD_* constants at top of test file
+
+2. ADD ENDPOINTS:
+   Update endpoints list in individual tests
+
+3. CHANGE TIMEOUTS:
+   Modify HTTP_TIMEOUT constant
+
+4. ADD CUSTOM TESTS:
+   Create new test methods in appropriate class
+
+5. SKIP TESTS:
+   Use @pytest.mark.skip or @pytest.mark.skipif decorators
+
+================================================================================
+TROUBLESHOOTING GUIDE
+================================================================================
+
+ISSUE: Tests timeout (> 1 hour)
+FIX: Check service startup logs
+     docker compose logs --tail 30 basset_api
+
+ISSUE: "Cannot connect to http://localhost:8000"
+FIX: Verify API is running
+     curl http://localhost:8000/health
+     docker compose up -d
+
+ISSUE: "All tests skipped"
+FIX: Check endpoint configuration
+     Review endpoint patterns in test file
+     Verify API URL: echo $API_URL
+
+ISSUE: Performance threshold failures
+FIX: Check system resources
+     docker stats
+     Run test in isolation
+     Adjust threshold if baseline changes
+
+ISSUE: Database connection errors
+FIX: Verify Neo4j connectivity
+     curl http://localhost:7474
+     docker compose down -v && docker compose up -d
+     Wait 60 seconds for startup
+
+================================================================================
+VERSION HISTORY
+================================================================================
+
+Phase 5b - 2026-05-07 - Initial Implementation
+  - 41 comprehensive tests
+  - 20-step workflow validation
+  - Performance benchmarks
+  - Security checks
+  - Graceful degradation
+  - Report generation
+
+================================================================================
+CONTACT & SUPPORT
+================================================================================
+
+Test File Location:    /home/devel/basset-hound/tests/test_e2e_complete.py
+Test Runner:           /home/devel/basset-hound/tests/run_e2e_verification.sh
+Documentation:         /home/devel/basset-hound/tests/E2E_VERIFICATION_GUIDE.md
+Results Directory:     /home/devel/basset-hound/tests/results/
+
+For issues:
+  1. Check test logs in tests/results/
+  2. Review detailed HTML report
+  3. Check service logs: docker compose logs -f
+  4. Verify configuration matches deployment
+
+================================================================================
+END OF DOCUMENT
+================================================================================

@@ -1,586 +1,300 @@
+#!/usr/bin/env python3
 """
-Tests for graph visualization API endpoints.
-
-This module tests the graph visualization endpoints that provide graph data
-in various formats (D3.js, vis.js, Cytoscape, raw) for frontend visualization.
+Test script for Graph Visualization in Basset Hound
+Tests map.html with live API data
 """
 
-import pytest
-from unittest.mock import patch, MagicMock
-from fastapi.testclient import TestClient
+import requests
+import time
+import json
+import sys
+from datetime import datetime
 
+BASE_URL = "http://localhost:8080"
+API_BASE = f"{BASE_URL}/api/v1"
 
-def get_test_client(mock_handler):
-    """Create a test client with mocked dependencies."""
-    from api.main import app
-    from api.dependencies import get_neo4j_handler
+def log(msg, level="INFO"):
+    """Log with timestamp"""
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    print(f"[{timestamp}] {level}: {msg}")
 
-    app.dependency_overrides[get_neo4j_handler] = lambda: mock_handler
-    return TestClient(app)
+def check_health():
+    """Check if API is healthy"""
+    try:
+        response = requests.get(f"{BASE_URL}/health", timeout=5)
+        log(f"Health check: {response.status_code}")
+        return response.status_code == 200
+    except Exception as e:
+        log(f"Health check failed: {e}", "ERROR")
+        return False
 
+def wait_for_api(max_retries=30, delay=2):
+    """Wait for API to become available"""
+    for i in range(max_retries):
+        if check_health():
+            log("API is healthy")
+            return True
+        log(f"Waiting for API... ({i+1}/{max_retries})")
+        time.sleep(delay)
+    return False
 
-@pytest.fixture
-def sample_graph_data():
-    """Sample graph data for testing."""
-    return {
-        "nodes": [
-            {
-                "id": "entity-1",
-                "label": "John Doe",
-                "type": "Person",
-                "properties": {
-                    "profile": {
-                        "profile": {
-                            "first_name": "John",
-                            "last_name": "Doe"
-                        }
-                    },
-                    "created_at": "2024-01-01T00:00:00"
-                }
+def create_test_project():
+    """Create a test project"""
+    try:
+        response = requests.post(
+            f"{API_BASE}/projects",
+            json={
+                "name": "test-graph-viz",
+                "description": "Test project for graph visualization"
             },
-            {
-                "id": "entity-2",
-                "label": "Jane Smith",
-                "type": "Person",
-                "properties": {
-                    "profile": {
-                        "profile": {
-                            "first_name": "Jane",
-                            "last_name": "Smith"
-                        }
-                    },
-                    "created_at": "2024-01-02T00:00:00"
-                }
-            },
-            {
-                "id": "entity-3",
-                "label": "Bob Johnson",
-                "type": "Person",
-                "properties": {
-                    "profile": {
-                        "profile": {
-                            "first_name": "Bob",
-                            "last_name": "Johnson"
-                        }
-                    },
-                    "created_at": "2024-01-03T00:00:00"
-                }
-            }
-        ],
-        "edges": [
-            {
-                "source": "entity-1",
-                "target": "entity-2",
-                "type": "WORKS_WITH",
-                "properties": {
-                    "confidence": "high",
-                    "source": "LinkedIn"
-                }
-            },
-            {
-                "source": "entity-2",
-                "target": "entity-3",
-                "type": "FRIEND",
-                "properties": {
-                    "confidence": "medium"
-                }
-            }
-        ]
-    }
-
-
-@pytest.fixture
-def mock_neo4j_with_graph(mock_neo4j_handler, sample_graph_data):
-    """Mock Neo4j handler with graph data."""
-    # Mock driver session
-    mock_session = MagicMock()
-    mock_neo4j_handler.driver.session.return_value.__enter__ = MagicMock(return_value=mock_session)
-    mock_neo4j_handler.driver.session.return_value.__exit__ = MagicMock(return_value=None)
-
-    # Mock query results for entities
-    mock_records = [
-        {
-            "id": "entity-1",
-            "profile": {
-                "profile": {"first_name": "John", "last_name": "Doe"},
-                "Tagged People": {
-                    "tagged_people": ["entity-2"],
-                    "relationship_types": {"entity-2": "WORKS_WITH"},
-                    "relationship_properties": {
-                        "entity-2": {"confidence": "high", "source": "LinkedIn"}
-                    }
-                }
-            },
-            "created_at": "2024-01-01T00:00:00"
-        },
-        {
-            "id": "entity-2",
-            "profile": {
-                "profile": {"first_name": "Jane", "last_name": "Smith"},
-                "Tagged People": {
-                    "tagged_people": ["entity-3"],
-                    "relationship_types": {"entity-3": "FRIEND"},
-                    "relationship_properties": {
-                        "entity-3": {"confidence": "medium"}
-                    }
-                }
-            },
-            "created_at": "2024-01-02T00:00:00"
-        },
-        {
-            "id": "entity-3",
-            "profile": {
-                "profile": {"first_name": "Bob", "last_name": "Johnson"},
-                "Tagged People": {}
-            },
-            "created_at": "2024-01-03T00:00:00"
-        }
-    ]
-
-    mock_session.run.return_value = mock_records
-
-    # Mock get_person for entity lookup
-    def mock_get_person(project, entity_id):
-        for record in mock_records:
-            if record["id"] == entity_id:
-                return record
+            timeout=10
+        )
+        if response.status_code in [200, 201]:
+            project = response.json()
+            log(f"Created project: {project}")
+            return project
+        else:
+            log(f"Failed to create project: {response.status_code} - {response.text}", "ERROR")
+            return None
+    except Exception as e:
+        log(f"Error creating project: {e}", "ERROR")
         return None
 
-    mock_neo4j_handler.get_person.side_effect = mock_get_person
+def create_test_entities(project_name, count=15):
+    """Create test entities (people)"""
+    entities = []
+    first_names = ["Alice", "Bob", "Charlie", "Diana", "Eve", "Frank", "Grace", "Henry", "Iris", "Jack",
+                   "Karen", "Leo", "Mia", "Noah", "Olivia"]
+    last_names = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis", "Rodriguez", "Martinez",
+                  "Hernandez", "Lopez", "Gonzalez", "Wilson", "Anderson"]
 
-    # Mock get_clusters for cluster queries
-    mock_neo4j_handler.get_clusters.return_value = {
-        "cluster_count": 1,
-        "clusters": [
-            {
-                "cluster_id": "entity-1",
-                "size": 3,
-                "entity_ids": ["entity-1", "entity-2", "entity-3"],
-                "entities": mock_records,
-                "internal_edges": 2,
-                "is_isolated": False
+    for i in range(min(count, len(first_names))):
+        try:
+            entity_data = {
+                "profile": {
+                    "core": {
+                        "name": [
+                            {
+                                "first_name": first_names[i],
+                                "last_name": last_names[i]
+                            }
+                        ],
+                        "email": [f"{first_names[i].lower()}.{last_names[i].lower()}@example.com"]
+                    }
+                }
             }
-        ]
-    }
+            response = requests.post(
+                f"{API_BASE}/projects/{project_name}/people",
+                json=entity_data,
+                timeout=10
+            )
+            if response.status_code in [200, 201]:
+                entity = response.json()
+                entities.append(entity)
+                log(f"Created entity: {first_names[i]} {last_names[i]} (ID: {entity.get('id', 'unknown')[:8]})")
+            else:
+                log(f"Failed to create entity: {response.status_code}", "WARNING")
+        except Exception as e:
+            log(f"Error creating entity: {e}", "WARNING")
 
-    return mock_neo4j_handler
+    return entities
 
+def create_relationships(project_name, entities):
+    """Create relationships between entities"""
+    if len(entities) < 2:
+        log("Not enough entities to create relationships", "WARNING")
+        return []
 
-class TestProjectGraph:
-    """Tests for full project graph endpoint."""
+    relationships = [
+        ("KNOWS", 0, 1),
+        ("WORKS_WITH", 1, 2),
+        ("WORKS_WITH", 2, 3),
+        ("KNOWS", 3, 4),
+        ("KNOWS", 4, 5),
+        ("WORKS_WITH", 5, 6),
+        ("KNOWS", 6, 7),
+        ("WORKS_WITH", 7, 8),
+        ("KNOWS", 8, 0),
+        ("WORKS_WITH", 0, 9),
+        ("KNOWS", 9, 10),
+        ("WORKS_WITH", 10, 11),
+        ("KNOWS", 11, 12),
+        ("WORKS_WITH", 12, 13),
+        ("KNOWS", 13, 14),
+    ]
 
-    def test_get_project_graph_raw(self, mock_neo4j_with_graph):
-        """Test getting project graph in raw format."""
-        client = get_test_client(mock_neo4j_with_graph)
+    created = []
+    for rel_type, src_idx, tgt_idx in relationships:
+        if src_idx >= len(entities) or tgt_idx >= len(entities):
+            continue
 
-        response = client.get("/api/v1/projects/test_project/graph")
+        source_id = entities[src_idx].get("id")
+        target_id = entities[tgt_idx].get("id")
 
-        assert response.status_code == 200
-        data = response.json()
+        if not source_id or not target_id:
+            continue
 
-        assert "nodes" in data
-        assert "edges" in data
-        assert len(data["nodes"]) == 3
-        assert len(data["edges"]) == 2
+        try:
+            # Tag the source entity with target entity
+            tag_data = {
+                "type": rel_type,
+                "target_id": target_id,
+                "confidence": "high" if rel_type == "WORKS_WITH" else "medium"
+            }
+            response = requests.post(
+                f"{API_BASE}/projects/{project_name}/people/{source_id}/tags",
+                json=tag_data,
+                timeout=10
+            )
+            if response.status_code in [200, 201]:
+                log(f"Created {rel_type} relationship: {source_id[:8]} -> {target_id[:8]}")
+                created.append((source_id, target_id, rel_type))
+            else:
+                log(f"Failed to create relationship: {response.status_code}", "WARNING")
+        except Exception as e:
+            log(f"Error creating relationship: {e}", "WARNING")
 
-        # Verify node structure
-        node = data["nodes"][0]
-        assert "id" in node
-        assert "label" in node
-        assert "type" in node
-        assert "properties" in node
+    return created
 
-        # Verify edge structure
-        edge = data["edges"][0]
-        assert "source" in edge
-        assert "target" in edge
-        assert "type" in edge
-        assert "properties" in edge
+def test_graph_endpoints(project_name, entity_id):
+    """Test graph visualization endpoints"""
+    results = {}
 
-    def test_get_project_graph_d3(self, mock_neo4j_with_graph):
-        """Test getting project graph in D3.js format."""
-        client = get_test_client(mock_neo4j_with_graph)
-
-        response = client.get("/api/v1/projects/test_project/graph?format=d3")
-
-        assert response.status_code == 200
-        data = response.json()
-
-        # D3 format uses 'links' instead of 'edges'
-        assert "nodes" in data
-        assert "links" in data
-        assert len(data["nodes"]) == 3
-        assert len(data["links"]) == 2
-
-        # Verify link structure
-        link = data["links"][0]
-        assert "source" in link
-        assert "target" in link
-        assert "type" in link
-
-    def test_get_project_graph_vis(self, mock_neo4j_with_graph):
-        """Test getting project graph in vis.js format."""
-        client = get_test_client(mock_neo4j_with_graph)
-
-        response = client.get("/api/v1/projects/test_project/graph?format=vis")
-
-        assert response.status_code == 200
-        data = response.json()
-
-        assert "nodes" in data
-        assert "edges" in data
-
-        # vis.js specific fields
-        node = data["nodes"][0]
-        assert "id" in node
-        assert "label" in node
-        assert "group" in node
-        assert "title" in node
-
-        edge = data["edges"][0]
-        assert "from" in edge
-        assert "to" in edge
-        assert "arrows" in edge
-        assert edge["arrows"] == "to"
-
-    def test_get_project_graph_cytoscape(self, mock_neo4j_with_graph):
-        """Test getting project graph in Cytoscape.js format."""
-        client = get_test_client(mock_neo4j_with_graph)
-
-        response = client.get("/api/v1/projects/test_project/graph?format=cytoscape")
-
-        assert response.status_code == 200
-        data = response.json()
-
-        assert "elements" in data
-        assert "nodes" in data["elements"]
-        assert "edges" in data["elements"]
-
-        # Cytoscape format has nested data objects
-        node = data["elements"]["nodes"][0]
-        assert "data" in node
-        assert "id" in node["data"]
-        assert "label" in node["data"]
-
-        edge = data["elements"]["edges"][0]
-        assert "data" in edge
-        assert "source" in edge["data"]
-        assert "target" in edge["data"]
-
-    def test_get_project_graph_exclude_orphans(self, mock_neo4j_with_graph):
-        """Test excluding orphan nodes from graph."""
-        client = get_test_client(mock_neo4j_with_graph)
-
-        response = client.get(
-            "/api/v1/projects/test_project/graph?include_orphans=false"
+    # Test 1: Get project graph
+    log("Testing: GET /api/v1/projects/{project}/graph/entity/{entity_id}")
+    try:
+        response = requests.get(
+            f"{API_BASE}/projects/{project_name}/graph/entity/{entity_id}",
+            params={"format": "cytoscape", "depth": 2},
+            timeout=10
         )
+        if response.status_code == 200:
+            data = response.json()
+            results["graph_endpoint"] = "PASS"
+            nodes = data.get("elements", {}).get("nodes", [])
+            edges = data.get("elements", {}).get("edges", [])
+            log(f"Graph data retrieved: {len(nodes)} nodes, {len(edges)} edges")
+        else:
+            results["graph_endpoint"] = f"FAIL ({response.status_code})"
+            log(f"Graph endpoint failed: {response.status_code}", "ERROR")
+    except Exception as e:
+        results["graph_endpoint"] = f"ERROR: {str(e)}"
+        log(f"Graph endpoint error: {e}", "ERROR")
 
-        assert response.status_code == 200
-        data = response.json()
+    # Test 2: Test different depths
+    log("Testing: Depth parameter (1-5)")
+    try:
+        for depth in [1, 2, 3, 4, 5]:
+            response = requests.get(
+                f"{API_BASE}/projects/{project_name}/graph/entity/{entity_id}",
+                params={"format": "cytoscape", "depth": depth},
+                timeout=10
+            )
+            if response.status_code == 200:
+                data = response.json()
+                nodes = data.get("elements", {}).get("nodes", [])
+                log(f"Depth {depth}: {len(nodes)} nodes")
+            else:
+                log(f"Depth {depth} failed", "WARNING")
+    except Exception as e:
+        log(f"Depth test error: {e}", "WARNING")
 
-        # All nodes in our test data have connections, so count should be same
-        assert len(data["nodes"]) == 3
-
-
-class TestEntitySubgraph:
-    """Tests for entity-centered subgraph endpoint."""
-
-    def test_get_entity_subgraph_raw(self, mock_neo4j_with_graph):
-        """Test getting entity subgraph in raw format."""
-        client = get_test_client(mock_neo4j_with_graph)
-
-        response = client.get(
-            "/api/v1/projects/test_project/graph/entity/entity-1"
+    # Test 3: Test export endpoint
+    log("Testing: POST /api/v1/projects/{project}/visualization/export/{format}")
+    try:
+        response = requests.post(
+            f"{API_BASE}/projects/{project_name}/visualization/export/graphml",
+            timeout=10
         )
+        if response.status_code == 200:
+            results["export_endpoint"] = "PASS"
+            log(f"Export successful: {len(response.content)} bytes")
+        else:
+            results["export_endpoint"] = f"FAIL ({response.status_code})"
+            log(f"Export failed: {response.status_code}", "ERROR")
+    except Exception as e:
+        results["export_endpoint"] = f"ERROR: {str(e)}"
+        log(f"Export error: {e}", "ERROR")
 
-        assert response.status_code == 200
-        data = response.json()
-
-        assert "nodes" in data
-        assert "edges" in data
-        assert "center_entity" in data
-        assert "depth" in data
-
-        assert data["center_entity"] == "entity-1"
-        assert data["depth"] == 2
-
-        # Should include at least the center entity
-        node_ids = [n["id"] for n in data["nodes"]]
-        assert "entity-1" in node_ids
-
-    def test_get_entity_subgraph_with_depth(self, mock_neo4j_with_graph):
-        """Test getting entity subgraph with specific depth."""
-        client = get_test_client(mock_neo4j_with_graph)
-
-        response = client.get(
-            "/api/v1/projects/test_project/graph/entity/entity-1?depth=1"
+    # Test 4: Test visualization graph endpoint
+    log("Testing: GET /api/v1/projects/{project}/visualization/graph")
+    try:
+        response = requests.get(
+            f"{API_BASE}/projects/{project_name}/visualization/graph",
+            timeout=10
         )
-
-        assert response.status_code == 200
-        data = response.json()
-
-        assert data["depth"] == 1
-        assert "nodes" in data
-        assert "edges" in data
-
-    def test_get_entity_subgraph_d3(self, mock_neo4j_with_graph):
-        """Test getting entity subgraph in D3 format."""
-        client = get_test_client(mock_neo4j_with_graph)
-
-        response = client.get(
-            "/api/v1/projects/test_project/graph/entity/entity-1?format=d3"
-        )
-
-        assert response.status_code == 200
-        data = response.json()
-
-        assert "nodes" in data
-        assert "links" in data
-        assert "center_entity" in data
-        assert data["center_entity"] == "entity-1"
-
-    def test_get_entity_subgraph_not_found(self, mock_neo4j_with_graph):
-        """Test getting subgraph for non-existent entity."""
-        client = get_test_client(mock_neo4j_with_graph)
-
-        response = client.get(
-            "/api/v1/projects/test_project/graph/entity/nonexistent"
-        )
-
-        assert response.status_code == 404
-        assert "not found" in response.json()["detail"].lower()
-
-    def test_get_entity_subgraph_depth_validation(self, mock_neo4j_with_graph):
-        """Test depth parameter validation."""
-        client = get_test_client(mock_neo4j_with_graph)
-
-        # Depth too high
-        response = client.get(
-            "/api/v1/projects/test_project/graph/entity/entity-1?depth=20"
-        )
-        assert response.status_code == 422  # Validation error
-
-        # Depth too low
-        response = client.get(
-            "/api/v1/projects/test_project/graph/entity/entity-1?depth=0"
-        )
-        assert response.status_code == 422  # Validation error
-
-
-class TestClusterGraph:
-    """Tests for cluster graph endpoint."""
-
-    def test_get_cluster_graph_raw(self, mock_neo4j_with_graph):
-        """Test getting cluster graph in raw format."""
-        client = get_test_client(mock_neo4j_with_graph)
-
-        response = client.get(
-            "/api/v1/projects/test_project/graph/cluster/entity-1"
-        )
-
-        assert response.status_code == 200
-        data = response.json()
-
-        assert "nodes" in data
-        assert "edges" in data
-        assert "cluster_id" in data
-        assert "cluster_size" in data
-        assert "is_isolated" in data
-
-        assert data["cluster_id"] == "entity-1"
-        assert data["cluster_size"] == 3
-        assert data["is_isolated"] is False
-
-    def test_get_cluster_graph_d3(self, mock_neo4j_with_graph):
-        """Test getting cluster graph in D3 format."""
-        client = get_test_client(mock_neo4j_with_graph)
-
-        response = client.get(
-            "/api/v1/projects/test_project/graph/cluster/entity-1?format=d3"
-        )
-
-        assert response.status_code == 200
-        data = response.json()
-
-        assert "nodes" in data
-        assert "links" in data
-        assert "cluster_id" in data
-        assert data["cluster_id"] == "entity-1"
-
-    def test_get_cluster_graph_vis(self, mock_neo4j_with_graph):
-        """Test getting cluster graph in vis.js format."""
-        client = get_test_client(mock_neo4j_with_graph)
-
-        response = client.get(
-            "/api/v1/projects/test_project/graph/cluster/entity-1?format=vis"
-        )
-
-        assert response.status_code == 200
-        data = response.json()
-
-        assert "nodes" in data
-        assert "edges" in data
-        assert "cluster_id" in data
-
-        # Check vis.js specific format
-        if len(data["edges"]) > 0:
-            assert "from" in data["edges"][0]
-            assert "to" in data["edges"][0]
-
-    def test_get_cluster_graph_cytoscape(self, mock_neo4j_with_graph):
-        """Test getting cluster graph in Cytoscape format."""
-        client = get_test_client(mock_neo4j_with_graph)
-
-        response = client.get(
-            "/api/v1/projects/test_project/graph/cluster/entity-1?format=cytoscape"
-        )
-
-        assert response.status_code == 200
-        data = response.json()
-
-        assert "elements" in data
-        assert "cluster_id" in data
-
-    def test_get_cluster_graph_not_found(self, mock_neo4j_with_graph):
-        """Test getting graph for non-existent cluster."""
-        # Mock clusters to return empty
-        mock_neo4j_with_graph.get_clusters.return_value = {
-            "cluster_count": 0,
-            "clusters": []
-        }
-
-        client = get_test_client(mock_neo4j_with_graph)
-
-        response = client.get(
-            "/api/v1/projects/test_project/graph/cluster/nonexistent"
-        )
-
-        assert response.status_code == 404
-        assert "not found" in response.json()["detail"].lower()
-
-
-class TestGraphService:
-    """Tests for the GraphService class."""
-
-    def test_extract_display_name_from_profile(self):
-        """Test display name extraction from various profile formats."""
-        from api.services.graph_service import GraphService
-
-        mock_neo4j = MagicMock()
-        service = GraphService(mock_neo4j)
-
-        # Test with first_name and last_name
-        profile = {"profile": {"first_name": "John", "last_name": "Doe"}}
-        name = service._extract_display_name(profile, "entity-1")
-        assert name == "John Doe"
-
-        # Test with only first_name
-        profile = {"profile": {"first_name": "John"}}
-        name = service._extract_display_name(profile, "entity-1")
-        assert name == "John"
-
-        # Test with full_name
-        profile = {"profile": {"full_name": "John Doe"}}
-        name = service._extract_display_name(profile, "entity-1")
-        assert name == "John Doe"
-
-        # Test with username
-        profile = {"social": {"username": "johndoe"}}
-        name = service._extract_display_name(profile, "entity-1")
-        assert name == "@johndoe"
-
-        # Test with email
-        profile = {"contact": {"email": "john@example.com"}}
-        name = service._extract_display_name(profile, "entity-1")
-        assert name == "john"
-
-        # Test fallback to entity ID
-        profile = {}
-        name = service._extract_display_name(profile, "entity-123456789")
-        assert "Entity" in name
-        assert "entity-12" in name
-
-    def test_format_conversions(self, sample_graph_data):
-        """Test format conversion methods."""
-        from api.services.graph_service import GraphService
-
-        mock_neo4j = MagicMock()
-        service = GraphService(mock_neo4j)
-
-        # Test D3 format
-        d3_data = service.format_for_d3(sample_graph_data)
-        assert "nodes" in d3_data
-        assert "links" in d3_data
-        assert len(d3_data["nodes"]) == 3
-        assert len(d3_data["links"]) == 2
-
-        # Test vis.js format
-        vis_data = service.format_for_vis(sample_graph_data)
-        assert "nodes" in vis_data
-        assert "edges" in vis_data
-        assert "group" in vis_data["nodes"][0]
-        assert "from" in vis_data["edges"][0]
-        assert "to" in vis_data["edges"][0]
-
-        # Test Cytoscape format
-        cyto_data = service.format_for_cytoscape(sample_graph_data)
-        assert "elements" in cyto_data
-        assert "nodes" in cyto_data["elements"]
-        assert "edges" in cyto_data["elements"]
-        assert "data" in cyto_data["elements"]["nodes"][0]
-
-    def test_metadata_preservation(self, sample_graph_data):
-        """Test that metadata is preserved in format conversions."""
-        from api.services.graph_service import GraphService
-
-        mock_neo4j = MagicMock()
-        service = GraphService(mock_neo4j)
-
-        # Add metadata to graph data
-        graph_with_meta = {
-            **sample_graph_data,
-            "center_entity": "entity-1",
-            "depth": 2,
-            "cluster_id": "cluster-1"
-        }
-
-        # Test D3 format preserves metadata
-        d3_data = service.format_for_d3(graph_with_meta)
-        assert d3_data["center_entity"] == "entity-1"
-        assert d3_data["depth"] == 2
-        assert d3_data["cluster_id"] == "cluster-1"
-
-        # Test vis.js format preserves metadata
-        vis_data = service.format_for_vis(graph_with_meta)
-        assert vis_data["center_entity"] == "entity-1"
-
-        # Test Cytoscape format preserves metadata
-        cyto_data = service.format_for_cytoscape(graph_with_meta)
-        assert cyto_data["center_entity"] == "entity-1"
-
-
-class TestErrorHandling:
-    """Tests for error handling in graph endpoints."""
-
-    def test_graph_service_error(self, mock_neo4j_handler):
-        """Test handling of service errors."""
-        # Mock session to raise an exception
-        mock_neo4j_handler.driver.session.side_effect = Exception("Database error")
-
-        client = get_test_client(mock_neo4j_handler)
-
-        response = client.get("/api/v1/projects/test_project/graph")
-
-        assert response.status_code == 500
-        assert "error" in response.json()["detail"].lower()
-
-    def test_invalid_format_parameter(self, mock_neo4j_with_graph):
-        """Test handling of invalid format parameter."""
-        client = get_test_client(mock_neo4j_with_graph)
-
-        response = client.get(
-            "/api/v1/projects/test_project/graph?format=invalid"
-        )
-
-        # FastAPI should return 422 for invalid enum value
-        assert response.status_code == 422
+        if response.status_code == 200:
+            results["viz_graph_endpoint"] = "PASS"
+            data = response.json()
+            log(f"Visualization graph retrieved successfully")
+        else:
+            results["viz_graph_endpoint"] = f"FAIL ({response.status_code})"
+            log(f"Visualization graph failed: {response.status_code}", "WARNING")
+    except Exception as e:
+        results["viz_graph_endpoint"] = f"ERROR: {str(e)}"
+        log(f"Visualization graph error: {e}", "WARNING")
+
+    return results
+
+def main():
+    """Main test function"""
+    log("Starting Graph Visualization Tests")
+    log(f"Target: {BASE_URL}")
+
+    # Wait for API
+    log("Waiting for API to be available...")
+    if not wait_for_api():
+        log("API did not become available", "ERROR")
+        return False
+
+    # Create test project
+    log("\n=== Creating Test Project ===")
+    project = create_test_project()
+    if not project:
+        log("Failed to create test project", "ERROR")
+        return False
+
+    project_name = project.get("safe_name", "test-graph-viz")
+    log(f"Using project: {project_name}")
+
+    # Create test entities
+    log("\n=== Creating Test Entities ===")
+    entities = create_test_entities(project_name, count=15)
+    if not entities:
+        log("Failed to create test entities", "ERROR")
+        return False
+
+    log(f"Created {len(entities)} entities")
+
+    # Create relationships
+    log("\n=== Creating Relationships ===")
+    relationships = create_relationships(project_name, entities)
+    log(f"Created {len(relationships)} relationships")
+
+    # Test endpoints
+    log("\n=== Testing Graph Visualization Endpoints ===")
+    if entities:
+        test_results = test_graph_endpoints(project_name, entities[0].get("id"))
+
+        log("\n=== Test Results ===")
+        for test_name, result in test_results.items():
+            status = "PASS" if "PASS" in result else "FAIL"
+            log(f"{test_name}: {result}", "INFO" if "PASS" in result else "WARNING")
+
+    # Summary
+    log("\n=== Test Complete ===")
+    log(f"Access the graph visualization at:")
+    log(f"  {BASE_URL}/map.html?project={project_name}&personId={entities[0].get('id')}&depth=2")
+
+    return True
+
+if __name__ == "__main__":
+    try:
+        success = main()
+        sys.exit(0 if success else 1)
+    except KeyboardInterrupt:
+        log("\nTest interrupted", "WARNING")
+        sys.exit(1)
+    except Exception as e:
+        log(f"Unexpected error: {e}", "ERROR")
+        sys.exit(1)

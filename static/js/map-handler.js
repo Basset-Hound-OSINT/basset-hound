@@ -6,22 +6,24 @@
  *
  * Features:
  * - Interactive layout switching (COSE, Breadthfirst, Circle, Grid)
- * - Depth control (1-5 hops)
- * - Entity type coloring
+ * - Depth control (1-5 hops) with real-time re-fetching
+ * - Entity type coloring (Person, Organization, Location, Group)
  * - Export to GraphML format
- * - Node/edge styling with labels
- * - Hover tooltips
- * - Click navigation to entity details
+ * - Node/edge styling with relationship labels
+ * - Hover tooltips with full entity names
+ * - Click navigation to entity subgraph
+ * - Responsive design for multiple screen sizes
  */
 
 // Entity type color mapping
 const ENTITY_TYPE_COLORS = {
-    'person': '#3498DB',        // Blue
-    'organization': '#27AE60',  // Green
-    'location': '#E74C3C',      // Red
-    'event': '#F39C12',         // Orange
-    'document': '#9B59B6',      // Purple
-    'other': '#95A5A6'          // Gray
+    'person': '#3498DB',           // Blue
+    'organization': '#27AE60',     // Green
+    'location': '#E74C3C',         // Red
+    'group': '#9B59B6',            // Purple
+    'event': '#F39C12',            // Orange
+    'document': '#9B59B6',         // Purple
+    'other': '#95A5A6'             // Gray
 };
 
 // Cache for graph data
@@ -136,15 +138,19 @@ function createStyleRules(entityId, degrees) {
                 'target-arrow-color': '#7F8C8D',
                 'target-arrow-shape': 'triangle',
                 'curve-style': 'bezier',
-                'label': 'data(label)',
-                'font-size': '9px',
+                'label': function(edge) {
+                    // Display relationship type formatted
+                    return formatRelationshipType(edge.data('label') || edge.data('type') || '');
+                },
+                'font-size': '10px',
+                'font-weight': 500,
                 'text-rotation': 'autorotate',
                 'text-margin-y': -10,
-                'color': '#555',
+                'color': '#333',
                 'text-background-color': '#FFF',
-                'text-background-opacity': 0.8,
-                'text-background-padding': '2px',
-                'text-border-color': '#CCC',
+                'text-background-opacity': 0.9,
+                'text-background-padding': '3px',
+                'text-border-color': '#999',
                 'text-border-width': '0.5px'
             }
         },
@@ -229,6 +235,13 @@ function debounce(func, delay) {
 }
 
 /**
+ * Clamp a number between min and max
+ */
+function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+}
+
+/**
  * Export graph to GraphML format
  */
 async function exportGraphML(projectSafeName) {
@@ -263,6 +276,18 @@ async function exportGraphML(projectSafeName) {
         console.error('Export failed:', error);
         alert(`Export failed: ${error.message}`);
     }
+}
+
+/**
+ * Format relationship type for display
+ */
+function formatRelationshipType(relType) {
+    if (!relType) return '';
+    // Convert SNAKE_CASE to Title Case
+    return relType
+        .split('_')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+        .join(' ');
 }
 
 /**
@@ -363,10 +388,17 @@ async function renderGraph(projectSafeName, entityId, depth = 2) {
 
         // Add click handler to navigate to entity details
         cy.on('tap', 'node', function(evt) {
-            const nodeId = evt.target.id();
-            if (nodeId && nodeId !== entityId) {
-                // Navigate to the clicked entity's map view
-                window.location.href = `/map.html?project=${projectSafeName}&personId=${nodeId}&depth=${depth}`;
+            const node = evt.target;
+            const nodeId = node.id();
+            if (nodeId) {
+                // If center node is clicked, open entity detail panel
+                if (nodeId === entityId) {
+                    // Open entity detail in the entity detail page/panel
+                    window.location.href = `/dashboard.html?entityId=${nodeId}&project=${projectSafeName}`;
+                } else {
+                    // Navigate to the clicked entity's map view
+                    window.location.href = `/map.html?project=${projectSafeName}&personId=${nodeId}&depth=${depth}`;
+                }
             }
         });
 
@@ -493,6 +525,20 @@ function setupControls(cy, projectSafeName, entityId, currentDepth) {
         }
     });
 }
+
+/**
+ * Open map view centered on a specific entity
+ * This can be called from entity detail panels
+ */
+window.openEntityInGraph = function(entityId, projectSafeName, depth = 2) {
+    if (!entityId) {
+        console.error('openEntityInGraph: Missing entityId');
+        return;
+    }
+    const project = projectSafeName || 'default';
+    const d = clamp(depth, 1, 5);
+    window.location.href = `/map.html?project=${project}&personId=${entityId}&depth=${d}`;
+};
 
 // Get parameters from URL query string
 const urlParams = new URLSearchParams(window.location.search);
