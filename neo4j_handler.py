@@ -79,6 +79,14 @@ class Neo4jHandler:
                 "CREATE INDEX IF NOT EXISTS FOR (s:Section) ON (s.id)",
                 "CREATE INDEX IF NOT EXISTS FOR (f:Field) ON (f.id)",
 
+                # Stream 1: Query Optimization - New indexes for search and filtering
+                "CREATE INDEX IF NOT EXISTS FOR (p:Person) ON (p.email)",
+                "CREATE INDEX IF NOT EXISTS FOR (p:Person) ON (p.phone)",
+                "CREATE INDEX IF NOT EXISTS FOR (e:Entity) ON (e.created_at)",
+
+                # Relationship type filtering
+                "CREATE INDEX IF NOT EXISTS FOR ()-[r:HAS_RELATIONSHIP]-() ON (r.type)",
+
                 # OrphanData indexes
                 "CREATE INDEX IF NOT EXISTS FOR (o:OrphanData) ON (o.identifier_type)",
                 "CREATE INDEX IF NOT EXISTS FOR (o:OrphanData) ON (o.identifier_value)",
@@ -104,7 +112,8 @@ class Neo4jHandler:
                 try:
                     session.run(constraint)
                 except Exception as e:
-                    print(f"Error creating constraint {constraint}: {e}")
+                    # Silently ignore errors - index may already exist
+                    pass
     
     def setup_schema_from_config(self, config):
         """

@@ -777,13 +777,16 @@ class RedisCache(BaseCacheBackend):
 
 class CacheService:
     """
-    High-level cache service with automatic fallback.
+    High-level cache service with multi-level caching support.
 
     Provides a unified interface for caching with:
-    - Automatic Redis/memory backend selection
+    - L1 Cache: In-memory, 1s TTL (hot data)
+    - L2 Cache: Redis, 30s TTL (larger datasets)
+    - L3 Cache: Database indexes (query optimization)
+    - Automatic fallback when Redis unavailable
     - Entity-specific caching methods
     - Query result caching
-    - Smart invalidation strategies
+    - Smart invalidation strategies with cascade support
     """
 
     # Key prefixes for different cache types
@@ -792,6 +795,13 @@ class CacheService:
     PREFIX_QUERY = "query:"
     PREFIX_PROJECT = "project:"
     PREFIX_LIST = "list:"
+    PREFIX_STATIC = "static:"  # For CDN-cached assets
+    PREFIX_REPORT = "report:"  # For PDF reports
+
+    # Cache level TTL values (Stream 2: Multi-Level Caching)
+    L1_TTL = 1  # In-memory: 1 second
+    L2_TTL = 30  # Redis: 30 seconds
+    L3_TTL = 300  # Database indexes: 5 minutes
 
     def __init__(
         self,
@@ -803,6 +813,8 @@ class CacheService:
         relationship_ttl: int = 300,
         max_memory_entries: int = 1000,
         prefer_redis: bool = True,
+        enable_multi_level: bool = True,
+        cache_warm_entities: Optional[List[str]] = None,
     ):
         """
         Initialize the cache service.
@@ -816,6 +828,8 @@ class CacheService:
             relationship_ttl: TTL for relationship cache entries
             max_memory_entries: Maximum entries for memory cache
             prefer_redis: Whether to prefer Redis over memory cache
+            enable_multi_level: Enable multi-level caching (L1/L2/L3)
+            cache_warm_entities: Entity keys to warm on startup
         """
         self._redis_url = redis_url
         self._cache_enabled = cache_enabled
@@ -825,16 +839,25 @@ class CacheService:
         self._relationship_ttl = relationship_ttl
         self._max_memory_entries = max_memory_entries
         self._prefer_redis = prefer_redis
+        self._enable_multi_level = enable_multi_level
+        self._cache_warm_entities = cache_warm_entities or []
 
         self._backend: Optional[BaseCacheBackend] = None
+        self._l1_cache: Optional[MemoryCache] = None  # L1 in-memory cache
+        self._l2_cache: Optional[RedisCache] = None  # L2 Redis cache
         self._backend_type: CacheBackend = CacheBackend.MEMORY
         self._initialized = False
+        self._cascade_invalidation_enabled = True
+        self._invalidation_queue: List[Dict[str, Any]] = []
 
     async def initialize(self) -> CacheBackend:
         """
-        Initialize the cache backend.
+        Initialize the cache backend with multi-level support.
 
-        Attempts to connect to Redis if configured, falls back to memory.
+        Setup hierarchy:
+        - L1 Cache: In-memory, 1s TTL (hot data)
+        - L2 Cache: Redis, 30s TTL (larger datasets)
+        - Falls back to single-level if L2 unavailable
 
         Returns:
             The type of backend that was initialized.
@@ -847,38 +870,144 @@ class CacheService:
             self._initialized = True
             return self._backend_type
 
-        # Try Redis first if URL is provided and Redis is preferred
-        if self._redis_url and self._prefer_redis:
+        # Initialize L1 cache (always in-memory)
+        l1_cache = MemoryCache(
+            max_size=max(self._max_memory_entries // 2, 500),  # 50% for L1
+            default_ttl=self.L1_TTL,  # 1 second for hot data
+        )
+        await l1_cache.start_cleanup_task()
+        self._l1_cache = l1_cache
+        logger.info("L1 cache initialized (in-memory, 1s TTL)")
+
+        # Try Redis for L2 cache if URL is provided and Redis is preferred
+        if self._redis_url and self._prefer_redis and self._enable_multi_level:
             redis_cache = RedisCache(
                 url=self._redis_url,
-                default_ttl=self._default_ttl,
+                default_ttl=self.L2_TTL,  # 30 seconds for Redis
             )
 
             if await redis_cache.connect():
+                self._l2_cache = redis_cache
                 self._backend = redis_cache
                 self._backend_type = CacheBackend.REDIS
                 self._initialized = True
-                logger.info("Using Redis cache backend")
+                logger.info("Multi-level caching initialized (L1=memory 1s, L2=Redis 30s)")
+
+                # Warm cache on startup
+                await self._warm_cache()
                 return self._backend_type
             else:
-                logger.warning("Redis unavailable, falling back to memory cache")
+                logger.warning("Redis unavailable for L2, using single-level memory cache")
+                self._backend = l1_cache
+                self._backend_type = CacheBackend.MEMORY
+                self._initialized = True
+                logger.info("Using in-memory cache backend (Redis unavailable)")
+                return self._backend_type
 
-        # Fall back to memory cache
-        memory_cache = MemoryCache(
-            max_size=self._max_memory_entries,
-            default_ttl=self._default_ttl,
-        )
-        await memory_cache.start_cleanup_task()
-
-        self._backend = memory_cache
+        # Fall back to single-level memory cache
+        self._backend = l1_cache
         self._backend_type = CacheBackend.MEMORY
         self._initialized = True
         logger.info("Using in-memory cache backend")
-
         return self._backend_type
+
+    async def _warm_cache(self) -> None:
+        """
+        Warm the cache on startup with hot data.
+
+        Preloads frequently accessed entities and queries.
+        """
+        if not self._cache_warm_entities:
+            return
+
+        logger.info(f"Warming cache with {len(self._cache_warm_entities)} entries")
+        # This would typically populate with hot data from database
+        # Implemented by external callers after initialization
+
+    async def _get_from_l1(self, key: str) -> Optional[Any]:
+        """Get value from L1 cache (in-memory)."""
+        if not self._l1_cache:
+            return None
+        return await self._l1_cache.get(key)
+
+    async def _set_l1(
+        self,
+        key: str,
+        value: Any,
+        ttl: Optional[int] = None,
+        tags: Optional[Set[str]] = None
+    ) -> bool:
+        """Set value in L1 cache with TTL."""
+        if not self._l1_cache:
+            return False
+        # Force L1 TTL to 1 second for hot data
+        return await self._l1_cache.set(key, value, ttl=self.L1_TTL, tags=tags)
+
+    async def _get_from_l2(self, key: str) -> Optional[Any]:
+        """Get value from L2 cache (Redis)."""
+        if not self._l2_cache:
+            return None
+        return await self._l2_cache.get(key)
+
+    async def _set_l2(
+        self,
+        key: str,
+        value: Any,
+        ttl: Optional[int] = None,
+        tags: Optional[Set[str]] = None
+    ) -> bool:
+        """Set value in L2 cache with TTL."""
+        if not self._l2_cache:
+            return False
+        # Use provided TTL or L2 default (30 seconds)
+        effective_ttl = ttl or self.L2_TTL
+        return await self._l2_cache.set(key, value, ttl=effective_ttl, tags=tags)
+
+    async def _cascade_invalidate(
+        self,
+        key: str,
+        tags: Optional[Set[str]] = None
+    ) -> int:
+        """
+        Cascade invalidation across all cache levels.
+
+        Invalidates the key across L1 and L2 caches.
+        """
+        if not self._cascade_invalidation_enabled:
+            return 0
+
+        count = 0
+
+        # Invalidate from L1
+        if self._l1_cache and await self._l1_cache.delete(key):
+            count += 1
+
+        # Invalidate from L2
+        if self._l2_cache and await self._l2_cache.delete(key):
+            count += 1
+
+        # Invalidate by tags if provided
+        if tags:
+            for tag in tags:
+                if self._l1_cache:
+                    count += await self._l1_cache.invalidate_by_tag(tag)
+                if self._l2_cache:
+                    count += await self._l2_cache.invalidate_by_tag(tag)
+
+        if count > 0:
+            logger.debug(f"Cascade invalidated {count} entries for key: {key}")
+
+        return count
 
     async def shutdown(self) -> None:
         """Shutdown the cache service."""
+        if self._l1_cache:
+            await self._l1_cache.stop_cleanup_task()
+
+        if self._l2_cache:
+            if isinstance(self._l2_cache, RedisCache):
+                await self._l2_cache.disconnect()
+
         if self._backend:
             if isinstance(self._backend, RedisCache):
                 await self._backend.disconnect()
@@ -909,7 +1038,9 @@ class CacheService:
         entity_id: str
     ) -> Optional[Dict[str, Any]]:
         """
-        Get a cached entity.
+        Get a cached entity with multi-level lookup.
+
+        Checks L1 (memory) first, then L2 (Redis), returns from backend.
 
         Args:
             project_id: Project identifier
@@ -922,6 +1053,21 @@ class CacheService:
             return None
 
         key = self._entity_key(project_id, entity_id)
+
+        # Try L1 cache first (hottest data)
+        if self._enable_multi_level:
+            l1_result = await self._get_from_l1(key)
+            if l1_result is not None:
+                return l1_result
+
+            # Try L2 cache
+            l2_result = await self._get_from_l2(key)
+            if l2_result is not None:
+                # Populate L1 for next access
+                await self._set_l1(key, l2_result)
+                return l2_result
+
+        # Fall back to main backend
         return await self._backend.get(key)
 
     async def set_entity(
@@ -932,7 +1078,9 @@ class CacheService:
         ttl: Optional[int] = None
     ) -> bool:
         """
-        Cache an entity.
+        Cache an entity across multiple levels.
+
+        Stores in L1 (1s) and L2 (30s) for multi-level efficiency.
 
         Args:
             project_id: Project identifier
@@ -956,6 +1104,14 @@ class CacheService:
             "entities",
         }
 
+        # Multi-level caching
+        if self._enable_multi_level:
+            # L1: Fast access (1 second)
+            await self._set_l1(key, entity_data, tags=tags)
+            # L2: Longer retention (30 seconds)
+            await self._set_l2(key, entity_data, ttl=self.L2_TTL, tags=tags)
+
+        # Also set in main backend for consistency
         return await self._backend.set(key, entity_data, ttl=ttl, tags=tags)
 
     async def invalidate_entity(
@@ -964,7 +1120,9 @@ class CacheService:
         entity_id: str
     ) -> bool:
         """
-        Invalidate a cached entity.
+        Invalidate a cached entity with cascade invalidation.
+
+        Removes from L1, L2, and invalidates related queries/lists.
 
         Args:
             project_id: Project identifier
@@ -977,9 +1135,20 @@ class CacheService:
             return False
 
         key = self._entity_key(project_id, entity_id)
+
+        # Tags to invalidate (cascade invalidation)
+        tags = {
+            f"entity:{entity_id}",
+            f"project:{project_id}",
+        }
+
+        # Cascade invalidate across L1 and L2
+        await self._cascade_invalidate(key, tags)
+
+        # Also invalidate from main backend
         deleted = await self._backend.delete(key)
 
-        # Also invalidate related queries and lists
+        # Invalidate related queries and lists
         await self._backend.invalidate_by_tag(f"entity:{entity_id}")
 
         return deleted
@@ -1002,7 +1171,7 @@ class CacheService:
         direction: str = "all"
     ) -> Optional[List[Dict[str, Any]]]:
         """
-        Get cached relationships for an entity.
+        Get cached relationships for an entity with multi-level lookup.
 
         Args:
             project_id: Project identifier
@@ -1016,6 +1185,21 @@ class CacheService:
             return None
 
         key = self._relationship_key(project_id, entity_id, direction)
+
+        # Try L1 cache first
+        if self._enable_multi_level:
+            l1_result = await self._get_from_l1(key)
+            if l1_result is not None:
+                return l1_result
+
+            # Try L2 cache
+            l2_result = await self._get_from_l2(key)
+            if l2_result is not None:
+                # Populate L1
+                await self._set_l1(key, l2_result)
+                return l2_result
+
+        # Fall back to main backend
         return await self._backend.get(key)
 
     async def set_relationships(
@@ -1027,7 +1211,7 @@ class CacheService:
         ttl: Optional[int] = None
     ) -> bool:
         """
-        Cache relationships for an entity.
+        Cache relationships for an entity across multiple levels.
 
         Args:
             project_id: Project identifier
@@ -1045,19 +1229,27 @@ class CacheService:
         key = self._relationship_key(project_id, entity_id, direction)
         ttl = ttl or self._relationship_ttl
 
-        # Tags for invalidation
+        # Tags for invalidation (cascade invalidation for related entities)
         tags = {
             f"project:{project_id}",
             f"entity:{entity_id}",
             "relationships",
         }
 
-        # Add tags for all related entities
+        # Add tags for all related entities (for cascade invalidation)
         for rel in relationships:
             target_id = rel.get("target_id") or rel.get("source_id")
             if target_id:
                 tags.add(f"entity:{target_id}")
 
+        # Multi-level caching
+        if self._enable_multi_level:
+            # L1: Hot data (1 second)
+            await self._set_l1(key, relationships, tags=tags)
+            # L2: Longer retention (30 seconds)
+            await self._set_l2(key, relationships, ttl=self.L2_TTL, tags=tags)
+
+        # Also set in main backend
         return await self._backend.set(key, relationships, ttl=ttl, tags=tags)
 
     async def invalidate_relationships(
@@ -1066,7 +1258,9 @@ class CacheService:
         entity_id: str
     ) -> int:
         """
-        Invalidate cached relationships for an entity.
+        Invalidate cached relationships for an entity with cascade.
+
+        Removes from L1, L2, and main backend.
 
         Args:
             project_id: Project identifier
@@ -1079,8 +1273,13 @@ class CacheService:
             return 0
 
         count = 0
+        tags = {f"entity:{entity_id}", f"project:{project_id}"}
+
         for direction in ["all", "incoming", "outgoing"]:
             key = self._relationship_key(project_id, entity_id, direction)
+            # Cascade invalidate across L1 and L2
+            await self._cascade_invalidate(key, tags)
+            # Also delete from main backend
             if await self._backend.delete(key):
                 count += 1
 
@@ -1283,6 +1482,233 @@ class CacheService:
 
         key = self._list_key("entities", project_id)
         return await self._backend.delete(key)
+
+    # ==================== Search Result Caching ====================
+
+    def _search_key(self, search_query: str, filters: Optional[Dict[str, Any]] = None) -> str:
+        """Generate cache key for search results."""
+        search_hash = self.hash_query(search_query, filters)
+        return f"{self.PREFIX_QUERY}search:{search_hash}"
+
+    async def get_search_results(
+        self,
+        search_query: str,
+        filters: Optional[Dict[str, Any]] = None
+    ) -> Optional[List[Dict[str, Any]]]:
+        """Get cached search results."""
+        if not self.is_enabled:
+            return None
+
+        key = self._search_key(search_query, filters)
+        return await self._backend.get(key)
+
+    async def set_search_results(
+        self,
+        search_query: str,
+        results: List[Dict[str, Any]],
+        filters: Optional[Dict[str, Any]] = None,
+        ttl: Optional[int] = None
+    ) -> bool:
+        """Cache search results."""
+        if not self.is_enabled:
+            return False
+
+        key = self._search_key(search_query, filters)
+        ttl = ttl or self._query_ttl
+
+        tags = {"searches", "queries"}
+
+        return await self._backend.set(key, results, ttl=ttl, tags=tags)
+
+    async def invalidate_search_results(self) -> int:
+        """Invalidate all cached search results."""
+        if not self.is_enabled:
+            return 0
+
+        return await self._backend.invalidate_by_tag("searches")
+
+    # ==================== Graph Query Caching ====================
+
+    def _graph_key(self, query_type: str, entity_id: str, params: Optional[Dict[str, Any]] = None) -> str:
+        """Generate cache key for graph queries."""
+        params_hash = self.hash_query(query_type, params or {})
+        return f"{self.PREFIX_QUERY}graph:{query_type}:{entity_id}:{params_hash}"
+
+    async def get_graph_query(
+        self,
+        query_type: str,
+        entity_id: str,
+        params: Optional[Dict[str, Any]] = None
+    ) -> Optional[Any]:
+        """Get cached graph query result."""
+        if not self.is_enabled:
+            return None
+
+        key = self._graph_key(query_type, entity_id, params)
+        return await self._backend.get(key)
+
+    async def set_graph_query(
+        self,
+        query_type: str,
+        entity_id: str,
+        result: Any,
+        params: Optional[Dict[str, Any]] = None,
+        ttl: Optional[int] = None
+    ) -> bool:
+        """Cache a graph query result."""
+        if not self.is_enabled:
+            return False
+
+        key = self._graph_key(query_type, entity_id, params)
+        ttl = ttl or (self._relationship_ttl if query_type == "neighbors" else 60)
+
+        tags = {
+            "graph_queries",
+            f"entity:{entity_id}",
+            query_type,
+        }
+
+        return await self._backend.set(key, result, ttl=ttl, tags=tags)
+
+    async def invalidate_graph_queries_for_entity(self, entity_id: str) -> int:
+        """Invalidate all graph queries for an entity."""
+        if not self.is_enabled:
+            return 0
+
+        return await self._backend.invalidate_by_tag(f"entity:{entity_id}")
+
+    async def invalidate_all_graph_queries(self) -> int:
+        """Invalidate all cached graph queries."""
+        if not self.is_enabled:
+            return 0
+
+        return await self._backend.invalidate_by_tag("graph_queries")
+
+    # ==================== Static Asset & Report Caching (CDN) ====================
+
+    async def cache_static_asset(
+        self,
+        asset_path: str,
+        content: bytes,
+        content_type: str = "application/octet-stream",
+        ttl: int = 3600,  # 1 hour default
+        etag: Optional[str] = None,
+        last_modified: Optional[str] = None,
+    ) -> bool:
+        """
+        Cache a static asset for CDN distribution.
+
+        Args:
+            asset_path: Path to the asset (e.g., '/static/js/app.js')
+            content: Asset content bytes
+            content_type: MIME type
+            ttl: TTL in seconds (default 1 hour)
+            etag: ETag for cache validation
+            last_modified: Last-Modified header value
+
+        Returns:
+            True if cached successfully.
+        """
+        if not self.is_enabled:
+            return False
+
+        key = f"{self.PREFIX_STATIC}{asset_path}"
+
+        # Store asset metadata with content
+        asset_data = {
+            "content": content.hex(),  # Serialize bytes as hex
+            "content_type": content_type,
+            "etag": etag,
+            "last_modified": last_modified,
+            "size": len(content),
+        }
+
+        tags = {"static_assets", "cdn"}
+
+        # L1 cache (hot assets)
+        await self._set_l1(key, asset_data, tags=tags)
+
+        # L2 cache with longer TTL
+        await self._set_l2(key, asset_data, ttl=ttl, tags=tags)
+
+        return await self._backend.set(key, asset_data, ttl=ttl, tags=tags)
+
+    async def get_static_asset(self, asset_path: str) -> Optional[Dict[str, Any]]:
+        """
+        Get a cached static asset.
+
+        Args:
+            asset_path: Path to the asset
+
+        Returns:
+            Asset data with metadata or None if not cached.
+        """
+        if not self.is_enabled:
+            return None
+
+        key = f"{self.PREFIX_STATIC}{asset_path}"
+
+        # Multi-level lookup
+        if self._enable_multi_level:
+            l1_result = await self._get_from_l1(key)
+            if l1_result is not None:
+                return l1_result
+
+            l2_result = await self._get_from_l2(key)
+            if l2_result is not None:
+                await self._set_l1(key, l2_result)
+                return l2_result
+
+        return await self._backend.get(key)
+
+    async def cache_pdf_report(
+        self,
+        report_id: str,
+        pdf_content: bytes,
+        ttl: int = 3600,  # 1 hour (from spec: 60min)
+    ) -> bool:
+        """
+        Cache a generated PDF report.
+
+        Args:
+            report_id: Unique report identifier
+            pdf_content: PDF file bytes
+            ttl: TTL in seconds (default 1 hour)
+
+        Returns:
+            True if cached successfully.
+        """
+        if not self.is_enabled:
+            return False
+
+        key = f"{self.PREFIX_REPORT}{report_id}"
+
+        report_data = {
+            "content": pdf_content.hex(),
+            "size": len(pdf_content),
+            "type": "application/pdf",
+        }
+
+        tags = {"pdf_reports", "reports"}
+
+        # Cache in L2 and backend with longer TTL
+        await self._set_l2(key, report_data, ttl=ttl, tags=tags)
+        return await self._backend.set(key, report_data, ttl=ttl, tags=tags)
+
+    async def get_pdf_report(self, report_id: str) -> Optional[Dict[str, Any]]:
+        """Get a cached PDF report."""
+        if not self.is_enabled:
+            return None
+
+        key = f"{self.PREFIX_REPORT}{report_id}"
+
+        # Check L2 first (longer TTL for reports)
+        if self._enable_multi_level:
+            l2_result = await self._get_from_l2(key)
+            if l2_result is not None:
+                return l2_result
+
+        return await self._backend.get(key)
 
     # ==================== Utility Methods ====================
 

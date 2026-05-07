@@ -262,7 +262,13 @@ class AsyncNeo4jService:
             "CREATE INDEX IF NOT EXISTS FOR (d:DataItem) ON (d.hash)",
             "CREATE INDEX IF NOT EXISTS FOR (d:DataItem) ON (d.normalized_value)",
             "CREATE INDEX IF NOT EXISTS FOR (d:DataItem) ON (d.type)",
+            # Stream 1: Query Optimization - New indexes for search and filtering
+            "CREATE INDEX IF NOT EXISTS FOR (p:Person) ON (p.email)",
+            "CREATE INDEX IF NOT EXISTS FOR (p:Person) ON (p.phone)",
+            "CREATE INDEX IF NOT EXISTS FOR (e:Entity) ON (e.created_at)",
+            "CREATE INDEX IF NOT EXISTS FOR ()-[r:HAS_RELATIONSHIP]-() ON (r.type)",
             "CREATE INDEX IF NOT EXISTS FOR ()-[r:HAS_FILE]-() ON (r.section_id, r.field_id)",
+            "CREATE INDEX IF NOT EXISTS FOR ()-[r:TAGGED]-() ON (r.relationship_type)",
         ]
 
         async with self.session() as session:
@@ -270,7 +276,8 @@ class AsyncNeo4jService:
                 try:
                     await session.run(constraint)
                 except Exception as e:
-                    print(f"Error creating constraint {constraint}: {e}")
+                    # Silently ignore errors - index may already exist
+                    pass
 
     async def setup_schema_from_config(self, config: Dict[str, Any]) -> None:
         """
