@@ -3,16 +3,203 @@
  *
  * Renders an interactive network graph of entity relationships
  * centered on a specific entity using Cytoscape.js.
+ *
+ * Features:
+ * - Interactive layout switching (COSE, Breadthfirst, Circle, Grid)
+ * - Depth control (1-5 hops)
+ * - Entity type coloring
+ * - Export to GraphML format
+ * - Node/edge styling with labels
+ * - Hover tooltips
+ * - Click navigation to entity details
  */
 
+// Entity type color mapping
+const ENTITY_TYPE_COLORS = {
+    'person': '#3498DB',        // Blue
+    'organization': '#27AE60',  // Green
+    'location': '#E74C3C',      // Red
+    'event': '#F39C12',         // Orange
+    'document': '#9B59B6',      // Purple
+    'other': '#95A5A6'          // Gray
+};
+
+// Cache for graph data
+let cachedGraphData = null;
+let cachedProjectName = null;
+let cachedEntityId = null;
+
+/**
+ * Get color for entity type
+ */
+function getEntityTypeColor(entityType) {
+    if (!entityType) return ENTITY_TYPE_COLORS['other'];
+    const normalized = entityType.toLowerCase();
+    return ENTITY_TYPE_COLORS[normalized] || ENTITY_TYPE_COLORS['other'];
+}
+
+/**
+ * Truncate text to specified length
+ */
+function truncateText(text, maxLength = 15) {
+    if (text.length > maxLength) {
+        return text.substring(0, maxLength - 1) + '…';
+    }
+    return text;
+}
+
+/**
+ * Calculate node degree (number of connections)
+ */
+function calculateNodeDegrees(elements) {
+    const degrees = {};
+
+    elements.edges.forEach(edge => {
+        const source = edge.data.source;
+        const target = edge.data.target;
+        degrees[source] = (degrees[source] || 0) + 1;
+        degrees[target] = (degrees[target] || 0) + 1;
+    });
+
+    return degrees;
+}
+
+/**
+ * Create cytoscape style rules based on entity data
+ */
+function createStyleRules(entityId, degrees) {
+    // Base styles
+    const styles = [
+        {
+            selector: 'node',
+            style: {
+                'background-color': function(node) {
+                    const entityType = node.data('properties')?.entity_type || 'person';
+                    return getEntityTypeColor(entityType);
+                },
+                'label': function(node) {
+                    return truncateText(node.data('label'), 15);
+                },
+                'text-valign': 'bottom',
+                'text-halign': 'center',
+                'font-size': '11px',
+                'text-margin-y': 5,
+                'width': function(node) {
+                    // Size proportional to degree
+                    const degree = degrees[node.id()] || 0;
+                    return 30 + Math.min(degree * 3, 25);
+                },
+                'height': function(node) {
+                    const degree = degrees[node.id()] || 0;
+                    return 30 + Math.min(degree * 3, 25);
+                },
+                'border-width': 2,
+                'border-color': '#333',
+                'text-wrap': 'wrap',
+                'overlay-padding': 5,
+                'overlay-opacity': 0
+            }
+        },
+        {
+            // Highlight the center entity
+            selector: `node[id = "${entityId}"]`,
+            style: {
+                'background-color': '#F39C12',
+                'border-color': '#D68910',
+                'border-width': 3,
+                'width': 60,
+                'height': 60,
+                'font-weight': 'bold',
+                'font-size': '12px',
+                'z-index': 10,
+                'overlay-padding': 8,
+                'overlay-color': '#FFD700',
+                'overlay-opacity': 0.3
+            }
+        },
+        {
+            selector: 'edge',
+            style: {
+                'width': function(edge) {
+                    // Vary width based on properties
+                    const confidence = edge.data('properties')?.confidence || 'medium';
+                    if (confidence === 'high') return 3;
+                    if (confidence === 'low') return 1;
+                    return 2;
+                },
+                'line-color': function(edge) {
+                    const confidence = edge.data('properties')?.confidence || 'medium';
+                    if (confidence === 'high') return '#27AE60';
+                    if (confidence === 'low') return '#BDC3C7';
+                    return '#95A5A6';
+                },
+                'target-arrow-color': '#7F8C8D',
+                'target-arrow-shape': 'triangle',
+                'curve-style': 'bezier',
+                'label': 'data(label)',
+                'font-size': '9px',
+                'text-rotation': 'autorotate',
+                'text-margin-y': -10,
+                'color': '#555',
+                'text-background-color': '#FFF',
+                'text-background-opacity': 0.8,
+                'text-background-padding': '2px',
+                'text-border-color': '#CCC',
+                'text-border-width': '0.5px'
+            }
+        },
+        {
+            selector: 'node:selected',
+            style: {
+                'border-width': 4,
+                'border-color': '#2ECC71',
+                'overlay-opacity': 0.5,
+                'overlay-color': '#2ECC71'
+            }
+        },
+        {
+            selector: 'edge:selected',
+            style: {
+                'line-color': '#2ECC71',
+                'width': 4
+            }
+        },
+        {
+            selector: 'node:hover',
+            style: {
+                'border-width': 3,
+                'border-color': '#2ECC71',
+                'overlay-opacity': 0.3,
+                'overlay-color': '#2ECC71'
+            }
+        }
+    ];
+
+    return styles;
+}
+
 async function fetchGraphData(projectSafeName, entityId, depth = 2) {
+    // Check cache first
+    if (cachedGraphData && cachedProjectName === projectSafeName &&
+        cachedEntityId === entityId) {
+        return cachedGraphData;
+    }
+
     const response = await fetch(
         `/api/v1/projects/${projectSafeName}/graph/entity/${entityId}?format=cytoscape&depth=${depth}`
     );
     if (!response.ok) {
         throw new Error(`Failed to fetch graph data: ${response.statusText}`);
     }
-    return response.json();
+
+    const data = await response.json();
+
+    // Cache the data
+    cachedGraphData = data;
+    cachedProjectName = projectSafeName;
+    cachedEntityId = entityId;
+
+    return data;
 }
 
 async function fetchEntityName(projectSafeName, entityId) {
@@ -28,6 +215,104 @@ async function fetchEntityName(projectSafeName, entityId) {
     return entityId;
 }
 
+/**
+ * Debounce function for depth slider changes
+ */
+function debounce(func, delay) {
+    let timeoutId = null;
+    return function(...args) {
+        if (timeoutId) clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => {
+            func.apply(this, args);
+        }, delay);
+    };
+}
+
+/**
+ * Export graph to GraphML format
+ */
+async function exportGraphML(projectSafeName) {
+    try {
+        const response = await fetch(
+            `/api/v1/projects/${projectSafeName}/visualization/export/graphml`
+        );
+        if (!response.ok) {
+            throw new Error(`Export failed: ${response.statusText}`);
+        }
+
+        // Get filename from headers if available
+        const contentDisposition = response.headers.get('content-disposition');
+        let filename = 'graph.graphml';
+        if (contentDisposition) {
+            const matches = contentDisposition.match(/filename="([^"]+)"/);
+            if (matches) filename = matches[1];
+        }
+
+        // Download the file
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+
+    } catch (error) {
+        console.error('Export failed:', error);
+        alert(`Export failed: ${error.message}`);
+    }
+}
+
+/**
+ * Change graph layout
+ */
+function changeLayout(cy, layoutName) {
+    const layout = cy.layout({
+        name: layoutName,
+        animate: true,
+        animationDuration: 500,
+        fit: true,
+        padding: 50,
+        ...(layoutName === 'cose' && {
+            nodeRepulsion: function(node) { return 8000; },
+            idealEdgeLength: function(edge) { return 100; },
+            edgeElasticity: function(edge) { return 100; },
+            gravity: 0.25,
+            numIter: 1000
+        }),
+        ...(layoutName === 'breadthfirst' && {
+            directed: false,
+            roots: false
+        }),
+        ...(layoutName === 'circle' && {
+            radius: 300
+        }),
+        ...(layoutName === 'grid' && {
+            condense: true,
+            rows: 5
+        })
+    });
+
+    layout.run();
+}
+
+/**
+ * Center view on entity
+ */
+function centerView(cy, entityId) {
+    const centerNode = cy.getElementById(entityId);
+    if (centerNode.length > 0) {
+        cy.animate({
+            center: { eles: centerNode },
+            zoom: 1.2
+        }, {
+            duration: 300
+        });
+    }
+}
+
 async function renderGraph(projectSafeName, entityId, depth = 2) {
     const container = document.getElementById('graph-container');
 
@@ -41,67 +326,19 @@ async function renderGraph(projectSafeName, entityId, depth = 2) {
         container.innerHTML = '';
 
         // Handle empty graph
-        if (!graphData.elements || graphData.elements.length === 0) {
+        if (!graphData.elements || !graphData.elements.nodes || graphData.elements.nodes.length === 0) {
             container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#666;">No connections found for this entity.</div>';
             return;
         }
+
+        // Calculate node degrees for sizing
+        const degrees = calculateNodeDegrees(graphData.elements);
 
         // Initialize Cytoscape with the graph data
         const cy = cytoscape({
             container: container,
             elements: graphData.elements,
-            style: [
-                {
-                    selector: 'node',
-                    style: {
-                        'background-color': '#4A90D9',
-                        'label': 'data(label)',
-                        'text-valign': 'bottom',
-                        'text-halign': 'center',
-                        'font-size': '11px',
-                        'text-margin-y': 5,
-                        'width': 40,
-                        'height': 40,
-                        'border-width': 2,
-                        'border-color': '#2E5D8C'
-                    }
-                },
-                {
-                    // Highlight the center entity
-                    selector: `node[id = "${entityId}"]`,
-                    style: {
-                        'background-color': '#E67E22',
-                        'border-color': '#D35400',
-                        'width': 55,
-                        'height': 55,
-                        'font-weight': 'bold',
-                        'font-size': '13px',
-                        'z-index': 10
-                    }
-                },
-                {
-                    selector: 'edge',
-                    style: {
-                        'width': 2,
-                        'line-color': '#95A5A6',
-                        'target-arrow-color': '#7F8C8D',
-                        'target-arrow-shape': 'triangle',
-                        'curve-style': 'bezier',
-                        'label': 'data(label)',
-                        'font-size': '9px',
-                        'text-rotation': 'autorotate',
-                        'text-margin-y': -10,
-                        'color': '#555'
-                    }
-                },
-                {
-                    selector: 'node:selected',
-                    style: {
-                        'border-width': 4,
-                        'border-color': '#2ECC71'
-                    }
-                }
-            ],
+            style: createStyleRules(entityId, degrees),
             layout: {
                 name: 'cose',
                 animate: true,
@@ -121,15 +358,7 @@ async function renderGraph(projectSafeName, entityId, depth = 2) {
 
         // After layout completes, center on the target entity
         cy.on('layoutstop', () => {
-            const centerNode = cy.getElementById(entityId);
-            if (centerNode.length > 0) {
-                cy.animate({
-                    center: { eles: centerNode },
-                    zoom: 1.2
-                }, {
-                    duration: 300
-                });
-            }
+            centerView(cy, entityId);
         });
 
         // Add click handler to navigate to entity details
@@ -141,21 +370,47 @@ async function renderGraph(projectSafeName, entityId, depth = 2) {
             }
         });
 
-        // Add hover effects
+        // Add hover effect - show tooltip on hover
         cy.on('mouseover', 'node', function(evt) {
             document.body.style.cursor = 'pointer';
-            evt.target.style({
-                'border-width': 4
+            const node = evt.target;
+            const fullName = node.data('label');
+            const entityType = node.data('properties')?.entity_type || 'unknown';
+
+            // Create and show tooltip
+            const tooltip = document.createElement('div');
+            tooltip.className = 'graph-tooltip';
+            tooltip.textContent = `${fullName} (${entityType.charAt(0).toUpperCase() + entityType.slice(1)})`;
+            tooltip.style.position = 'fixed';
+            tooltip.style.backgroundColor = '#333';
+            tooltip.style.color = '#fff';
+            tooltip.style.padding = '8px 12px';
+            tooltip.style.borderRadius = '4px';
+            tooltip.style.fontSize = '12px';
+            tooltip.style.zIndex = '1000';
+            tooltip.style.pointerEvents = 'none';
+            tooltip.style.whiteSpace = 'nowrap';
+            tooltip.id = 'graph-tooltip';
+
+            document.body.appendChild(tooltip);
+
+            // Position tooltip at mouse position
+            document.addEventListener('mousemove', function positionTooltip(e) {
+                tooltip.style.left = (e.clientX + 10) + 'px';
+                tooltip.style.top = (e.clientY + 10) + 'px';
             });
         });
 
         cy.on('mouseout', 'node', function(evt) {
             document.body.style.cursor = 'default';
-            const isCenter = evt.target.id() === entityId;
-            evt.target.style({
-                'border-width': isCenter ? 2 : 2
-            });
+            const tooltip = document.getElementById('graph-tooltip');
+            if (tooltip) {
+                tooltip.remove();
+            }
         });
+
+        // Setup controls
+        setupControls(cy, projectSafeName, entityId, depth);
 
         // Add title with entity name
         const entityName = await fetchEntityName(projectSafeName, entityId);
@@ -165,6 +420,78 @@ async function renderGraph(projectSafeName, entityId, depth = 2) {
         console.error('Error rendering graph:', error);
         container.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#c00;">Error loading graph: ${error.message}</div>`;
     }
+}
+
+/**
+ * Setup the controls panel
+ */
+function setupControls(cy, projectSafeName, entityId, currentDepth) {
+    const controlsPanel = document.getElementById('controls-panel');
+
+    // Depth slider
+    const depthSlider = document.getElementById('depth-slider');
+    depthSlider.value = currentDepth;
+
+    const debouncedDepthChange = debounce(async (newDepth) => {
+        // Update URL
+        const newUrl = `/map.html?project=${projectSafeName}&personId=${entityId}&depth=${newDepth}`;
+        window.history.pushState({}, '', newUrl);
+
+        // Re-render graph
+        await renderGraph(projectSafeName, entityId, newDepth);
+    }, 500);
+
+    depthSlider.addEventListener('change', (e) => {
+        const newDepth = parseInt(e.target.value, 10);
+        document.getElementById('depth-value').textContent = newDepth;
+        debouncedDepthChange(newDepth);
+    });
+
+    depthSlider.addEventListener('input', (e) => {
+        document.getElementById('depth-value').textContent = e.target.value;
+    });
+
+    // Layout selector
+    const layoutSelector = document.getElementById('layout-selector');
+    layoutSelector.addEventListener('change', (e) => {
+        changeLayout(cy, e.target.value);
+    });
+
+    // Center button
+    document.getElementById('center-btn').addEventListener('click', () => {
+        centerView(cy, entityId);
+    });
+
+    // Export button
+    document.getElementById('export-btn').addEventListener('click', async () => {
+        const btn = document.getElementById('export-btn');
+        const originalText = btn.textContent;
+        btn.textContent = 'Exporting...';
+        btn.disabled = true;
+        try {
+            await exportGraphML(projectSafeName);
+        } finally {
+            btn.textContent = originalText;
+            btn.disabled = false;
+        }
+    });
+
+    // Reset view button
+    document.getElementById('reset-view-btn').addEventListener('click', () => {
+        cy.fit(cy.elements(), 50);
+    });
+
+    // Fullscreen button
+    document.getElementById('fullscreen-btn').addEventListener('click', () => {
+        const graphContainer = document.getElementById('graph-container');
+        if (!document.fullscreenElement) {
+            graphContainer.requestFullscreen().catch(err => {
+                console.error(`Error attempting to enable fullscreen: ${err.message}`);
+            });
+        } else {
+            document.exitFullscreen();
+        }
+    });
 }
 
 // Get parameters from URL query string

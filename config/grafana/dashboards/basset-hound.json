@@ -1,0 +1,155 @@
+{
+  "dashboard": {
+    "title": "Basset Hound - Monitoring",
+    "description": "Monitoring dashboard for Basset Hound OSINT platform",
+    "tags": ["basset-hound", "api", "monitoring"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Request Rate (requests/sec)",
+        "type": "graph",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 0
+        },
+        "targets": [
+          {
+            "expr": "rate(basset_request_count[1m])",
+            "legendFormat": "{{method}} {{path}}"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Error Rate",
+        "type": "graph",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 0
+        },
+        "targets": [
+          {
+            "expr": "rate(basset_request_count{status=~\"5..\"}[1m])",
+            "legendFormat": "{{method}} {{path}} ({{status}})"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Request Latency (p50, p95, p99)",
+        "type": "graph",
+        "gridPos": {
+          "h": 8,
+          "w": 24,
+          "x": 0,
+          "y": 8
+        },
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, rate(basset_request_latency_seconds_bucket[1m]))",
+            "legendFormat": "p50"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(basset_request_latency_seconds_bucket[1m]))",
+            "legendFormat": "p95"
+          },
+          {
+            "expr": "histogram_quantile(0.99, rate(basset_request_latency_seconds_bucket[1m]))",
+            "legendFormat": "p99"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Entity Count by Project",
+        "type": "graph",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 16
+        },
+        "targets": [
+          {
+            "expr": "basset_entity_count",
+            "legendFormat": "{{project}}"
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Neo4j Query Latency",
+        "type": "graph",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 16
+        },
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(basset_neo4j_query_latency_seconds_bucket[1m]))",
+            "legendFormat": "p95"
+          },
+          {
+            "expr": "histogram_quantile(0.99, rate(basset_neo4j_query_latency_seconds_bucket[1m]))",
+            "legendFormat": "p99"
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Request Count by Status",
+        "type": "table",
+        "gridPos": {
+          "h": 8,
+          "w": 24,
+          "x": 0,
+          "y": 24
+        },
+        "targets": [
+          {
+            "expr": "sum(rate(basset_request_count[1m])) by (status)",
+            "legendFormat": "{{status}}"
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "Top Slowest Endpoints",
+        "type": "table",
+        "gridPos": {
+          "h": 8,
+          "w": 24,
+          "x": 0,
+          "y": 32
+        },
+        "targets": [
+          {
+            "expr": "topk(10, histogram_quantile(0.95, rate(basset_request_latency_seconds_bucket[5m])) > 0)",
+            "legendFormat": "{{method}} {{path}}"
+          }
+        ]
+      }
+    ],
+    "refresh": "10s",
+    "schemaVersion": 16,
+    "style": "dark",
+    "templating": {
+      "list": []
+    },
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "timepicker": {},
+    "uid": "basset-hound",
+    "version": 1
+  },
+  "overwrite": true
+}

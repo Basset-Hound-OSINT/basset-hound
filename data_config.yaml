@@ -2747,6 +2747,71 @@ cross_type_relationships:
     description: Organizations are partners
     is_symmetric: true
 
+  # ---------------------------------------------------------------------------
+  # PLATFORM ACCOUNTS
+  # ---------------------------------------------------------------------------
+  - id: accounts
+    name: Platform Accounts
+    icon: fa-link
+    description: Managed via Platform entities and HAS_ACCOUNT_ON relationships
+    fields: []
+
+# =============================================================================
+# ENTITY TYPE DEFINITIONS (PHASE 48: DYNAMIC ENTITY ARCHITECTURE)
+# =============================================================================
+# This section defines additional entity types beyond the default Person type.
+# Platforms are first-class entities allowing for dynamic platform management
+# without hardcoding them in YAML configuration.
+
+entity_types:
+  - id: platform
+    label: Platform
+    description: Online platform (social media, marketplace, forum, etc.)
+    icon_class: fa-globe
+    color: "#6C63FF"
+    sections:
+      - id: platform_info
+        name: Platform Information
+        icon: fa-info-circle
+        fields:
+          - id: name
+            type: string
+            label: Platform Name
+            required: true
+            searchable: true
+          - id: category
+            type: string
+            label: Category
+            enum_values: ["social_media", "marketplace", "forum", "dating", "gaming", "messaging", "professional", "video", "blogging", "federated", "other"]
+          - id: domains
+            type: component
+            multiple: true
+            label: Domain Names
+            description: "e.g., facebook.com, fb.com"
+            components:
+              - id: domain
+                type: string
+                label: Domain
+          - id: description
+            type: string
+            label: Description
+          - id: icon_class
+            type: string
+            label: Font Awesome Icon Class
+            description: "e.g., fa-facebook"
+          - id: color
+            type: string
+            label: Brand Color (Hex)"
+            description: "e.g., #1877F2"
+          - id: profile_url_template
+            type: string
+            label: Profile URL Template
+            description: "e.g., https://facebook.com/{username}"
+          - id: active
+            type: boolean
+            label: Active
+            default: true
+
 # =============================================================================
 # SECTION STATISTICS
 # =============================================================================

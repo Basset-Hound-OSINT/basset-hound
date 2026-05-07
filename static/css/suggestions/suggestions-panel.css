@@ -1,0 +1,148 @@
+/* Suggestions Panel Overlay Styles */
+
+.suggestions-panel-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+.suggestions-panel-overlay.hidden {
+    display: none;
+}
+
+.suggestions-panel-container {
+    position: fixed;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 500px;
+    max-width: 90vw;
+    background-color: #FFFFFF;
+    box-shadow: -2px 0 8px rgba(0, 0, 0, 0.1);
+    z-index: 1001;
+    animation: slideInRight 0.3s ease-in-out;
+    overflow: hidden;
+}
+
+#suggestions-panel-root {
+    height: 100%;
+    overflow-y: auto;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes slideInRight {
+    from {
+        transform: translateX(100%);
+    }
+    to {
+        transform: translateX(0);
+    }
+}
+
+/* Close button for suggestions panel */
+.suggestions-panel-close-btn {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    background: none;
+    border: none;
+    font-size: 24px;
+    color: #6B7280;
+    cursor: pointer;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.suggestions-panel-close-btn:hover {
+    color: #374151;
+    background-color: #F3F4F6;
+    border-radius: 4px;
+}
+
+/* Suggestions badge styling */
+.suggestions-badge {
+    animation: pulse 0.5s ease-in-out;
+}
+
+@keyframes pulse {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.2);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+/* Responsive styles */
+@media (max-width: 768px) {
+    .suggestions-panel-container {
+        width: 100%;
+        max-width: 100%;
+    }
+}
+
+/* Ensure body overflow is hidden when panel is open */
+body.suggestions-panel-open {
+    overflow: hidden;
+}
+
+/* Toast notification styles for suggestion actions */
+.suggestions-toast {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background-color: #FFFFFF;
+    border: 1px solid #E5E7EB;
+    border-radius: 8px;
+    padding: 16px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    z-index: 2000;
+    animation: slideUp 0.3s ease-in-out;
+    max-width: 400px;
+}
+
+.suggestions-toast.success {
+    border-left: 4px solid #10B981;
+}
+
+.suggestions-toast.error {
+    border-left: 4px solid #EF4444;
+}
+
+.suggestions-toast.info {
+    border-left: 4px solid #3B82F6;
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}

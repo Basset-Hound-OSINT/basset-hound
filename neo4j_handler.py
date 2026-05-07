@@ -6,9 +6,20 @@ import json
 from uuid import uuid4
 import re
 import time
+import sys
+from pathlib import Path
 
 # Load environment variables from .env
 load_dotenv()
+
+# Import structured logging
+try:
+    sys.path.insert(0, str(Path(__file__).parent))
+    from api.utils.logger import get_logger
+    logger = get_logger("neo4j_handler")
+except ImportError:
+    import logging
+    logger = logging.getLogger("neo4j_handler")
 
 class Neo4jHandler:
     def __init__(self):
@@ -31,7 +42,19 @@ class Neo4jHandler:
                 elapsed = int(time.time() - wait_start)
                 print(f"\rWaiting to connect to Neo4j ({self.uri})... {elapsed}s", end='', flush=True)
                 time.sleep(2)
-        print(f"\rConnected to Neo4j at {self.uri} after {int(time.time() - wait_start)}s.{' ' * 20}")
+
+        elapsed_total = int(time.time() - wait_start)
+        print(f"\rConnected to Neo4j at {self.uri} after {elapsed_total}s.{' ' * 20}")
+
+        # Log connection with structured logging
+        try:
+            logger.info(
+                "neo4j_connected",
+                uri=self.uri,
+                connection_time_seconds=elapsed_total,
+            )
+        except Exception:
+            pass  # Silently ignore logging errors during initialization
 
         self.ensure_constraints()
     

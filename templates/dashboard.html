@@ -25,7 +25,11 @@
             <div class="col-md-3 sidebar">
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <h3>People Manager</h3>
-                    <div>
+                    <div class="d-flex align-items-center">
+                        <div class="header-suggestions-badge" id="suggestions-badge-container" style="display:none;">
+                            <i class="fas fa-bell suggestions-bell-icon" id="suggestions-bell-icon"></i>
+                            <span class="suggestions-badge" id="suggestions-count">0</span>
+                        </div>
                         <a href="/" class="btn btn-sm btn-outline-secondary me-2">Exit</a>
                         <button class="btn btn-sm btn-outline-primary" id="add-entity-btn" data-bs-toggle="modal" data-bs-target="#entityTypeModal">Add Entity</button>
                     </div>
@@ -94,6 +98,58 @@
     <script type="module" src="/static/js/advanced-search.js"></script>
     <script src="/static/js/report-handler.js" type="module"></script>
     <script type="module" src="/static/js/bulk-import.js"></script>
+
+    <!-- React Library (required by Suggestions Panel) -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+    <!-- Basset Hound Smart Suggestions UI -->
+    <script src="/static/js/components/basset-hound-ui.umd.js"></script>
+
+    <!-- Suggestions Panel Initialization -->
+    <script type="module" src="/static/js/suggestions/suggestions-init.js"></script>
+
+    <!-- Suggestions Panel Overlay -->
+    <link rel="stylesheet" href="/static/css/suggestions/suggestions-panel.css">
+    <div id="suggestions-panel-overlay" class="suggestions-panel-overlay" style="display:none;">
+        <div class="suggestions-panel-container">
+            <div id="suggestions-panel-root"></div>
+        </div>
+    </div>
+
+    <!-- Suggestions Badge in Header -->
+    <style>
+        .header-suggestions-badge {
+            position: relative;
+            display: inline-block;
+            margin-right: 12px;
+        }
+        .suggestions-bell-icon {
+            font-size: 18px;
+            cursor: pointer;
+            color: #6B7280;
+            transition: color 0.3s ease;
+        }
+        .suggestions-bell-icon:hover {
+            color: #374151;
+        }
+        .suggestions-badge {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background-color: #EF4444;
+            color: white;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 600;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+    </style>
 
     <!-- File Explorer Overlay -->
     <link rel="stylesheet" href="/static/css/file_explorer.css">

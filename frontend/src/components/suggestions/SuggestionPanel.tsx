@@ -11,7 +11,6 @@ import {
 } from '@/store';
 import { useWebSocket } from '@/hooks';
 import { dismissSuggestion as apiDismissSuggestion, linkEntities, mergeEntities } from '@/utils/api';
-import { getConfidenceLevel } from '@/utils';
 
 /**
  * SuggestionPanel Component

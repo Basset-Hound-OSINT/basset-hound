@@ -1343,3 +1343,503 @@ class AsyncNeo4jService:
         """
         value = re.sub(r'[^\w\s-]', '', value).strip().lower()
         return re.sub(r'[-\s]+', '_', value)
+
+    # =============================================================================
+    # PLATFORM ENTITY MANAGEMENT (PHASE 48: DYNAMIC ENTITY ARCHITECTURE)
+    # =============================================================================
+
+    async def ensure_platforms_seeded(self) -> None:
+        """
+        Ensure major platforms are pre-seeded as entities in Neo4j.
+        Called once on application startup.
+        """
+        if not self._connected:
+            return
+
+        try:
+            # Check if any platforms already exist
+            async with self.session() as session:
+                result = await session.run(
+                    "MATCH (p:Entity {entity_type: 'platform'}) RETURN COUNT(p) as count"
+                )
+                record = await result.single()
+                count = record["count"] if record else 0
+
+            if count > 0:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.info(f"Platform entities already seeded: {count} platforms found")
+                return
+
+            # Seed major platforms
+            platforms = self._get_major_platforms()
+            async with self.session() as session:
+                for platform_data in platforms:
+                    platform_id = str(uuid4())
+                    await session.run(
+                        """
+                        CREATE (p:Entity {
+                            id: $id,
+                            entity_type: $entity_type,
+                            created_at: $created_at,
+                            name: $name,
+                            category: $category,
+                            color: $color,
+                            icon_class: $icon_class,
+                            profile_url_template: $profile_url_template,
+                            active: $active
+                        })
+                        """,
+                        id=platform_id,
+                        entity_type="platform",
+                        created_at=datetime.now().isoformat(),
+                        name=platform_data["name"],
+                        category=platform_data.get("category", "other"),
+                        color=platform_data.get("color", "#000000"),
+                        icon_class=platform_data.get("icon_class", "fa-globe"),
+                        profile_url_template=platform_data.get("profile_url_template", ""),
+                        active=platform_data.get("active", True),
+                    )
+
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"Successfully seeded {len(platforms)} platform entities")
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error seeding platforms: {e}")
+            # Continue without failing startup
+
+    @staticmethod
+    def _get_major_platforms() -> List[Dict[str, Any]]:
+        """Get list of major platforms to seed."""
+        return [
+            {
+                "name": "Facebook",
+                "category": "social_media",
+                "color": "#1877F2",
+                "icon_class": "fa-facebook",
+                "profile_url_template": "https://facebook.com/{username}",
+                "active": True,
+            },
+            {
+                "name": "Instagram",
+                "category": "social_media",
+                "color": "#E1306C",
+                "icon_class": "fa-instagram",
+                "profile_url_template": "https://instagram.com/{username}",
+                "active": True,
+            },
+            {
+                "name": "Twitter/X",
+                "category": "social_media",
+                "color": "#000000",
+                "icon_class": "fa-x-twitter",
+                "profile_url_template": "https://x.com/{username}",
+                "active": True,
+            },
+            {
+                "name": "LinkedIn",
+                "category": "professional",
+                "color": "#0077B5",
+                "icon_class": "fa-linkedin",
+                "profile_url_template": "https://linkedin.com/in/{username}",
+                "active": True,
+            },
+            {
+                "name": "YouTube",
+                "category": "video",
+                "color": "#FF0000",
+                "icon_class": "fa-youtube",
+                "profile_url_template": "https://youtube.com/@{username}",
+                "active": True,
+            },
+            {
+                "name": "TikTok",
+                "category": "video",
+                "color": "#000000",
+                "icon_class": "fa-tiktok",
+                "profile_url_template": "https://tiktok.com/@{username}",
+                "active": True,
+            },
+            {
+                "name": "Reddit",
+                "category": "forum",
+                "color": "#FF4500",
+                "icon_class": "fa-reddit",
+                "profile_url_template": "https://reddit.com/user/{username}",
+                "active": True,
+            },
+            {
+                "name": "Discord",
+                "category": "messaging",
+                "color": "#5865F2",
+                "icon_class": "fa-discord",
+                "profile_url_template": "https://discord.com/users/{username}",
+                "active": True,
+            },
+            {
+                "name": "Telegram",
+                "category": "messaging",
+                "color": "#0088cc",
+                "icon_class": "fa-telegram",
+                "profile_url_template": "https://t.me/{username}",
+                "active": True,
+            },
+            {
+                "name": "WhatsApp",
+                "category": "messaging",
+                "color": "#25D366",
+                "icon_class": "fa-whatsapp",
+                "active": True,
+            },
+            {
+                "name": "GitHub",
+                "category": "professional",
+                "color": "#181717",
+                "icon_class": "fa-github",
+                "profile_url_template": "https://github.com/{username}",
+                "active": True,
+            },
+            {
+                "name": "GitLab",
+                "category": "professional",
+                "color": "#FC6D26",
+                "icon_class": "fa-gitlab",
+                "profile_url_template": "https://gitlab.com/{username}",
+                "active": True,
+            },
+            {
+                "name": "Snapchat",
+                "category": "social_media",
+                "color": "#FFFC00",
+                "icon_class": "fa-snapchat",
+                "profile_url_template": "https://snapchat.com/add/{username}",
+                "active": True,
+            },
+            {
+                "name": "Pinterest",
+                "category": "social_media",
+                "color": "#E60023",
+                "icon_class": "fa-pinterest",
+                "profile_url_template": "https://pinterest.com/{username}",
+                "active": True,
+            },
+            {
+                "name": "Tumblr",
+                "category": "blogging",
+                "color": "#36465D",
+                "icon_class": "fa-tumblr",
+                "profile_url_template": "https://{username}.tumblr.com",
+                "active": True,
+            },
+        ]
+
+    async def list_platforms(self, category: Optional[str] = None) -> List[Dict[str, Any]]:
+        """
+        List all platform entities, optionally filtered by category.
+
+        Args:
+            category: Optional category filter (social_media, professional, etc.)
+
+        Returns:
+            List of platform entities
+        """
+        query = "MATCH (p:Entity {entity_type: 'platform'}"
+        params = {}
+
+        if category:
+            query += " {category: $category}"
+            params["category"] = category
+
+        query += ") RETURN properties(p) as props ORDER BY p.name"
+
+        async with self.session() as session:
+            result = await session.run(query, **params)
+            records = await result.fetch(1000)
+            return [record["props"] for record in records]
+
+    async def get_platform(self, platform_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get a single platform entity by ID.
+
+        Args:
+            platform_id: Platform entity ID
+
+        Returns:
+            Platform properties or None
+        """
+        async with self.session() as session:
+            result = await session.run(
+                "MATCH (p:Entity {id: $id, entity_type: 'platform'}) RETURN properties(p) as props",
+                id=platform_id,
+            )
+            record = await result.single()
+            return record["props"] if record else None
+
+    async def create_platform(
+        self,
+        name: str,
+        category: str = "other",
+        **kwargs,
+    ) -> str:
+        """
+        Create a new platform entity.
+
+        Args:
+            name: Platform name (required)
+            category: Platform category (optional, default: 'other')
+            **kwargs: Additional properties (color, icon_class, profile_url_template, active, etc.)
+
+        Returns:
+            Platform entity ID
+        """
+        platform_id = str(uuid4())
+        created_at = datetime.now().isoformat()
+
+        data = {
+            "id": platform_id,
+            "entity_type": "platform",
+            "created_at": created_at,
+            "name": name,
+            "category": category,
+            **kwargs,
+        }
+
+        async with self.session() as session:
+            query = "CREATE (p:Entity $data) RETURN p.id as id"
+            result = await session.run(query, data=data)
+            record = await result.single()
+            return record["id"]
+
+    async def update_platform(
+        self,
+        platform_id: str,
+        **kwargs,
+    ) -> bool:
+        """
+        Update a platform entity.
+
+        Args:
+            platform_id: Platform entity ID
+            **kwargs: Properties to update
+
+        Returns:
+            True if updated, False if not found
+        """
+        if not kwargs:
+            return True
+
+        set_clauses = ", ".join([f"p.{key} = $val_{i}" for i, key in enumerate(kwargs.keys())])
+        params = {f"val_{i}": value for i, value in enumerate(kwargs.values())}
+        params["id"] = platform_id
+
+        async with self.session() as session:
+            result = await session.run(
+                f"MATCH (p:Entity {{id: $id, entity_type: 'platform'}}) SET {set_clauses} RETURN COUNT(p) as count",
+                **params,
+            )
+            record = await result.single()
+            return bool(record["count"]) if record else False
+
+    async def delete_platform(self, platform_id: str) -> bool:
+        """
+        Delete a platform entity (only if no accounts reference it).
+
+        Args:
+            platform_id: Platform entity ID
+
+        Returns:
+            True if deleted, False if not found or has references
+        """
+        async with self.session() as session:
+            # Check if any HAS_ACCOUNT_ON relationships point to this platform
+            check_result = await session.run(
+                "MATCH ()-[r:HAS_ACCOUNT_ON]->(p:Entity {id: $id}) RETURN COUNT(r) as count",
+                id=platform_id,
+            )
+            check_record = await check_result.single()
+            if check_record and check_record["count"] > 0:
+                return False  # Has accounts, cannot delete
+
+            # Delete the platform
+            result = await session.run(
+                "MATCH (p:Entity {id: $id, entity_type: 'platform'}) DETACH DELETE p RETURN COUNT(p) as count",
+                id=platform_id,
+            )
+            record = await result.single()
+            return bool(record["count"]) if record else False
+
+    async def link_entity_to_platform(
+        self,
+        entity_id: str,
+        platform_id: str,
+        username: str,
+        **account_properties,
+    ) -> bool:
+        """
+        Create a HAS_ACCOUNT_ON relationship between an entity and platform.
+
+        Args:
+            entity_id: Source entity ID (person, organization, sock_puppet, etc.)
+            platform_id: Target platform entity ID
+            username: Account username/handle
+            **account_properties: Additional account properties (profile_url, verified, etc.)
+
+        Returns:
+            True if relationship created, False otherwise
+        """
+        rel_props = {
+            "username": username,
+            "created_at": datetime.now().isoformat(),
+            **account_properties,
+        }
+
+        async with self.session() as session:
+            result = await session.run(
+                """
+                MATCH (e:Entity {id: $entity_id})
+                MATCH (p:Entity {id: $platform_id})
+                CREATE (e)-[r:HAS_ACCOUNT_ON $props]->(p)
+                RETURN COUNT(r) as count
+                """,
+                entity_id=entity_id,
+                platform_id=platform_id,
+                props=rel_props,
+            )
+            record = await result.single()
+            return bool(record["count"]) if record else False
+
+    async def get_accounts_for_entity(self, entity_id: str) -> List[Dict[str, Any]]:
+        """
+        Get all platform accounts for an entity.
+
+        Args:
+            entity_id: Entity ID
+
+        Returns:
+            List of account relationships with platform info
+        """
+        async with self.session() as session:
+            result = await session.run(
+                """
+                MATCH (e:Entity {id: $entity_id})-[r:HAS_ACCOUNT_ON]->(p:Entity {entity_type: 'platform'})
+                RETURN properties(r) as account_props, properties(p) as platform_props
+                ORDER BY p.name
+                """,
+                entity_id=entity_id,
+            )
+            records = await result.fetch(1000)
+            return [
+                {
+                    **record["account_props"],
+                    "platform": record["platform_props"],
+                }
+                for record in records
+            ]
+
+    async def get_entities_on_platform(
+        self,
+        platform_id: str,
+        limit: int = 100,
+    ) -> List[Dict[str, Any]]:
+        """
+        Get all entities with accounts on a given platform.
+
+        Args:
+            platform_id: Platform entity ID
+            limit: Maximum number of results
+
+        Returns:
+            List of entities with their accounts
+        """
+        async with self.session() as session:
+            result = await session.run(
+                """
+                MATCH (e:Entity)-[r:HAS_ACCOUNT_ON]->(p:Entity {id: $platform_id})
+                RETURN properties(e) as entity_props, properties(r) as account_props
+                ORDER BY e.created_at DESC
+                LIMIT $limit
+                """,
+                platform_id=platform_id,
+                limit=limit,
+            )
+            records = await result.fetch(limit)
+            return [
+                {
+                    "entity": record["entity_props"],
+                    "account": record["account_props"],
+                }
+                for record in records
+            ]
+
+    async def update_account_on_platform(
+        self,
+        entity_id: str,
+        platform_id: str,
+        username: str,
+        **account_properties,
+    ) -> bool:
+        """
+        Update account properties for entity on platform.
+
+        Args:
+            entity_id: Entity ID
+            platform_id: Platform ID
+            username: Account username (used to identify the relationship)
+            **account_properties: Properties to update
+
+        Returns:
+            True if updated, False otherwise
+        """
+        if not account_properties:
+            return True
+
+        set_clauses = ", ".join([f"r.{key} = $val_{i}" for i, key in enumerate(account_properties.keys())])
+        params = {f"val_{i}": value for i, value in enumerate(account_properties.values())}
+        params["entity_id"] = entity_id
+        params["platform_id"] = platform_id
+        params["username"] = username
+
+        async with self.session() as session:
+            result = await session.run(
+                f"""
+                MATCH (e:Entity {{id: $entity_id}})-[r:HAS_ACCOUNT_ON {{username: $username}}]->(p:Entity {{id: $platform_id}})
+                SET {set_clauses}
+                RETURN COUNT(r) as count
+                """,
+                **params,
+            )
+            record = await result.single()
+            return bool(record["count"]) if record else False
+
+    async def remove_account_from_platform(
+        self,
+        entity_id: str,
+        platform_id: str,
+        username: str,
+    ) -> bool:
+        """
+        Remove an account (relationship) from a platform.
+
+        Args:
+            entity_id: Entity ID
+            platform_id: Platform ID
+            username: Account username to remove
+
+        Returns:
+            True if removed, False otherwise
+        """
+        async with self.session() as session:
+            result = await session.run(
+                """
+                MATCH (e:Entity {id: $entity_id})-[r:HAS_ACCOUNT_ON {username: $username}]->(p:Entity {id: $platform_id})
+                DELETE r
+                RETURN COUNT(r) as count
+                """,
+                entity_id=entity_id,
+                platform_id=platform_id,
+                username=username,
+            )
+            record = await result.single()
+            return bool(record["count"]) if record else False

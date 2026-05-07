@@ -1,0 +1,369 @@
+# Integration Monitoring Configuration for basset-hound + basset-verify
+#
+# This configuration defines monitoring for the basset-hound and basset-verify integration.
+# Includes metrics collection, alerting thresholds, and health checks.
+#
+# Version: Phase 7.3
+# Last Updated: 2026-05-06
+
+monitoring:
+  # Service Health Monitoring
+  services:
+    basset_verify:
+      name: "basset-verify"
+      url: "http://basset_verify:8001/health"
+      check_interval_seconds: 30
+      timeout_seconds: 10
+      max_retries: 3
+      alerts:
+        - name: "service_unreachable"
+          condition: "status != healthy"
+          severity: "critical"
+          action: "page_on_call"
+        - name: "slow_response"
+          condition: "response_time > 2000"  # milliseconds
+          severity: "warning"
+          action: "log_and_notify"
+
+    basset_hound:
+      name: "basset-hound"
+      url: "http://basset_api:8000/health"
+      check_interval_seconds: 30
+      timeout_seconds: 10
+      max_retries: 3
+      alerts:
+        - name: "service_unreachable"
+          condition: "status != healthy"
+          severity: "critical"
+          action: "page_on_call"
+
+  # Integration-Specific Metrics
+  integration:
+    metrics:
+      - name: "verification_response_time"
+        description: "Time taken for verification requests (milliseconds)"
+        type: "histogram"
+        buckets: [10, 50, 100, 500, 1000, 2000]
+        alert_thresholds:
+          p95: 1500  # 95th percentile should be < 1.5 seconds
+          p99: 2000  # 99th percentile should be < 2 seconds
+
+      - name: "verification_success_rate"
+        description: "Percentage of successful verifications"
+        type: "gauge"
+        unit: "percent"
+        alert_thresholds:
+          min: 95  # Alert if success rate drops below 95%
+
+      - name: "verification_error_rate"
+        description: "Percentage of failed verifications"
+        type: "gauge"
+        unit: "percent"
+        alert_thresholds:
+          max: 5  # Alert if error rate exceeds 5%
+
+      - name: "fallback_activation_rate"
+        description: "Percentage of requests using fallback (service unavailable)"
+        type: "gauge"
+        unit: "percent"
+        alert_thresholds:
+          max: 0  # Should never activate fallback in production
+
+      - name: "batch_verification_throughput"
+        description: "Items verified per second in batch operations"
+        type: "gauge"
+        alert_thresholds:
+          min: 50  # At least 50 items/second
+
+      - name: "cache_hit_rate"
+        description: "Percentage of cached verification results"
+        type: "gauge"
+        unit: "percent"
+        target: 40  # Target 40% cache hit rate
+
+    # Identifier-type specific metrics
+    identifier_metrics:
+      - type: "email"
+        metrics:
+          - "verification_count"
+          - "success_rate"
+          - "average_response_time"
+          - "cache_hit_rate"
+
+      - type: "phone"
+        metrics:
+          - "verification_count"
+          - "success_rate"
+          - "average_response_time"
+          - "cache_hit_rate"
+
+      - type: "crypto_address"
+        metrics:
+          - "verification_count"
+          - "success_rate"
+          - "average_response_time"
+          - "poisoning_detection_rate"
+          - "cache_hit_rate"
+
+      - type: "domain"
+        metrics:
+          - "verification_count"
+          - "success_rate"
+          - "average_response_time"
+          - "cache_hit_rate"
+
+      - type: "ip_address"
+        metrics:
+          - "verification_count"
+          - "success_rate"
+          - "average_response_time"
+          - "cache_hit_rate"
+
+      - type: "url"
+        metrics:
+          - "verification_count"
+          - "success_rate"
+          - "average_response_time"
+          - "cache_hit_rate"
+
+      - type: "username"
+        metrics:
+          - "verification_count"
+          - "success_rate"
+          - "average_response_time"
+          - "cache_hit_rate"
+
+  # Alerting Configuration
+  alerts:
+    critical:
+      - name: "basset_verify_unreachable"
+        condition: "basset_verify.status != healthy for 2 minutes"
+        severity: "critical"
+        message: "basset-verify service is unreachable"
+        actions:
+          - "page_on_call"
+          - "log_error"
+          - "activate_fallback"
+          - "notify_slack"
+
+      - name: "integration_high_error_rate"
+        condition: "verification_error_rate > 10% for 5 minutes"
+        severity: "critical"
+        message: "Verification error rate exceeds 10%"
+        actions:
+          - "page_on_call"
+          - "log_error"
+          - "notify_slack"
+
+      - name: "integration_latency_critical"
+        condition: "verification_response_time_p99 > 5000 for 5 minutes"
+        severity: "critical"
+        message: "Verification latency critical (>5 seconds)"
+        actions:
+          - "page_on_call"
+          - "log_error"
+          - "notify_slack"
+
+    warning:
+      - name: "integration_high_latency"
+        condition: "verification_response_time_p95 > 2000 for 10 minutes"
+        severity: "warning"
+        message: "Verification latency elevated (>2 seconds at p95)"
+        actions:
+          - "log_warning"
+          - "notify_slack"
+
+      - name: "integration_error_rate_elevated"
+        condition: "verification_error_rate > 5% for 10 minutes"
+        severity: "warning"
+        message: "Verification error rate elevated (>5%)"
+        actions:
+          - "log_warning"
+          - "notify_slack"
+
+      - name: "fallback_activation_detected"
+        condition: "fallback_activation_rate > 0 for 5 minutes"
+        severity: "warning"
+        message: "Fallback verification activated (should not happen in production)"
+        actions:
+          - "log_warning"
+          - "notify_slack"
+          - "investigate"
+
+      - name: "cache_hit_rate_low"
+        condition: "cache_hit_rate < 20% for 30 minutes"
+        severity: "warning"
+        message: "Cache hit rate is low, consider cache optimization"
+        actions:
+          - "log_info"
+          - "notify_slack"
+
+      - name: "basset_verify_slow_response"
+        condition: "basset_verify.response_time > 2000 for 10 minutes"
+        severity: "warning"
+        message: "basset-verify responding slowly"
+        actions:
+          - "log_warning"
+          - "notify_slack"
+
+  # Logging Configuration
+  logging:
+    basset_verify:
+      level: "INFO"
+      format: "json"
+      outputs:
+        - "stdout"
+        - "file:/var/log/basset-verify/app.log"
+      rotation:
+        max_size_mb: 100
+        max_age_days: 30
+        max_backups: 3
+
+    basset_hound:
+      level: "INFO"
+      format: "json"
+      outputs:
+        - "stdout"
+        - "file:/var/log/basset-hound/app.log"
+      rotation:
+        max_size_mb: 100
+        max_age_days: 30
+        max_backups: 3
+
+    integration:
+      level: "DEBUG"  # More verbose for integration debugging
+      format: "json"
+      outputs:
+        - "stdout"
+        - "file:/var/log/basset-hound/integration.log"
+      rotation:
+        max_size_mb: 50
+        max_age_days: 7
+        max_backups: 2
+
+  # Dashboard Configuration
+  dashboards:
+    integration_health:
+      name: "Integration Health"
+      refresh_interval_seconds: 30
+      widgets:
+        - type: "service_status"
+          services: ["basset_verify", "basset_hound"]
+          position: [0, 0]
+
+        - type: "response_time_histogram"
+          metric: "verification_response_time"
+          position: [0, 1]
+
+        - type: "success_rate_gauge"
+          metric: "verification_success_rate"
+          position: [1, 0]
+
+        - type: "error_rate_gauge"
+          metric: "verification_error_rate"
+          position: [1, 1]
+
+        - type: "fallback_rate_gauge"
+          metric: "fallback_activation_rate"
+          position: [2, 0]
+
+        - type: "cache_hit_gauge"
+          metric: "cache_hit_rate"
+          position: [2, 1]
+
+    verification_by_type:
+      name: "Verification by Identifier Type"
+      refresh_interval_seconds: 60
+      widgets:
+        - type: "table"
+          metric: "identifier_metrics"
+          columns:
+            - "type"
+            - "verification_count"
+            - "success_rate"
+            - "average_response_time"
+            - "cache_hit_rate"
+          position: [0, 0]
+
+  # SLA Configuration
+  slas:
+    integration_availability:
+      name: "Integration Availability"
+      target: 99.9  # percent
+      measurement_window: "monthly"
+      metrics:
+        - "basset_verify.status == healthy"
+        - "basset_hound.status == healthy"
+
+    verification_latency:
+      name: "Verification Latency SLA"
+      target_p95: 2000  # milliseconds
+      target_p99: 5000  # milliseconds
+      measurement_window: "monthly"
+
+    verification_success:
+      name: "Verification Success Rate SLA"
+      target: 99.0  # percent
+      measurement_window: "monthly"
+
+  # Reporting Configuration
+  reports:
+    daily:
+      schedule: "00:00 UTC"
+      recipients:
+        - "devops@example.com"
+        - "team@example.com"
+      include:
+        - "integration_health_summary"
+        - "error_rate_summary"
+        - "latency_summary"
+        - "alert_summary"
+
+    weekly:
+      schedule: "Monday 09:00 UTC"
+      recipients:
+        - "devops@example.com"
+        - "team@example.com"
+        - "management@example.com"
+      include:
+        - "sla_compliance"
+        - "performance_trends"
+        - "error_trends"
+        - "recommendations"
+
+    monthly:
+      schedule: "1st day of month 09:00 UTC"
+      recipients:
+        - "devops@example.com"
+        - "management@example.com"
+        - "stakeholders@example.com"
+      include:
+        - "sla_compliance"
+        - "performance_analysis"
+        - "capacity_planning"
+        - "recommendations"
+
+# Health Check Configuration
+healthchecks:
+  basset_verify:
+    endpoint: "/health"
+    interval_seconds: 30
+    timeout_seconds: 10
+    expected_status: 200
+    expected_response:
+      status: "healthy"
+
+  basset_hound:
+    endpoint: "/health"
+    interval_seconds: 30
+    timeout_seconds: 10
+    expected_status: 200
+    expected_response:
+      status: "healthy"
+
+  integration:
+    test_email: "test@example.com"
+    test_domain: "example.com"
+    interval_seconds: 300  # Every 5 minutes
+    timeout_seconds: 10
+    expected_success_rate: 95  # percent

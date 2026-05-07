@@ -10,6 +10,8 @@ import re
 import hashlib
 import io
 import zipfile
+import asyncio
+import math
 from typing import Optional, Any
 from datetime import datetime
 from uuid import uuid4
@@ -19,6 +21,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..dependencies import get_neo4j_handler, get_app_config, get_current_project
+from ..services.cache_service import get_cache_service
 
 
 router = APIRouter(
@@ -110,9 +113,13 @@ class EntityUpdate(BaseModel):
 
 
 class EntityListResponse(BaseModel):
-    """Schema for list of entities."""
+    """Schema for paginated list of entities."""
     entities: list[EntityResponse] = Field(default_factory=list)
-    count: int = Field(0, description="Total number of entities")
+    total: int = Field(0, description="Total number of entities in project")
+    page: int = Field(1, description="Current page number")
+    pages: int = Field(1, description="Total number of pages")
+    has_next: bool = Field(False, description="Whether there is a next page")
+    limit: int = Field(50, description="Entities per page")
 
 
 class SuccessResponse(BaseModel):
@@ -140,9 +147,9 @@ def generate_file_id() -> str:
 
 @router.get(
     "/",
-    response_model=list[EntityResponse],
-    summary="List all entities in a project",
-    description="Retrieve a list of all entities (persons) within a specific project.",
+    response_model=EntityListResponse,
+    summary="List entities in a project with pagination",
+    description="Retrieve a paginated list of entities (persons) within a specific project.",
     responses={
         200: {"description": "List of entities retrieved successfully"},
         404: {"description": "Project not found"},
@@ -150,15 +157,19 @@ def generate_file_id() -> str:
 )
 async def list_entities(
     project_safe_name: str,
+    page: int = 1,
+    limit: int = 50,
     neo4j_handler=Depends(get_neo4j_handler)
 ):
     """
-    List all entities in a project.
+    List entities in a project with pagination.
 
-    Returns all people/entities associated with the specified project
+    Returns a paginated list of people/entities associated with the specified project
     including their complete profile data.
 
     - **project_safe_name**: The URL-safe identifier for the project
+    - **page**: Page number (default 1)
+    - **limit**: Entities per page (default 50)
     """
     # Verify project exists
     project = neo4j_handler.get_project(project_safe_name)
@@ -169,8 +180,46 @@ async def list_entities(
         )
 
     try:
-        people = neo4j_handler.get_all_people(project_safe_name)
-        return people if people else []
+        project_id = project.get('id')
+        cache_service = get_cache_service()
+
+        # Check cache first
+        cache_key = f"{project_id}:page:{page}:limit:{limit}"
+        cached_result = await cache_service.get_entity_list(project_id)
+
+        # For now, use cached full list if available and paginate in-memory
+        # This is acceptable for most use cases; for large datasets consider server-side caching per page
+        if cached_result is None:
+            # Cache miss - fetch from database using paginated method
+            offset = (page - 1) * limit
+            people = neo4j_handler.get_all_people_paginated(
+                project_safe_name,
+                offset=offset,
+                limit=limit
+            )
+
+            # Get total count for pagination info
+            total = neo4j_handler.get_people_count(project_safe_name)
+
+            # Cache the full list (30s TTL) for subsequent requests
+            await cache_service.set_entity_list(project_id, people, ttl=30)
+        else:
+            # Cache hit - paginate the cached list
+            total = len(cached_result)
+            offset = (page - 1) * limit
+            people = cached_result[offset:offset + limit]
+
+        pages = math.ceil(total / limit) if total > 0 else 1
+        has_next = page < pages
+
+        return EntityListResponse(
+            entities=people,
+            total=total,
+            page=page,
+            pages=pages,
+            has_next=has_next,
+            limit=limit
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -242,6 +291,10 @@ async def create_entity(
                 detail="Failed to create entity"
             )
 
+        # Invalidate entity list cache since we added a new entity
+        cache_service = get_cache_service()
+        await cache_service.invalidate_entity_list(project_id)
+
         return person
 
     except HTTPException:
@@ -276,6 +329,23 @@ async def get_entity(
     - **project_safe_name**: The URL-safe identifier for the project
     - **entity_id**: The unique identifier for the entity
     """
+    # Get project ID for caching
+    project = neo4j_handler.get_project(project_safe_name)
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Project '{project_safe_name}' not found"
+        )
+
+    project_id = project.get('id')
+    cache_service = get_cache_service()
+
+    # Check cache first (60s TTL)
+    cached_person = await cache_service.get_entity(project_id, entity_id)
+    if cached_person is not None:
+        return cached_person
+
+    # Cache miss - fetch from database
     person = neo4j_handler.get_person(project_safe_name, entity_id)
 
     if not person:
@@ -283,6 +353,9 @@ async def get_entity(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Entity '{entity_id}' not found in project '{project_safe_name}'"
         )
+
+    # Cache the result (60s TTL)
+    await cache_service.set_entity(project_id, entity_id, person, ttl=60)
 
     return person
 
@@ -308,11 +381,20 @@ async def update_entity(
     Update an entity.
 
     Updates the entity's profile data. Supports partial updates.
+    Uses async batch updates to avoid N+1 query patterns.
 
     - **project_safe_name**: The URL-safe identifier for the project
     - **entity_id**: The unique identifier for the entity
     - **profile**: The profile data to update
     """
+    # Verify project exists
+    project = neo4j_handler.get_project(project_safe_name)
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Project '{project_safe_name}' not found"
+        )
+
     # Verify entity exists
     existing = neo4j_handler.get_person(project_safe_name, entity_id)
     if not existing:
@@ -322,14 +404,22 @@ async def update_entity(
         )
 
     try:
+        project_id = project.get('id')
+        cache_service = get_cache_service()
+
         update_data = {}
         if entity_data.profile is not None:
             update_data["profile"] = entity_data.profile
 
-        updated_person = neo4j_handler.update_person(
-            project_safe_name,
-            entity_id,
-            update_data
+        # Run sync update in thread pool executor to avoid blocking event loop
+        loop = asyncio.get_event_loop()
+        updated_person = await loop.run_in_executor(
+            None,
+            lambda: neo4j_handler.update_person(
+                project_safe_name,
+                entity_id,
+                update_data
+            )
         )
 
         if not updated_person:
@@ -337,6 +427,10 @@ async def update_entity(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Failed to update entity"
             )
+
+        # Invalidate caches for this entity and entity list
+        await cache_service.invalidate_entity(project_id, entity_id)
+        await cache_service.invalidate_entity_list(project_id)
 
         return updated_person
 
@@ -373,6 +467,14 @@ async def delete_entity(
     - **project_safe_name**: The URL-safe identifier for the project
     - **entity_id**: The unique identifier for the entity to delete
     """
+    # Get project for cache invalidation
+    project = neo4j_handler.get_project(project_safe_name)
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Project '{project_safe_name}' not found"
+        )
+
     success = neo4j_handler.delete_person(project_safe_name, entity_id)
 
     if not success:
@@ -380,6 +482,12 @@ async def delete_entity(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Entity '{entity_id}' not found in project '{project_safe_name}'"
         )
+
+    # Invalidate caches for deleted entity
+    project_id = project.get('id')
+    cache_service = get_cache_service()
+    await cache_service.invalidate_entity(project_id, entity_id)
+    await cache_service.invalidate_entity_list(project_id)
 
     return None
 

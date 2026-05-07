@@ -1,0 +1,24 @@
+# Prometheus Configuration for Basset Hound
+# Scrapes metrics from the FastAPI application
+
+global:
+  scrape_interval: 15s      # Default scrape interval
+  evaluation_interval: 15s  # How frequently to evaluate rules
+  external_labels:
+    monitor: basset-hound   # Add a label to all time series
+
+# Scrape configurations
+scrape_configs:
+  # Basset Hound API metrics
+  - job_name: "basset-hound"
+    # Scrape the /metrics endpoint
+    static_configs:
+      - targets: ["basset_api:8000"]
+    metrics_path: "/metrics"
+    scrape_interval: 15s
+    scrape_timeout: 10s
+
+  # Prometheus self-monitoring
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]

@@ -34,6 +34,7 @@ from fastapi.templating import Jinja2Templates
 
 from api.dependencies import get_neo4j_handler, get_app_config
 from api.routers.frontend import get_current_project, PROJECT_ROOT, TEMPLATES_DIR
+from api.services.cache_service import get_cache_service
 from neo4j_handler import Neo4jHandler
 
 logger = logging.getLogger("basset_hound.frontend.profiles")
@@ -60,13 +61,29 @@ async def get_people(
 ):
     """
     Get all people in the current project.
+
+    Uses caching to improve performance on repeated requests.
+    Returns the full list for backwards compatibility with frontend.
     """
     project_ctx = get_current_project()
 
     if not project_ctx["safe_name"]:
         return []
 
+    project_id = project_ctx["id"]
+    cache_service = get_cache_service()
+
+    # Check cache first (30s TTL for full list)
+    cached_people = await cache_service.get_entity_list(project_id)
+    if cached_people is not None:
+        return cached_people
+
+    # Cache miss - fetch from database
     people = neo4j_handler.get_all_people(project_ctx["safe_name"])
+
+    # Cache the full list (30s TTL)
+    await cache_service.set_entity_list(project_id, people, ttl=30)
+
     return people
 
 
@@ -77,15 +94,29 @@ async def get_person(
 ):
     """
     Get a single person by ID.
+
+    Uses caching to improve performance on repeated requests (60s TTL).
     """
     project_ctx = get_current_project()
 
     if not project_ctx["safe_name"]:
         raise HTTPException(status_code=404, detail="No project selected")
 
+    project_id = project_ctx["id"]
+    cache_service = get_cache_service()
+
+    # Check cache first (60s TTL)
+    cached_person = await cache_service.get_entity(project_id, person_id)
+    if cached_person is not None:
+        return cached_person
+
+    # Cache miss - fetch from database
     person = neo4j_handler.get_person(project_ctx["safe_name"], person_id)
     if not person:
         raise HTTPException(status_code=404, detail="Person not found")
+
+    # Cache the result (60s TTL)
+    await cache_service.set_entity(project_id, person_id, person, ttl=60)
 
     return person
 
@@ -187,6 +218,10 @@ async def add_person(
 
     if not person:
         return RedirectResponse(url="/dashboard", status_code=302)
+
+    # Invalidate entity list cache since we added a new entity
+    cache_service = get_cache_service()
+    await cache_service.invalidate_entity_list(project_ctx["id"])
 
     return RedirectResponse(url="/dashboard", status_code=302)
 
@@ -359,6 +394,11 @@ async def update_person(
     if not updated_person:
         return {"success": False}
 
+    # Invalidate caches for this entity and entity list
+    cache_service = get_cache_service()
+    await cache_service.invalidate_entity(project_ctx["id"], person_id)
+    await cache_service.invalidate_entity_list(project_ctx["id"])
+
     return {"success": True}
 
 
@@ -377,6 +417,12 @@ async def delete_person(
         raise HTTPException(status_code=404, detail="No project selected")
 
     success = neo4j_handler.delete_person(project_ctx["safe_name"], person_id)
+
+    if success:
+        # Invalidate caches for deleted entity
+        cache_service = get_cache_service()
+        await cache_service.invalidate_entity(project_ctx["id"], person_id)
+        await cache_service.invalidate_entity_list(project_ctx["id"])
 
     content_type = request.headers.get("content-type", "")
     if "application/json" in content_type:

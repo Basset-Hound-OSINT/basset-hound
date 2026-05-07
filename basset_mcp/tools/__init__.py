@@ -51,6 +51,7 @@ from .file_hashing import register_file_hashing_tools
 from .data_management import register_data_management_tools
 from .suggestions import register_suggestion_tools
 from .linking import register_linking_tools
+from .platforms import register_platform_tools
 
 
 def register_all_tools(mcp):
@@ -73,6 +74,7 @@ def register_all_tools(mcp):
     register_data_management_tools(mcp)
     register_suggestion_tools(mcp)
     register_linking_tools(mcp)
+    register_platform_tools(mcp)
 
 
 __all__ = [

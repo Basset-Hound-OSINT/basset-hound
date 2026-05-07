@@ -1,4 +1,4 @@
-import type { Suggestion, SuggestionsResponse, ActionResult } from '@/types';
+import type { SuggestionsResponse, ActionResult } from '@/types';
 
 /**
  * API client for suggestions endpoints

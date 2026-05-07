@@ -23,8 +23,9 @@ from enum import Enum
 from api.services.matching_engine import MatchingEngine, MatchResult
 from api.services.data_service import DataService
 from api.services.neo4j_service import AsyncNeo4jService
+from api.utils.logger import get_logger
 
-logger = logging.getLogger("basset_hound.suggestion_service")
+logger = get_logger("basset_hound.suggestion_service")
 
 
 class ConfidenceLevel(str, Enum):
@@ -262,6 +263,8 @@ class SuggestionService:
         Returns:
             Dictionary with entity_id, suggestions grouped by confidence, and dismissed_count
         """
+        import time
+        start_time = time.time()
         try:
             # Get all data items for this entity
             entity_data = await self.data_service.list_data_items(entity_id=entity_id)
@@ -332,6 +335,15 @@ class SuggestionService:
             # Group by confidence
             confidence_groups = self._group_by_confidence(all_matches)
 
+            duration_ms = int((time.time() - start_time) * 1000)
+            logger.info(
+                "entity_suggestions_computed",
+                entity_id=entity_id,
+                matches_count=len(all_matches),
+                dismissed_count=len(dismissed_ids),
+                duration_ms=duration_ms,
+            )
+
             return {
                 "entity_id": entity_id,
                 "suggestions": [group.to_dict() for group in confidence_groups],
@@ -339,7 +351,13 @@ class SuggestionService:
             }
 
         except Exception as e:
-            logger.error(f"Error getting entity suggestions: {e}")
+            duration_ms = int((time.time() - start_time) * 1000)
+            logger.error(
+                "entity_suggestions_error",
+                entity_id=entity_id,
+                error=str(e),
+                duration_ms=duration_ms,
+            )
             return {
                 "entity_id": entity_id,
                 "error": str(e),

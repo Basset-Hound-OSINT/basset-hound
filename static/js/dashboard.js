@@ -48,6 +48,19 @@ async function initApp() {
                 window.location.href = '/download_project';
             });
         }
+
+        // Setup event listener for entity selection to update suggestions
+        document.addEventListener('entity-selected', (event) => {
+            const entityId = event.detail?.entityId;
+            if (entityId && window.currentProjectId) {
+                // Dynamically import and call updateSuggestionsCount
+                import('./suggestions/suggestions-init.js').then(module => {
+                    module.updateSuggestionsCount(window.currentProjectId, entityId);
+                }).catch(error => {
+                    console.error('Error loading suggestions module:', error);
+                });
+            }
+        });
     } catch (error) {
         console.error('Error initializing app:', error);
     }

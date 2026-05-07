@@ -2,6 +2,7 @@
  * Test setup for Vitest
  */
 
+import { vi, afterEach } from 'vitest';
 import '@testing-library/jest-dom';
 
 // Mock WebSocket for tests

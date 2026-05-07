@@ -5,15 +5,241 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Person Network Map</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.23.0/cytoscape.min.js"></script>
+    <link rel="stylesheet" href="/static/css/map-controls.css">
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+        }
+
         #graph-container {
             width: 100%;
             height: 100vh;
             background-color: #f9f9f9;
         }
+
+        /* Controls Panel */
+        #controls-panel {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            background-color: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            z-index: 100;
+            max-width: 280px;
+            font-size: 13px;
+        }
+
+        .control-group {
+            margin-bottom: 15px;
+        }
+
+        .control-group:last-child {
+            margin-bottom: 0;
+        }
+
+        .control-label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 6px;
+            color: #333;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .control-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .depth-slider-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        #depth-slider {
+            flex: 1;
+            min-width: 100px;
+        }
+
+        #depth-value {
+            min-width: 25px;
+            text-align: center;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        select, button {
+            padding: 8px 12px;
+            border: 1px solid #bdc3c7;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            background-color: white;
+            transition: all 0.2s ease;
+        }
+
+        select:hover, button:hover {
+            border-color: #3498db;
+            background-color: #ecf0f1;
+        }
+
+        select:focus, button:focus {
+            outline: none;
+            border-color: #3498db;
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        #layout-selector {
+            width: 100%;
+        }
+
+        .control-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        .control-buttons button {
+            padding: 8px 10px;
+            font-size: 11px;
+            white-space: nowrap;
+        }
+
+        /* Legend */
+        .legend {
+            border-top: 1px solid #eee;
+            padding-top: 12px;
+            margin-top: 12px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 6px;
+            font-size: 12px;
+        }
+
+        .legend-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .legend-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            border: 1px solid #333;
+            flex-shrink: 0;
+        }
+
+        .legend-label {
+            color: #555;
+        }
+
+        /* Graph Tooltip */
+        .graph-tooltip {
+            display: none;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            #controls-panel {
+                max-width: calc(100% - 20px);
+                font-size: 12px;
+            }
+
+            .control-buttons {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 <body>
+    <div id="controls-panel">
+        <!-- Depth Control -->
+        <div class="control-group">
+            <label class="control-label">Graph Depth</label>
+            <div class="control-row depth-slider-container">
+                <input type="range" id="depth-slider" min="1" max="5" value="2" step="1">
+                <span id="depth-value">2</span>
+            </div>
+            <small style="color: #888; display: block; margin-top: 4px;">1-5 hops from center entity</small>
+        </div>
+
+        <!-- Layout Selector -->
+        <div class="control-group">
+            <label class="control-label" for="layout-selector">Layout Algorithm</label>
+            <select id="layout-selector">
+                <option value="cose">Force-Directed (COSE)</option>
+                <option value="breadthfirst">Breadth First</option>
+                <option value="circle">Circle</option>
+                <option value="grid">Grid</option>
+            </select>
+        </div>
+
+        <!-- Control Buttons -->
+        <div class="control-group">
+            <label class="control-label">Actions</label>
+            <div class="control-buttons">
+                <button id="center-btn" title="Center view on main entity">Center</button>
+                <button id="reset-view-btn" title="Reset to fit all nodes">Reset View</button>
+                <button id="export-btn" title="Export graph as GraphML">Export</button>
+                <button id="fullscreen-btn" title="Toggle fullscreen">Fullscreen</button>
+            </div>
+        </div>
+
+        <!-- Legend -->
+        <div class="legend">
+            <div class="control-label">Entity Types</div>
+            <div class="legend-item">
+                <div class="legend-color" style="background-color: #3498DB;"></div>
+                <span class="legend-label">Person</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background-color: #27AE60;"></div>
+                <span class="legend-label">Organization</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background-color: #E74C3C;"></div>
+                <span class="legend-label">Location</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background-color: #F39C12;"></div>
+                <span class="legend-label">Event</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background-color: #9B59B6;"></div>
+                <span class="legend-label">Document</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background-color: #95A5A6;"></div>
+                <span class="legend-label">Other</span>
+            </div>
+        </div>
+    </div>
+
     <div id="graph-container"></div>
     <script type="module" src="/static/js/map-handler.js"></script>
 </body>

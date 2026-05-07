@@ -102,6 +102,35 @@ services:
       retries: 5
 
   # ==========================================================================
+  # BASSET-VERIFY - Identifier Verification Microservice
+  # ==========================================================================
+  basset_verify:
+    build:
+      context: ../basset-verify
+      dockerfile: Dockerfile
+    container_name: basset_verify
+    restart: unless-stopped
+    # No external ports - accessible only within docker network
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PYTHONDONTWRITEBYTECODE=1
+      - BASSET_SERVER_HOST=0.0.0.0
+      - BASSET_SERVER_PORT=8001
+      - BASSET_LOG_LEVEL=INFO
+      # DNS Configuration for verification
+      - BASSET_DNS_TIMEOUT=5.0
+      - BASSET_DNS_CACHE_TTL=3600
+      - BASSET_CORS_ALLOWED_ORIGINS=*
+    networks:
+      - basset-hound
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # ==========================================================================
   # BASSET API - FastAPI Application (Internal Only)
   # ==========================================================================
   basset_api:
@@ -119,6 +148,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      basset_verify:
+        condition: service_healthy
     environment:
       # Neo4j Connection (internal network)
       - NEO4J_URI=bolt://neo4j:7687
@@ -134,6 +165,10 @@ services:
       # Celery Configuration (internal network)
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      # Basset-Verify Integration (Phase 7.3)
+      - BASSET_VERIFY_URL=http://basset_verify:8001
+      - BASSET_VERIFY_TIMEOUT=10.0
+      - BASSET_VERIFY_ENABLED=true
     networks:
       - basset-hound
     healthcheck:
@@ -200,6 +235,58 @@ services:
     networks:
       - basset-hound
 
+  # ==========================================================================
+  # PROMETHEUS - Metrics Collection & Storage
+  # ==========================================================================
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: basset_prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+    networks:
+      - basset-hound
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # ==========================================================================
+  # GRAFANA - Metrics Visualization & Dashboards
+  # ==========================================================================
+  grafana:
+    image: grafana/grafana:11.3.1
+    container_name: basset_grafana
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./config/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./config/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=basset_admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=http://localhost:3001
+    networks:
+      - basset-hound
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
 # =============================================================================
 # VOLUMES
 # =============================================================================
@@ -215,6 +302,10 @@ volumes:
   redis_data:
     driver: local
   nginx_logs:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
     driver: local
 
 # =============================================================================
