@@ -4,6 +4,8 @@ import { fetchPeople } from './api.js';
 import { setupAddButtons, createPersonForm, setupEntityTypeModal } from './ui-form-handlers.js';
 import { renderPeopleList, setupSearch } from './ui-people-list.js';
 import { initTagModal } from './tag-handler.js';
+import { initAdvancedSearch } from './advanced-search.js';
+import { initBulkImport } from './bulk-import.js';
 
 // Global window variables
 window.people = [];
@@ -27,6 +29,17 @@ async function initApp() {
         setupFormHandlers();
         setupEntityTypeModal();
         initTagModal();
+
+        // Initialize advanced search
+        const projectSafeName = window.currentProjectSafeName || sessionStorage.getItem('currentProjectSafeName') || '';
+        if (projectSafeName) {
+            initAdvancedSearch(projectSafeName);
+        }
+
+        // Initialize bulk import module
+        if (projectSafeName) {
+            initBulkImport(projectSafeName);
+        }
 
         // Setup download button
         const downloadBtn = document.getElementById('download-project-btn');
