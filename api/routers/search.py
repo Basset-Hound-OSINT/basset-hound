@@ -22,6 +22,7 @@ from ..services.search_service import (
     SearchService,
     SearchQuery,
     SearchResult,
+    SearchFacets,
     get_search_service,
     set_search_service,
 )
@@ -70,6 +71,38 @@ class SearchResultResponse(BaseModel):
     )
 
 
+class SearchFacetsResponse(BaseModel):
+    """Response model for search facets."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "entity_types": {"Person": 45, "Organization": 12},
+                "tags": {"suspect": 20, "verified": 37},
+                "creation_dates": {"2024-Q1": 30, "2024-Q2": 27},
+                "sources": {"csv": 40, "api": 17}
+            }
+        }
+    )
+
+    entity_types: dict[str, int] = Field(
+        default_factory=dict,
+        description="Entity type facet counts"
+    )
+    tags: dict[str, int] = Field(
+        default_factory=dict,
+        description="Tag facet counts"
+    )
+    creation_dates: dict[str, int] = Field(
+        default_factory=dict,
+        description="Creation date range facet counts"
+    )
+    sources: dict[str, int] = Field(
+        default_factory=dict,
+        description="Data source facet counts"
+    )
+
+
 class SearchResponse(BaseModel):
     """Response model for search results."""
 
@@ -89,8 +122,14 @@ class SearchResponse(BaseModel):
                 ],
                 "total": 1,
                 "query": "John",
-                "limit": 20,
-                "offset": 0
+                "limit": 10,
+                "offset": 0,
+                "facets": {
+                    "entity_types": {"Person": 1},
+                    "tags": {},
+                    "creation_dates": {},
+                    "sources": {}
+                }
             }
         }
     )
@@ -101,8 +140,12 @@ class SearchResponse(BaseModel):
     )
     total: int = Field(0, ge=0, description="Total number of matching results")
     query: str = Field(..., description="The search query that was executed")
-    limit: int = Field(20, ge=1, le=100, description="Maximum results returned")
+    limit: int = Field(10, ge=1, le=100, description="Maximum results returned")
     offset: int = Field(0, ge=0, description="Number of results skipped")
+    facets: Optional[SearchFacetsResponse] = Field(
+        None,
+        description="Facet counts for filtering results"
+    )
 
 
 class SearchFieldsResponse(BaseModel):
@@ -148,6 +191,48 @@ class ReindexResponse(BaseModel):
     indexed_count: int = Field(0, ge=0, description="Number of entities indexed")
     project_id: str = Field(..., description="Project that was reindexed")
     message: str = Field(..., description="Status message")
+
+
+class AutocompleteSuggestion(BaseModel):
+    """Response model for a single autocomplete suggestion."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "text": "john@gmail.com",
+                "count": 45,
+                "type": "domain"
+            }
+        }
+    )
+
+    text: str = Field(..., description="The suggestion text")
+    count: int = Field(0, ge=0, description="Number of matches")
+    type: str = Field(..., description="Type of suggestion: 'entity', 'domain', or 'tag'")
+
+
+class AutocompleteResponse(BaseModel):
+    """Response model for autocomplete suggestions."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "suggestions": [
+                    {"text": "gmail.com", "count": 45, "type": "domain"},
+                    {"text": "yahoo.com", "count": 23, "type": "domain"}
+                ],
+                "query": "gm",
+                "count": 2
+            }
+        }
+    )
+
+    suggestions: list[AutocompleteSuggestion] = Field(
+        default_factory=list,
+        description="List of autocomplete suggestions"
+    )
+    query: str = Field(..., description="The query that was autocompleted")
+    count: int = Field(0, ge=0, description="Number of suggestions")
 
 
 class SyntaxHelpResponse(BaseModel):
@@ -266,7 +351,7 @@ async def global_search(
         examples=["core.name,core.email"]
     ),
     limit: int = Query(
-        20,
+        10,
         ge=1,
         le=100,
         description="Maximum number of results to return"
@@ -284,6 +369,10 @@ async def global_search(
         True,
         description="Include highlighted snippets in results"
     ),
+    facets: bool = Query(
+        True,
+        description="Include facet counts in results for filtering"
+    ),
     search_service: SearchService = Depends(get_search_service_dep)
 ):
     """
@@ -292,10 +381,11 @@ async def global_search(
     - **q**: Required search query text
     - **entity_types**: Optional filter by entity type
     - **fields**: Optional specific fields to search
-    - **limit**: Max results per page (1-100, default 20)
+    - **limit**: Max results per page (1-100, default 10)
     - **offset**: Skip N results for pagination
     - **fuzzy**: Enable fuzzy matching (default true)
     - **highlight**: Generate highlighted snippets (default true)
+    - **facets**: Include facet counts for filtering (default true)
     """
     # Parse comma-separated parameters
     entity_type_list = None
@@ -316,10 +406,21 @@ async def global_search(
         offset=offset,
         fuzzy=fuzzy,
         highlight=highlight,
+        facets=facets,
     )
 
     try:
-        results, total = await search_service.search(query)
+        results, total, search_facets = await search_service.search(query)
+
+        # Build facets response if available
+        facets_resp = None
+        if search_facets:
+            facets_resp = SearchFacetsResponse(
+                entity_types=search_facets.entity_types,
+                tags=search_facets.tags,
+                creation_dates=search_facets.creation_dates,
+                sources=search_facets.sources,
+            )
 
         return SearchResponse(
             results=[
@@ -338,6 +439,7 @@ async def global_search(
             query=q,
             limit=limit,
             offset=offset,
+            facets=facets_resp,
         )
 
     except Exception as e:
@@ -516,10 +618,11 @@ async def project_search(
         None,
         description="Comma-separated field paths to search"
     ),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(10, ge=1, le=100),
     offset: int = Query(0, ge=0),
     fuzzy: bool = Query(True),
     highlight: bool = Query(True),
+    facets: bool = Query(True),
     search_service: SearchService = Depends(get_search_service_dep),
     neo4j_handler=Depends(get_neo4j_handler)
 ):
@@ -565,10 +668,21 @@ async def project_search(
         offset=offset,
         fuzzy=fuzzy,
         highlight=highlight,
+        facets=facets,
     )
 
     try:
-        results, total = await search_service.search(query)
+        results, total, search_facets = await search_service.search(query)
+
+        # Build facets response if available
+        facets_resp = None
+        if search_facets:
+            facets_resp = SearchFacetsResponse(
+                entity_types=search_facets.entity_types,
+                tags=search_facets.tags,
+                creation_dates=search_facets.creation_dates,
+                sources=search_facets.sources,
+            )
 
         return SearchResponse(
             results=[
@@ -587,6 +701,7 @@ async def project_search(
             query=q,
             limit=limit,
             offset=offset,
+            facets=facets_resp,
         )
 
     except Exception as e:
@@ -631,9 +746,10 @@ async def advanced_project_search(
             '(tag:suspect OR tag:poi) AND NOT status:cleared'
         ]
     ),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(10, ge=1, le=100),
     offset: int = Query(0, ge=0),
     highlight: bool = Query(True),
+    facets: bool = Query(True),
     search_service: SearchService = Depends(get_search_service_dep),
     neo4j_handler=Depends(get_neo4j_handler)
 ):
@@ -642,9 +758,10 @@ async def advanced_project_search(
 
     - **project_id**: Project ID or safe_name to search in
     - **q**: Advanced query with boolean operators
-    - **limit**: Max results per page (1-100, default 20)
+    - **limit**: Max results per page (1-100, default 10)
     - **offset**: Skip N results for pagination
     - **highlight**: Generate highlighted snippets (default true)
+    - **facets**: Include facet counts (default true)
     """
     # Verify project exists
     project = neo4j_handler.get_project(project_id)
@@ -677,11 +794,22 @@ async def advanced_project_search(
         offset=offset,
         fuzzy=False,  # Disable fuzzy for advanced queries
         highlight=highlight,
-        advanced=True  # Enable advanced parsing
+        advanced=True,  # Enable advanced parsing
+        facets=facets,
     )
 
     try:
-        results, total = await search_service.search(query)
+        results, total, search_facets = await search_service.search(query)
+
+        # Build facets response if available
+        facets_resp = None
+        if search_facets:
+            facets_resp = SearchFacetsResponse(
+                entity_types=search_facets.entity_types,
+                tags=search_facets.tags,
+                creation_dates=search_facets.creation_dates,
+                sources=search_facets.sources,
+            )
 
         return SearchResponse(
             results=[
@@ -700,6 +828,7 @@ async def advanced_project_search(
             query=q,
             limit=limit,
             offset=offset,
+            facets=facets_resp,
         )
 
     except Exception as e:
@@ -839,12 +968,171 @@ async def search_in_entity(
             ],
             total=len(results),
             query=q,
-            limit=1,
+            limit=10,
             offset=0,
+            facets=None,
         )
 
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Search failed: {str(e)}"
+        )
+
+
+# ----- Autocomplete Endpoints -----
+
+@router.get(
+    "/autocomplete",
+    response_model=AutocompleteResponse,
+    summary="Get autocomplete suggestions",
+    description="""
+    Get autocomplete suggestions for search queries.
+
+    Suggestions are ranked by popularity (most linked entities first).
+    Supports entity names, email domains, and tags.
+    """,
+    responses={
+        200: {"description": "Autocomplete suggestions returned successfully"},
+    }
+)
+async def autocomplete(
+    q: str = Query(
+        ...,
+        min_length=2,
+        max_length=100,
+        description="Partial search text for autocomplete"
+    ),
+    type: str = Query(
+        "entities",
+        description="Type of suggestions: 'entities', 'domains', or 'tags'",
+        regex="^(entities|domains|tags)$"
+    ),
+    limit: int = Query(
+        10,
+        ge=1,
+        le=50,
+        description="Maximum number of suggestions"
+    ),
+    search_service: SearchService = Depends(get_search_service_dep)
+):
+    """
+    Get autocomplete suggestions for search queries.
+
+    - **q**: Partial search text (min 2 chars)
+    - **type**: Type of suggestions ('entities', 'domains', 'tags')
+    - **limit**: Max suggestions (1-50, default 10)
+    """
+    try:
+        suggestions = await search_service.get_autocomplete_suggestions(
+            query=q,
+            project_id=None,
+            limit=limit,
+            suggestion_type=type
+        )
+
+        return AutocompleteResponse(
+            suggestions=[
+                AutocompleteSuggestion(
+                    text=s["text"],
+                    count=s["count"],
+                    type=s["type"]
+                )
+                for s in suggestions
+            ],
+            query=q,
+            count=len(suggestions),
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Autocomplete failed: {str(e)}"
+        )
+
+
+@project_search_router.get(
+    "/autocomplete",
+    response_model=AutocompleteResponse,
+    summary="Get autocomplete suggestions for a project",
+    description="""
+    Get autocomplete suggestions scoped to a specific project.
+
+    Suggestions are ranked by popularity within the project.
+    """,
+    responses={
+        200: {"description": "Autocomplete suggestions returned successfully"},
+        404: {"description": "Project not found"},
+    }
+)
+async def project_autocomplete(
+    project_id: str,
+    q: str = Query(
+        ...,
+        min_length=2,
+        max_length=100,
+        description="Partial search text for autocomplete"
+    ),
+    type: str = Query(
+        "entities",
+        description="Type of suggestions: 'entities', 'domains', or 'tags'",
+        regex="^(entities|domains|tags)$"
+    ),
+    limit: int = Query(
+        10,
+        ge=1,
+        le=50,
+        description="Maximum number of suggestions"
+    ),
+    search_service: SearchService = Depends(get_search_service_dep),
+    neo4j_handler=Depends(get_neo4j_handler)
+):
+    """
+    Get autocomplete suggestions for a specific project.
+
+    - **project_id**: Project ID or safe_name
+    - **q**: Partial search text (min 2 chars)
+    - **type**: Type of suggestions ('entities', 'domains', 'tags')
+    - **limit**: Max suggestions (1-50, default 10)
+    """
+    # Verify project exists
+    project = neo4j_handler.get_project(project_id)
+    if not project:
+        all_projects = neo4j_handler.get_all_projects()
+        project = next(
+            (p for p in all_projects if p.get("id") == project_id),
+            None
+        )
+
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Project '{project_id}' not found"
+        )
+
+    try:
+        suggestions = await search_service.get_autocomplete_suggestions(
+            query=q,
+            project_id=project_id,
+            limit=limit,
+            suggestion_type=type
+        )
+
+        return AutocompleteResponse(
+            suggestions=[
+                AutocompleteSuggestion(
+                    text=s["text"],
+                    count=s["count"],
+                    type=s["type"]
+                )
+                for s in suggestions
+            ],
+            query=q,
+            count=len(suggestions),
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Autocomplete failed: {str(e)}"
         )

@@ -18,6 +18,7 @@ class AdvancedSearchState {
         this.createdAfter = '';
         this.createdBefore = '';
         this.customQuery = ''; // For advanced boolean syntax
+        this.facets = null; // Cache of current facets for filtering
     }
 
     /**
@@ -244,6 +245,9 @@ function setupAdvancedSearchPanel(state, projectName) {
                 <div id="search-result-badge" class="mt-3 p-2 bg-light text-center rounded-2 d-none">
                     <small class="text-muted" id="search-count-text"></small>
                 </div>
+
+                <!-- Faceted filtering (will be populated after search) -->
+                <div id="search-facets" class="mt-3"></div>
             </form>
         </div>
     `;
@@ -429,8 +433,8 @@ async function executeAdvancedSearch(state, projectName) {
         const data = await response.json();
         console.log('Search results:', data);
 
-        // Display results
-        displaySearchResults(data.results, data.total);
+        // Display results with facets
+        displaySearchResults(data.results, data.total, data.facets);
 
     } catch (error) {
         console.error('Advanced search error:', error);
@@ -439,9 +443,9 @@ async function executeAdvancedSearch(state, projectName) {
 }
 
 /**
- * Display search results in the people list
+ * Display search results in the people list with facets
  */
-function displaySearchResults(results, total) {
+function displaySearchResults(results, total, facets = null) {
     const personList = document.getElementById('person-list');
     const countBadge = document.getElementById('search-result-badge');
     const countText = document.getElementById('search-count-text');
@@ -452,6 +456,11 @@ function displaySearchResults(results, total) {
     if (countBadge) {
         countBadge.classList.remove('d-none');
         countText.textContent = `Found ${total} result${total !== 1 ? 's' : ''}`;
+    }
+
+    // Display facets if available
+    if (facets) {
+        displayFacets(facets);
     }
 
     personList.innerHTML = '';
@@ -531,6 +540,75 @@ function displaySearchResults(results, total) {
         });
 
         personList.appendChild(listItem);
+    });
+}
+
+/**
+ * Display search facets for filtering
+ */
+function displayFacets(facets) {
+    const facetContainer = document.getElementById('search-facets');
+    if (!facetContainer) return;
+
+    // Create facets panel if not exists
+    let panel = document.getElementById('search-facets-panel');
+    if (!panel) {
+        panel = document.createElement('div');
+        panel.id = 'search-facets-panel';
+        panel.className = 'card mt-3';
+        facetContainer.appendChild(panel);
+    }
+
+    let html = '<div class="card-header bg-light"><h6 class="mb-0">Refine Results</h6></div><div class="card-body p-3">';
+
+    // Entity types facet
+    if (facets.entity_types && Object.keys(facets.entity_types).length > 0) {
+        html += '<div class="mb-3"><h6 class="small fw-bold">Entity Types</h6>';
+        for (const [type, count] of Object.entries(facets.entity_types)) {
+            html += `<div class="form-check form-check-sm">
+                <input class="form-check-input facet-filter" type="checkbox" value="${type}" data-facet="entity_type" id="type-${type}">
+                <label class="form-check-label small" for="type-${type}">${type} (${count})</label>
+            </div>`;
+        }
+        html += '</div>';
+    }
+
+    // Tags facet
+    if (facets.tags && Object.keys(facets.tags).length > 0) {
+        html += '<div class="mb-3"><h6 class="small fw-bold">Tags</h6>';
+        for (const [tag, count] of Object.entries(facets.tags).slice(0, 5)) {
+            html += `<div class="form-check form-check-sm">
+                <input class="form-check-input facet-filter" type="checkbox" value="${tag}" data-facet="tag" id="tag-${tag}">
+                <label class="form-check-label small" for="tag-${tag}">${tag} (${count})</label>
+            </div>`;
+        }
+        if (Object.keys(facets.tags).length > 5) {
+            html += `<small class="text-muted">+${Object.keys(facets.tags).length - 5} more</small>`;
+        }
+        html += '</div>';
+    }
+
+    // Sources facet
+    if (facets.sources && Object.keys(facets.sources).length > 0) {
+        html += '<div class="mb-3"><h6 class="small fw-bold">Sources</h6>';
+        for (const [source, count] of Object.entries(facets.sources)) {
+            html += `<div class="form-check form-check-sm">
+                <input class="form-check-input facet-filter" type="checkbox" value="${source}" data-facet="source" id="source-${source}">
+                <label class="form-check-label small" for="source-${source}">${source} (${count})</label>
+            </div>`;
+        }
+        html += '</div>';
+    }
+
+    html += '</div>';
+    panel.innerHTML = html;
+
+    // Add event listeners to facet checkboxes
+    document.querySelectorAll('.facet-filter').forEach(checkbox => {
+        checkbox.addEventListener('change', () => {
+            console.log('Facet filter selected:', checkbox.value, checkbox.checked);
+            // Could trigger filtered search here if desired
+        });
     });
 }
 

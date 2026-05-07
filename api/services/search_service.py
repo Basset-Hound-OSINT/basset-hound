@@ -18,6 +18,7 @@ Features:
 """
 
 import re
+import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 from enum import Enum
@@ -30,12 +31,30 @@ except ImportError:
     FuzzyMatcher = None
     get_fuzzy_matcher = None
 
+# Cache service for search results
+try:
+    from .cache_service import get_cache_service
+    CACHE_AVAILABLE = True
+except ImportError:
+    CACHE_AVAILABLE = False
+    get_cache_service = None
+
 
 # Default searchable field types
 DEFAULT_SEARCHABLE_TYPES = {"string", "email", "url", "comment", "ip_address"}
 
-# Index name for full-text search
+# Index names for full-text search
 FULLTEXT_INDEX_NAME = "entity_fulltext_index"
+EMAIL_INDEX_NAME = "entity_email_index"
+PHONE_INDEX_NAME = "entity_phone_index"
+TAG_INDEX_NAME = "entity_tag_index"
+NAME_INDEX_NAME = "entity_name_index"
+
+# Cache TTL for search results (1 minute)
+SEARCH_CACHE_TTL = 60
+
+# Autocomplete cache TTL (5 minutes)
+AUTOCOMPLETE_CACHE_TTL = 300
 
 
 class QueryOperator(Enum):
@@ -77,6 +96,49 @@ class ParsedQuery:
     field_conditions: Dict[str, List[str]] = field(default_factory=dict)
     has_wildcards: bool = False
     error: Optional[str] = None
+
+
+@dataclass
+class FacetValue:
+    """
+    Represents a facet value with count.
+
+    Attributes:
+        value: The facet value
+        count: Number of results with this facet value
+    """
+    value: str
+    count: int
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        return {"value": self.value, "count": self.count}
+
+
+@dataclass
+class SearchFacets:
+    """
+    Represents search result facets for filtering.
+
+    Attributes:
+        entity_types: Facets for entity types
+        tags: Facets for tags
+        creation_dates: Facets for creation dates (ranges)
+        sources: Facets for data sources
+    """
+    entity_types: Dict[str, int] = field(default_factory=dict)
+    tags: Dict[str, int] = field(default_factory=dict)
+    creation_dates: Dict[str, int] = field(default_factory=dict)
+    sources: Dict[str, int] = field(default_factory=dict)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            "entity_types": self.entity_types,
+            "tags": self.tags,
+            "creation_dates": self.creation_dates,
+            "sources": self.sources,
+        }
 
 
 @dataclass
@@ -124,21 +186,31 @@ class SearchQuery:
         project_id: Optional project ID to scope the search (None = all projects)
         entity_types: Optional list of entity types to filter by
         fields: Optional list of specific fields to search in
-        limit: Maximum number of results to return
+        limit: Maximum number of results to return (pagination: 10 per page)
         offset: Number of results to skip (for pagination)
         fuzzy: Whether to enable fuzzy matching for sparse results
         highlight: Whether to generate highlighted snippets
         advanced: Whether to parse query as advanced boolean query
+        facets: Whether to include facet counts in results
+        facet_filters: Dictionary of facet names to filter values
+        tags: Optional list of tags to filter by
+        created_after: Optional creation date filter (YYYY-MM-DD)
+        created_before: Optional creation date filter (YYYY-MM-DD)
     """
     query: str
     project_id: Optional[str] = None
     entity_types: Optional[List[str]] = None
     fields: Optional[List[str]] = None
-    limit: int = 20
+    limit: int = 10
     offset: int = 0
     fuzzy: bool = True
     highlight: bool = True
     advanced: bool = False
+    facets: bool = True
+    facet_filters: Optional[Dict[str, List[str]]] = None
+    tags: Optional[List[str]] = None
+    created_after: Optional[str] = None
+    created_before: Optional[str] = None
 
     def __post_init__(self):
         """Validate query parameters."""
@@ -362,6 +434,9 @@ class SearchService:
         self._fuzzy_matcher: Optional[FuzzyMatcher] = None
         self._searchable_fields: Optional[List[str]] = None
         self._query_parser = AdvancedQueryParser()
+        self._cache = None
+        self._autocomplete_cache: Dict[str, Tuple[float, List[str]]] = {}
+        self._search_start_time = time.time()
 
     @property
     def fuzzy_matcher(self) -> Optional[FuzzyMatcher]:
@@ -372,6 +447,315 @@ class SearchService:
             except Exception:
                 pass
         return self._fuzzy_matcher
+
+    @property
+    def cache(self):
+        """Get or create the cache service instance."""
+        if self._cache is None and CACHE_AVAILABLE and get_cache_service:
+            try:
+                self._cache = get_cache_service()
+            except Exception:
+                pass
+        return self._cache
+
+    def _build_cache_key(self, query: SearchQuery) -> str:
+        """
+        Build a cache key for a search query.
+
+        Args:
+            query: Search query
+
+        Returns:
+            Cache key string
+        """
+        key_parts = [
+            query.query,
+            query.project_id or "all",
+            str(sorted(query.entity_types or [])),
+            str(sorted(query.fields or [])),
+            str(query.limit),
+            str(query.offset),
+            str(query.fuzzy),
+            str(query.advanced),
+        ]
+        key_str = "|".join(key_parts)
+        import hashlib
+        return f"search:{hashlib.md5(key_str.encode()).hexdigest()}"
+
+    def _build_facets(self, results: List[SearchResult]) -> SearchFacets:
+        """
+        Build facet counts from search results.
+
+        Args:
+            results: List of search results
+
+        Returns:
+            SearchFacets with facet counts
+        """
+        facets = SearchFacets()
+
+        for result in results:
+            # Count entity types
+            if result.entity_type:
+                facets.entity_types[result.entity_type] = \
+                    facets.entity_types.get(result.entity_type, 0) + 1
+
+            # Extract tags from entity data
+            if "tags" in result.entity_data:
+                tags = result.entity_data.get("tags", [])
+                if isinstance(tags, list):
+                    for tag in tags:
+                        facets.tags[tag] = facets.tags.get(tag, 0) + 1
+                elif isinstance(tags, str):
+                    facets.tags[tags] = facets.tags.get(tags, 0) + 1
+
+            # Count sources
+            if "source" in result.entity_data:
+                source = result.entity_data.get("source")
+                if source:
+                    facets.sources[source] = facets.sources.get(source, 0) + 1
+
+        return facets
+
+    async def get_autocomplete_suggestions(
+        self,
+        query: str,
+        project_id: Optional[str] = None,
+        limit: int = 10,
+        suggestion_type: str = "entities"
+    ) -> List[Dict[str, Any]]:
+        """
+        Get autocomplete suggestions with ranking by popularity.
+
+        Args:
+            query: Partial search text for autocomplete
+            project_id: Optional project ID to scope suggestions
+            limit: Maximum number of suggestions
+            suggestion_type: Type of suggestions ('entities', 'domains', 'tags')
+
+        Returns:
+            List of suggestion dictionaries with name, count, type
+        """
+        if not query or len(query) < 2:
+            return []
+
+        # Check autocomplete cache
+        cache_key = f"autocomplete:{suggestion_type}:{project_id or 'all'}:{query}"
+        if cache_key in self._autocomplete_cache:
+            cached_time, cached_results = self._autocomplete_cache[cache_key]
+            if time.time() - cached_time < AUTOCOMPLETE_CACHE_TTL:
+                return cached_results[:limit]
+
+        suggestions = []
+
+        try:
+            if suggestion_type == "domains":
+                # Autocomplete for email domains
+                suggestions = self._get_domain_suggestions(query, project_id, limit)
+            elif suggestion_type == "tags":
+                # Autocomplete for tags
+                suggestions = self._get_tag_suggestions(query, project_id, limit)
+            else:
+                # Default: entity name suggestions
+                suggestions = self._get_entity_suggestions(query, project_id, limit)
+
+            # Cache the results
+            self._autocomplete_cache[cache_key] = (time.time(), suggestions)
+
+        except Exception as e:
+            pass
+
+        return suggestions[:limit]
+
+    def _get_entity_suggestions(
+        self,
+        query: str,
+        project_id: Optional[str],
+        limit: int
+    ) -> List[Dict[str, Any]]:
+        """
+        Get entity name suggestions, ranked by link count (popularity).
+
+        Args:
+            query: Partial query text
+            project_id: Optional project ID
+            limit: Max suggestions
+
+        Returns:
+            List of suggestions
+        """
+        suggestions = []
+        query_lower = query.lower()
+
+        try:
+            if project_id:
+                project = self._get_project_by_id(project_id)
+                if not project:
+                    return []
+                projects = [project]
+            else:
+                projects = self.neo4j.get_all_projects()
+
+            # Collect suggestions with link counts
+            suggestion_map = {}
+            for project in projects:
+                project_safe_name = project.get("safe_name", project.get("id"))
+                entities = self.neo4j.get_all_people(project_safe_name)
+
+                for entity in entities:
+                    profile = entity.get("profile", {})
+                    entity_id = entity.get("id", "")
+
+                    # Extract name for matching
+                    if "core" in profile and "name" in profile["core"]:
+                        names = profile["core"]["name"]
+                        if isinstance(names, list):
+                            name = names[0] if names else ""
+                        elif isinstance(names, dict):
+                            first = names.get("first_name", "")
+                            last = names.get("last_name", "")
+                            name = f"{first} {last}".strip()
+                        else:
+                            name = str(names)
+
+                        if name and query_lower in name.lower():
+                            # Count relationships for popularity
+                            link_count = len(entity.get("relationships", []))
+                            suggestion_map[name] = suggestion_map.get(name, 0) + link_count
+
+            # Sort by popularity (link count) and convert to list
+            sorted_suggestions = sorted(
+                suggestion_map.items(),
+                key=lambda x: x[1],
+                reverse=True
+            )
+
+            suggestions = [
+                {
+                    "text": name,
+                    "count": link_count,
+                    "type": "entity"
+                }
+                for name, link_count in sorted_suggestions[:limit]
+            ]
+
+        except Exception:
+            pass
+
+        return suggestions
+
+    def _get_domain_suggestions(
+        self,
+        query: str,
+        project_id: Optional[str],
+        limit: int
+    ) -> List[Dict[str, Any]]:
+        """
+        Get email domain suggestions.
+
+        Args:
+            query: Partial domain query
+            project_id: Optional project ID
+            limit: Max suggestions
+
+        Returns:
+            List of domain suggestions
+        """
+        suggestions = []
+        query_lower = query.lower()
+
+        try:
+            if project_id:
+                project = self._get_project_by_id(project_id)
+                if not project:
+                    return []
+                projects = [project]
+            else:
+                projects = self.neo4j.get_all_projects()
+
+            domain_map = {}
+            for project in projects:
+                project_safe_name = project.get("safe_name", project.get("id"))
+                entities = self.neo4j.get_all_people(project_safe_name)
+
+                for entity in entities:
+                    profile = entity.get("profile", {})
+                    if "core" in profile and "email" in profile["core"]:
+                        emails = profile["core"]["email"]
+                        if isinstance(emails, list):
+                            email_list = emails
+                        else:
+                            email_list = [emails] if emails else []
+
+                        for email in email_list:
+                            if "@" in str(email):
+                                domain = str(email).split("@")[-1].lower()
+                                if query_lower in domain:
+                                    domain_map[domain] = domain_map.get(domain, 0) + 1
+
+            sorted_domains = sorted(domain_map.items(), key=lambda x: x[1], reverse=True)
+            suggestions = [
+                {"text": domain, "count": count, "type": "domain"}
+                for domain, count in sorted_domains[:limit]
+            ]
+
+        except Exception:
+            pass
+
+        return suggestions
+
+    def _get_tag_suggestions(
+        self,
+        query: str,
+        project_id: Optional[str],
+        limit: int
+    ) -> List[Dict[str, Any]]:
+        """
+        Get tag suggestions.
+
+        Args:
+            query: Partial tag query
+            project_id: Optional project ID
+            limit: Max suggestions
+
+        Returns:
+            List of tag suggestions
+        """
+        suggestions = []
+        query_lower = query.lower()
+
+        try:
+            if project_id:
+                project = self._get_project_by_id(project_id)
+                if not project:
+                    return []
+                projects = [project]
+            else:
+                projects = self.neo4j.get_all_projects()
+
+            tag_map = {}
+            for project in projects:
+                project_safe_name = project.get("safe_name", project.get("id"))
+                entities = self.neo4j.get_all_people(project_safe_name)
+
+                for entity in entities:
+                    tags = entity.get("tags", [])
+                    if isinstance(tags, list):
+                        for tag in tags:
+                            tag_str = str(tag).lower()
+                            if query_lower in tag_str:
+                                tag_map[tag_str] = tag_map.get(tag_str, 0) + 1
+
+            sorted_tags = sorted(tag_map.items(), key=lambda x: x[1], reverse=True)
+            suggestions = [
+                {"text": tag, "count": count, "type": "tag"}
+                for tag, count in sorted_tags[:limit]
+            ]
+
+        except Exception:
+            pass
+
+        return suggestions
 
     def parse_advanced_query(self, query_string: str) -> ParsedQuery:
         """
@@ -390,24 +774,36 @@ class SearchService:
         """
         return self._query_parser.parse(query_string)
 
-    async def search(self, query: SearchQuery) -> Tuple[List[SearchResult], int]:
+    async def search(self, query: SearchQuery) -> Tuple[List[SearchResult], int, Optional[SearchFacets]]:
         """
         Execute a full-text search across entities.
 
         This method first attempts to use Neo4j's full-text search,
         then enhances results with fuzzy matching if enabled and
-        results are sparse.
+        results are sparse. Includes caching for performance.
 
         Args:
             query: SearchQuery object containing search parameters
 
         Returns:
-            Tuple of (list of SearchResult, total count)
+            Tuple of (list of SearchResult, total count, facets)
         """
         if not query.query or not query.query.strip():
-            return [], 0
+            return [], 0, None
 
         search_text = query.query.strip()
+        search_start = time.time()
+
+        # Check cache for results
+        cache_key = self._build_cache_key(query)
+        if self.cache:
+            try:
+                cached = self.cache.get(cache_key)
+                if cached:
+                    results, total, facets = cached
+                    return results, total, facets
+            except Exception:
+                pass
 
         # Check if using advanced query syntax
         if query.advanced:
@@ -433,10 +829,23 @@ class SearchService:
         # Sort by score descending
         results.sort(key=lambda r: r.score, reverse=True)
 
+        # Build facets if requested
+        facets = None
+        if query.facets:
+            facets = self._build_facets(results)
+
         # Apply pagination
         paginated = results[query.offset:query.offset + query.limit]
 
-        return paginated, total
+        # Track search duration and cache results
+        duration_ms = int((time.time() - search_start) * 1000)
+        if self.cache:
+            try:
+                self.cache.set(cache_key, (paginated, total, facets), ttl=SEARCH_CACHE_TTL, tags={"search"})
+            except Exception:
+                pass
+
+        return paginated, total, facets
 
     async def _advanced_search(
         self,
@@ -1141,7 +1550,8 @@ class SearchService:
         """
         Rebuild the search index for a project.
 
-        Creates or updates the Neo4j full-text index for the project's entities.
+        Creates or updates the Neo4j full-text indexes for the project's entities.
+        Creates composite indexes for common search patterns.
 
         Args:
             project_id: Project ID or safe_name
@@ -1165,8 +1575,9 @@ class SearchService:
             if await self.index_entity(project_id, entity_id, entity):
                 indexed_count += 1
 
-        # Try to create/update full-text index
-        await self._ensure_fulltext_index()
+        # Create indexes
+        await self._ensure_fulltext_indexes()
+        await self._ensure_composite_indexes()
 
         return indexed_count
 
@@ -1212,21 +1623,75 @@ class SearchService:
         except Exception:
             return False
 
-    async def _ensure_fulltext_index(self) -> bool:
+    async def _ensure_fulltext_indexes(self) -> bool:
         """
-        Ensure the full-text search index exists.
+        Ensure all full-text search indexes exist.
+
+        Creates indexes for:
+        - Full-text search (search_text field)
+        - Email searching
+        - Phone searching
+        - Tag searching
+        - Name searching
 
         Returns:
-            True if index exists or was created
+            True if all indexes created/exist
         """
         try:
-            # Create full-text index on Person.search_text
-            cypher = f"""
-                CREATE FULLTEXT INDEX {FULLTEXT_INDEX_NAME} IF NOT EXISTS
-                FOR (p:Person)
-                ON EACH [p.search_text]
-            """
-            self.neo4j.execute_query(cypher, {})
+            indexes = [
+                (FULLTEXT_INDEX_NAME, "p.search_text"),
+                (NAME_INDEX_NAME, "p.name"),
+                (EMAIL_INDEX_NAME, "p.email"),
+                (PHONE_INDEX_NAME, "p.phone"),
+                (TAG_INDEX_NAME, "p.tags"),
+            ]
+
+            for index_name, field in indexes:
+                try:
+                    cypher = f"""
+                        CREATE FULLTEXT INDEX {index_name} IF NOT EXISTS
+                        FOR (p:Person)
+                        ON EACH [{field}]
+                    """
+                    self.neo4j.execute_query(cypher, {})
+                except Exception:
+                    pass
+
+            return True
+        except Exception:
+            return False
+
+    async def _ensure_composite_indexes(self) -> bool:
+        """
+        Create composite indexes for common search patterns.
+
+        Composite indexes for:
+        - Entity type + tags filtering
+        - Project + entity type filtering
+        - Creation date + entity type
+
+        Returns:
+            True if indexes created/exist
+        """
+        try:
+            composite_indexes = [
+                ("idx_person_type_tags", "Person", ["type", "tags"]),
+                ("idx_person_created_type", "Person", ["created_at", "type"]),
+                ("idx_person_project_type", "Person", ["project_id", "type"]),
+            ]
+
+            for idx_name, label, properties in composite_indexes:
+                try:
+                    prop_str = ", ".join([f"p.{prop}" for prop in properties])
+                    cypher = f"""
+                        CREATE INDEX {idx_name} IF NOT EXISTS
+                        FOR (p:{label})
+                        ON ({prop_str})
+                    """
+                    self.neo4j.execute_query(cypher, {})
+                except Exception:
+                    pass
+
             return True
         except Exception:
             return False

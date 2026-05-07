@@ -1,0 +1,24 @@
+{
+  "id": "timeline-visualization",
+  "name": "Timeline Visualization",
+  "description": "Visualize temporal relationships and entity events on a timeline",
+  "author": "Basset Hound Team",
+  "version": "1.0.0",
+  "type": "visualization",
+  "entry_point": "plugin.js",
+  "tags": ["visualization", "timeline", "temporal", "events"],
+  "permissions": [
+    "read:entities",
+    "read:relationships",
+    "read:graph"
+  ],
+  "icon_url": "/static/plugins/timeline/icon.png",
+  "homepage": "https://basset-hound.dev",
+  "license": "MIT",
+  "description_long": "The Timeline Visualization plugin displays entities and their relationships across time, helping you understand the sequence and timing of events in your investigation.",
+  "config": {
+    "scale": "linear",
+    "groupBy": "entity_type",
+    "showLabels": true
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "id": "heatmap-visualization",
+  "name": "Heat Map",
+  "description": "Visualize entity activity and connection density using heat maps",
+  "author": "Basset Hound Team",
+  "version": "1.0.0",
+  "type": "visualization",
+  "entry_point": "plugin.js",
+  "tags": ["visualization", "heatmap", "activity", "density"],
+  "permissions": [
+    "read:entities",
+    "read:relationships",
+    "read:analytics"
+  ],
+  "icon_url": "/static/plugins/heatmap/icon.png",
+  "homepage": "https://basset-hound.dev",
+  "license": "MIT",
+  "description_long": "The Heat Map plugin visualizes activity levels and connection density across your entity network. Identify hotspots and high-activity areas in your investigation.",
+  "config": {
+    "colorScheme": "viridis",
+    "cellSize": 20,
+    "showValues": true
+  }
+}

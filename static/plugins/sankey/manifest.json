@@ -1,0 +1,24 @@
+{
+  "id": "sankey-diagram",
+  "name": "Sankey Diagram",
+  "description": "Visualize entity flow and relationships using Sankey diagram",
+  "author": "Basset Hound Team",
+  "version": "1.0.0",
+  "type": "visualization",
+  "entry_point": "plugin.js",
+  "tags": ["visualization", "flow", "relationships"],
+  "permissions": [
+    "read:entities",
+    "read:relationships",
+    "read:graph"
+  ],
+  "icon_url": "/static/plugins/sankey/icon.png",
+  "homepage": "https://basset-hound.dev",
+  "license": "MIT",
+  "description_long": "The Sankey Diagram plugin visualizes entity flows and relationships using a flow-based diagram. Perfect for understanding how entities are connected and how information flows through your network.",
+  "config": {
+    "width": 800,
+    "height": 600,
+    "colors": ["#FF6B6B", "#4ECDC4", "#45B7D1", "#FFA07A", "#98D8C8"]
+  }
+}

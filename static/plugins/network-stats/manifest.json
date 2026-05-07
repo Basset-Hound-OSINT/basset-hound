@@ -1,0 +1,29 @@
+{
+  "id": "network-statistics",
+  "name": "Network Statistics Dashboard",
+  "description": "Analyze and display network metrics and graph statistics",
+  "author": "Basset Hound Team",
+  "version": "1.0.0",
+  "type": "analysis",
+  "entry_point": "plugin.js",
+  "tags": ["analysis", "statistics", "metrics", "network"],
+  "permissions": [
+    "read:entities",
+    "read:relationships",
+    "read:analytics"
+  ],
+  "icon_url": "/static/plugins/network-stats/icon.png",
+  "homepage": "https://basset-hound.dev",
+  "license": "MIT",
+  "description_long": "The Network Statistics Dashboard provides comprehensive metrics about your entity network including centrality measures, clustering coefficients, density, and other graph-theoretic analyses.",
+  "config": {
+    "metricsToShow": [
+      "node_count",
+      "edge_count",
+      "density",
+      "average_degree",
+      "clustering_coefficient",
+      "diameter"
+    ]
+  }
+}
