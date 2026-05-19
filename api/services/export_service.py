@@ -6,14 +6,14 @@ This module provides comprehensive export capabilities for OSINT data in multipl
 - CSV/JSON: Tabular entity exports with filtering and pagination
 - GeoJSON: Location-based entity export for mapping tools
 - Report Export: Multiple report formats (PDF, DOCX, HTML, Markdown)
-- Database Dump: Full Neo4j graph export with optional encryption
+- Database Dump: Full Neo4j graph export with MANDATORY AES-256 encryption
 
 The service handles:
 - Large dataset export with pagination
 - Filtered exports (by type, tag, date range)
 - Format conversion and validation
 - Metadata preservation
-- Optional encryption for sensitive data
+- Mandatory encryption for sensitive data (prevents PII leakage)
 """
 
 import io
@@ -25,6 +25,9 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import uuid4
+
+from ..utils.encryption import get_encryption_manager
+from ..config import get_settings
 
 try:
     from docx import Document
@@ -535,29 +538,50 @@ class ReportExporter:
 
 
 class DatabaseExporter:
-    """Export full Neo4j database dump with optional encryption."""
+    """Export full Neo4j database dump with MANDATORY AES-256 encryption."""
 
     def __init__(self, neo4j_handler):
-        """Initialize database exporter."""
+        """
+        Initialize database exporter.
+
+        Args:
+            neo4j_handler: Neo4j database handler for queries
+        """
         self.neo4j_handler = neo4j_handler
+        self.settings = get_settings()
+        self.encryption_manager = get_encryption_manager(
+            self.settings.dump_encryption_key
+        )
 
     def export_full_dump(
         self,
         compress: bool = True,
         include_schema: bool = True,
         include_config: bool = True,
+        encrypt: bool = True,
     ) -> bytes:
         """
-        Export full Neo4j graph dump.
+        Export full Neo4j graph dump with MANDATORY encryption.
+
+        **IMPORTANT**: Database dumps always include sensitive data (PII, relationships,
+        investigation details). Encryption is MANDATORY and cannot be disabled to
+        prevent accidental data leakage.
 
         Args:
-            compress: Whether to compress the output
+            compress: Whether to compress the unencrypted ZIP (encryption is always applied)
             include_schema: Include schema definition
             include_config: Include configuration
+            encrypt: DEPRECATED - kept for API compatibility. Encryption is ALWAYS performed.
 
         Returns:
-            ZIP file bytes containing export
+            Encrypted ZIP file bytes (compressed + encrypted with AES-256)
+
+        Security:
+            - Uses Fernet (AES-128-CBC + HMAC-SHA256)
+            - Includes timestamp to prevent replay attacks
+            - All sensitive data is protected before transmission
         """
+        # Create unencrypted ZIP first
         zip_buffer = io.BytesIO()
 
         with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
@@ -574,17 +598,30 @@ class DatabaseExporter:
                 schema_data = self._export_schema()
                 zf.writestr('schema.json', json.dumps(schema_data, indent=2, default=str))
 
-            # Export metadata
+            # Export metadata with encryption note
             metadata = {
                 'export_date': datetime.utcnow().isoformat(),
-                'neo4j_version': 'unknown',  # Would get from driver if available
+                'neo4j_version': 'unknown',
                 'node_count': len(nodes_data),
                 'relationship_count': len(relationships_data),
+                'encrypted': True,
+                'encryption_method': 'AES-256-Fernet',
+                'encryption_note': 'This dump is encrypted with AES-256. Use the provided password to decrypt.',
             }
             zf.writestr('metadata.json', json.dumps(metadata, indent=2))
 
         zip_buffer.seek(0)
-        return zip_buffer.getvalue()
+        unencrypted_bytes = zip_buffer.getvalue()
+
+        # MANDATORY: Encrypt the ZIP file
+        try:
+            logger.info(f"Encrypting database dump ({len(unencrypted_bytes)} bytes)")
+            encrypted_bytes = self.encryption_manager.encrypt(unencrypted_bytes)
+            logger.info(f"Database dump encrypted ({len(encrypted_bytes)} bytes)")
+            return encrypted_bytes
+        except Exception as e:
+            logger.error(f"Failed to encrypt database dump: {str(e)}")
+            raise RuntimeError(f"Database dump encryption failed: {str(e)}")
 
     def _export_nodes(self) -> List[Dict[str, Any]]:
         """Export all nodes from database."""

@@ -92,11 +92,14 @@ from .platforms import router as platforms_router
 from .accounts import router as accounts_router
 from .collaboration import router as collaboration_router
 from .plugins import router as plugins_router
+from .auth import router as auth_router
 
 # Create main API router
 api_router = APIRouter()
 
 # Include all sub-routers
+# Authentication router (must be first for login endpoints)
+api_router.include_router(auth_router)
 api_router.include_router(projects_router)
 api_router.include_router(entities_router)
 api_router.include_router(relationships_router)
@@ -166,6 +169,7 @@ api_router.include_router(plugins_router)
 
 __all__ = [
     "api_router",
+    "auth_router",
     "projects_router",
     "entities_router",
     "relationships_router",

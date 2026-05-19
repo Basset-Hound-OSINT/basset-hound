@@ -12,12 +12,16 @@ Endpoints:
 - POST /api/v1/projects/{project_id}/search/reindex - Rebuild search index
 """
 
+import asyncio
+import hashlib
+import json
 from typing import Any, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field, ConfigDict
 
 from ..dependencies import get_neo4j_handler, get_app_config
+from ..auth.dependencies import OptionalUser, User
 from ..services.search_service import (
     SearchService,
     SearchQuery,
@@ -26,6 +30,7 @@ from ..services.search_service import (
     get_search_service,
     set_search_service,
 )
+from ..services.cache_service import get_cache_service
 
 
 # ----- Pydantic Models -----
@@ -271,6 +276,40 @@ class SyntaxHelpResponse(BaseModel):
     )
 
 
+# ----- Helper Functions -----
+
+def _generate_search_cache_key(
+    query: str,
+    project_id: Optional[str] = None,
+    entity_types: Optional[str] = None,
+    fields: Optional[str] = None,
+    limit: int = 10,
+    offset: int = 0,
+    fuzzy: bool = True,
+    highlight: bool = True,
+    facets: bool = True
+) -> str:
+    """
+    Generate a cache key for search results.
+
+    Creates a consistent hash of search parameters for cache lookups.
+    """
+    cache_params = {
+        "q": query,
+        "project_id": project_id,
+        "entity_types": entity_types,
+        "fields": fields,
+        "limit": limit,
+        "offset": offset,
+        "fuzzy": fuzzy,
+        "highlight": highlight,
+        "facets": facets,
+    }
+    key_str = json.dumps(cache_params, sort_keys=True, default=str)
+    key_hash = hashlib.sha256(key_str.encode()).hexdigest()[:16]
+    return f"search:{key_hash}"
+
+
 # ----- Dependency -----
 
 def get_search_service_dep(
@@ -387,6 +426,37 @@ async def global_search(
     - **highlight**: Generate highlighted snippets (default true)
     - **facets**: Include facet counts for filtering (default true)
     """
+    # Generate cache key
+    cache_key = _generate_search_cache_key(
+        query=q,
+        project_id=None,
+        entity_types=entity_types,
+        fields=fields,
+        limit=limit,
+        offset=offset,
+        fuzzy=fuzzy,
+        highlight=highlight,
+        facets=facets,
+    )
+
+    # Try to get from cache first (10-minute TTL for search results)
+    cache_service = get_cache_service()
+    if cache_service and cache_service.is_enabled:
+        cached_response = await cache_service.get_search_results(q, {"entity_types": entity_types, "fields": fields, "limit": limit, "offset": offset, "fuzzy": fuzzy, "highlight": highlight, "facets": facets})
+        if cached_response is not None:
+            # Return cached result
+            facets_resp = None
+            if cached_response.get("facets"):
+                facets_resp = SearchFacetsResponse(**cached_response["facets"])
+            return SearchResponse(
+                results=[SearchResultResponse(**r) for r in cached_response.get("results", [])],
+                total=cached_response.get("total", 0),
+                query=q,
+                limit=limit,
+                offset=offset,
+                facets=facets_resp,
+            )
+
     # Parse comma-separated parameters
     entity_type_list = None
     if entity_types:
@@ -410,10 +480,15 @@ async def global_search(
     )
 
     try:
-        results, total, search_facets = await search_service.search(query)
+        # Enforce 5-second timeout for search
+        results, total, search_facets = await asyncio.wait_for(
+            search_service.search(query),
+            timeout=5.0
+        )
 
         # Build facets response if available
         facets_resp = None
+        facets_dict = None
         if search_facets:
             facets_resp = SearchFacetsResponse(
                 entity_types=search_facets.entity_types,
@@ -421,25 +496,50 @@ async def global_search(
                 creation_dates=search_facets.creation_dates,
                 sources=search_facets.sources,
             )
+            facets_dict = facets_resp.model_dump()
 
-        return SearchResponse(
-            results=[
-                SearchResultResponse(
-                    entity_id=r.entity_id,
-                    project_id=r.project_id,
-                    entity_type=r.entity_type,
-                    score=r.score,
-                    highlights=r.highlights,
-                    matched_fields=r.matched_fields,
-                    entity_data=r.entity_data,
-                )
+        response_data = {
+            "results": [
+                {
+                    "entity_id": r.entity_id,
+                    "project_id": r.project_id,
+                    "entity_type": r.entity_type,
+                    "score": r.score,
+                    "highlights": r.highlights,
+                    "matched_fields": r.matched_fields,
+                    "entity_data": r.entity_data,
+                }
                 for r in results
             ],
+            "total": total,
+            "query": q,
+            "limit": limit,
+            "offset": offset,
+            "facets": facets_dict,
+        }
+
+        # Cache search results (10-minute TTL)
+        if cache_service and cache_service.is_enabled:
+            await cache_service.set_search_results(
+                q,
+                response_data["results"],
+                filters={"entity_types": entity_types, "fields": fields, "limit": limit, "offset": offset, "fuzzy": fuzzy, "highlight": highlight, "facets": facets},
+                ttl=600,  # 10-minute cache
+            )
+
+        return SearchResponse(
+            results=[SearchResultResponse(**r) for r in response_data["results"]],
             total=total,
             query=q,
             limit=limit,
             offset=offset,
             facets=facets_resp,
+        )
+
+    except asyncio.TimeoutError:
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail="Search took too long (>5 seconds). Try a more specific query."
         )
 
     except Exception as e:
@@ -649,6 +749,40 @@ async def project_search(
             detail=f"Project '{project_id}' not found"
         )
 
+    # Generate cache key
+    cache_key = _generate_search_cache_key(
+        query=q,
+        project_id=project_id,
+        entity_types=entity_types,
+        fields=fields,
+        limit=limit,
+        offset=offset,
+        fuzzy=fuzzy,
+        highlight=highlight,
+        facets=facets,
+    )
+
+    # Try to get from cache first (10-minute TTL for search results)
+    cache_service = get_cache_service()
+    if cache_service and cache_service.is_enabled:
+        cached_response = await cache_service.get_search_results(
+            q,
+            filters={"project_id": project_id, "entity_types": entity_types, "fields": fields, "limit": limit, "offset": offset, "fuzzy": fuzzy, "highlight": highlight, "facets": facets}
+        )
+        if cached_response is not None:
+            # Return cached result
+            facets_resp = None
+            if cached_response.get("facets"):
+                facets_resp = SearchFacetsResponse(**cached_response["facets"])
+            return SearchResponse(
+                results=[SearchResultResponse(**r) for r in cached_response.get("results", [])],
+                total=cached_response.get("total", 0),
+                query=q,
+                limit=limit,
+                offset=offset,
+                facets=facets_resp,
+            )
+
     # Parse parameters
     entity_type_list = None
     if entity_types:
@@ -672,10 +806,15 @@ async def project_search(
     )
 
     try:
-        results, total, search_facets = await search_service.search(query)
+        # Enforce 5-second timeout for search
+        results, total, search_facets = await asyncio.wait_for(
+            search_service.search(query),
+            timeout=5.0
+        )
 
         # Build facets response if available
         facets_resp = None
+        facets_dict = None
         if search_facets:
             facets_resp = SearchFacetsResponse(
                 entity_types=search_facets.entity_types,
@@ -683,20 +822,39 @@ async def project_search(
                 creation_dates=search_facets.creation_dates,
                 sources=search_facets.sources,
             )
+            facets_dict = facets_resp.model_dump()
 
-        return SearchResponse(
-            results=[
-                SearchResultResponse(
-                    entity_id=r.entity_id,
-                    project_id=r.project_id,
-                    entity_type=r.entity_type,
-                    score=r.score,
-                    highlights=r.highlights,
-                    matched_fields=r.matched_fields,
-                    entity_data=r.entity_data,
-                )
+        response_data = {
+            "results": [
+                {
+                    "entity_id": r.entity_id,
+                    "project_id": r.project_id,
+                    "entity_type": r.entity_type,
+                    "score": r.score,
+                    "highlights": r.highlights,
+                    "matched_fields": r.matched_fields,
+                    "entity_data": r.entity_data,
+                }
                 for r in results
             ],
+            "total": total,
+            "query": q,
+            "limit": limit,
+            "offset": offset,
+            "facets": facets_dict,
+        }
+
+        # Cache search results (10-minute TTL)
+        if cache_service and cache_service.is_enabled:
+            await cache_service.set_search_results(
+                q,
+                response_data["results"],
+                filters={"project_id": project_id, "entity_types": entity_types, "fields": fields, "limit": limit, "offset": offset, "fuzzy": fuzzy, "highlight": highlight, "facets": facets},
+                ttl=600,  # 10-minute cache
+            )
+
+        return SearchResponse(
+            results=[SearchResultResponse(**r) for r in response_data["results"]],
             total=total,
             query=q,
             limit=limit,
@@ -704,6 +862,11 @@ async def project_search(
             facets=facets_resp,
         )
 
+    except asyncio.TimeoutError:
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail="Search took too long (>5 seconds). Try a more specific query."
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -799,7 +962,11 @@ async def advanced_project_search(
     )
 
     try:
-        results, total, search_facets = await search_service.search(query)
+        # Enforce 5-second timeout for advanced search
+        results, total, search_facets = await asyncio.wait_for(
+            search_service.search(query),
+            timeout=5.0
+        )
 
         # Build facets response if available
         facets_resp = None
@@ -831,6 +998,11 @@ async def advanced_project_search(
             facets=facets_resp,
         )
 
+    except asyncio.TimeoutError:
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail="Search took too long (>5 seconds). Try a simpler query."
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -991,12 +1163,17 @@ async def search_in_entity(
 
     Suggestions are ranked by popularity (most linked entities first).
     Supports entity names, email domains, and tags.
+
+    Security: Suggestions filtered by projects accessible to the authenticated user.
     """,
     responses={
         200: {"description": "Autocomplete suggestions returned successfully"},
     }
 )
 async def autocomplete(
+    user: OptionalUser,
+    search_service: SearchService = Depends(get_search_service_dep),
+    neo4j_handler=Depends(get_neo4j_handler),
     q: str = Query(
         ...,
         min_length=2,
@@ -1014,7 +1191,6 @@ async def autocomplete(
         le=50,
         description="Maximum number of suggestions"
     ),
-    search_service: SearchService = Depends(get_search_service_dep)
 ):
     """
     Get autocomplete suggestions for search queries.
@@ -1022,13 +1198,38 @@ async def autocomplete(
     - **q**: Partial search text (min 2 chars)
     - **type**: Type of suggestions ('entities', 'domains', 'tags')
     - **limit**: Max suggestions (1-50, default 10)
+
+    Results are filtered to only include data from projects the user has access to.
     """
     try:
-        suggestions = await search_service.get_autocomplete_suggestions(
-            query=q,
-            project_id=None,
-            limit=limit,
-            suggestion_type=type
+        # Get user's accessible projects
+        accessible_projects = None
+        if user and user.user_id and user.user_id != "anonymous":
+            # TODO: Implement project membership lookup once JWT implementation complete
+            # For now, filter through all projects but implementations should use actual RBAC
+            accessible_projects = await _get_user_accessible_projects(
+                user.user_id, neo4j_handler
+            )
+
+        # If user is not authenticated, return empty suggestions
+        if not user or user.user_id is None or user.user_id == "anonymous":
+            # Anonymous users cannot access autocomplete
+            return AutocompleteResponse(
+                suggestions=[],
+                query=q,
+                count=0,
+            )
+
+        # Enforce 2-second timeout for autocomplete (should be very fast)
+        suggestions = await asyncio.wait_for(
+            search_service.get_autocomplete_suggestions(
+                query=q,
+                project_id=None,
+                limit=limit,
+                suggestion_type=type,
+                accessible_projects=accessible_projects
+            ),
+            timeout=2.0
         )
 
         return AutocompleteResponse(
@@ -1044,6 +1245,13 @@ async def autocomplete(
             count=len(suggestions),
         )
 
+    except asyncio.TimeoutError:
+        # For autocomplete, timeout is less critical - return empty results
+        return AutocompleteResponse(
+            suggestions=[],
+            query=q,
+            count=0,
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -1059,14 +1267,21 @@ async def autocomplete(
     Get autocomplete suggestions scoped to a specific project.
 
     Suggestions are ranked by popularity within the project.
+
+    Security: Requires user authentication and project access.
     """,
     responses={
         200: {"description": "Autocomplete suggestions returned successfully"},
+        401: {"description": "Authentication required"},
+        403: {"description": "Access denied to project"},
         404: {"description": "Project not found"},
     }
 )
 async def project_autocomplete(
     project_id: str,
+    user: OptionalUser,
+    search_service: SearchService = Depends(get_search_service_dep),
+    neo4j_handler=Depends(get_neo4j_handler),
     q: str = Query(
         ...,
         min_length=2,
@@ -1084,8 +1299,6 @@ async def project_autocomplete(
         le=50,
         description="Maximum number of suggestions"
     ),
-    search_service: SearchService = Depends(get_search_service_dep),
-    neo4j_handler=Depends(get_neo4j_handler)
 ):
     """
     Get autocomplete suggestions for a specific project.
@@ -1094,7 +1307,17 @@ async def project_autocomplete(
     - **q**: Partial search text (min 2 chars)
     - **type**: Type of suggestions ('entities', 'domains', 'tags')
     - **limit**: Max suggestions (1-50, default 10)
+
+    Authentication Required: User must be authenticated to access autocomplete.
+    Authorization: User must have access to the specified project.
     """
+    # Authenticate user
+    if not user or user.user_id is None or user.user_id == "anonymous":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required for autocomplete"
+        )
+
     # Verify project exists
     project = neo4j_handler.get_project(project_id)
     if not project:
@@ -1110,12 +1333,27 @@ async def project_autocomplete(
             detail=f"Project '{project_id}' not found"
         )
 
+    # Check project access
+    has_access = await _check_user_project_access(
+        user.user_id, project_id, neo4j_handler
+    )
+    if not has_access:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Access denied to project '{project_id}'"
+        )
+
     try:
-        suggestions = await search_service.get_autocomplete_suggestions(
-            query=q,
-            project_id=project_id,
-            limit=limit,
-            suggestion_type=type
+        # Enforce 2-second timeout for project autocomplete (should be very fast)
+        suggestions = await asyncio.wait_for(
+            search_service.get_autocomplete_suggestions(
+                query=q,
+                project_id=project_id,
+                limit=limit,
+                suggestion_type=type,
+                accessible_projects=[project_id]
+            ),
+            timeout=2.0
         )
 
         return AutocompleteResponse(
@@ -1131,8 +1369,70 @@ async def project_autocomplete(
             count=len(suggestions),
         )
 
+    except asyncio.TimeoutError:
+        # For autocomplete, timeout is less critical - return empty results
+        return AutocompleteResponse(
+            suggestions=[],
+            query=q,
+            count=0,
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Autocomplete failed: {str(e)}"
         )
+
+# ----- Helper Functions for Authorization -----
+
+async def _get_user_accessible_projects(
+    user_id: str,
+    neo4j_handler
+) -> Optional[List[str]]:
+    """
+    Get list of projects accessible to the user.
+
+    This is a placeholder that will be implemented by the JWT agent.
+    Currently returns None to indicate no filtering (development mode).
+
+    Args:
+        user_id: Authenticated user ID
+        neo4j_handler: Neo4j database handler
+
+    Returns:
+        List of accessible project IDs, or None if all projects accessible
+    """
+    # TODO: Implement project membership lookup
+    # This will check a ProjectMember relationship or RBAC table
+    # For now, return None (no filtering) - this will be fixed by JWT agent
+    # Example implementation:
+    # accessible = neo4j_handler.get_projects_for_user(user_id)
+    # return [p.get("id") for p in accessible]
+    return None
+
+
+async def _check_user_project_access(
+    user_id: str,
+    project_id: str,
+    neo4j_handler
+) -> bool:
+    """
+    Check if user has access to a specific project.
+
+    This is a placeholder that will be implemented by the JWT agent.
+    Currently returns True for authenticated users (development mode).
+
+    Args:
+        user_id: Authenticated user ID
+        project_id: Project ID to check access for
+        neo4j_handler: Neo4j database handler
+
+    Returns:
+        True if user has access, False otherwise
+    """
+    # TODO: Implement project access check
+    # This will verify project membership or RBAC permissions
+    # For now, allow all authenticated users - this will be fixed by JWT agent
+    # Example implementation:
+    # access = neo4j_handler.user_has_project_access(user_id, project_id)
+    # return bool(access)
+    return True

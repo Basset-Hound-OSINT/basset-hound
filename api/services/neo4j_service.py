@@ -7,12 +7,17 @@ and context manager support for sessions.
 """
 
 import asyncio
+import csv
 import json
+import logging
 import os
 import re
+import time
 from contextlib import asynccontextmanager
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
+from functools import wraps
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional, Union
 from uuid import uuid4
 
 from dotenv import load_dotenv
@@ -26,6 +31,125 @@ from neo4j.exceptions import (
 
 # Load environment variables
 load_dotenv()
+
+# Configure logging
+logger = logging.getLogger(__name__)
+
+# Query metrics storage path
+QUERY_METRICS_CSV = Path(__file__).parent.parent.parent / "query_metrics.csv"
+
+
+def timing_decorator(func: Callable) -> Callable:
+    """
+    Decorator to measure and log query performance.
+
+    Tracks execution time and logs slow queries (>100ms).
+    Metrics are written to CSV for analysis.
+    """
+    @wraps(func)
+    async def async_wrapper(*args, **kwargs):
+        start_time = time.time()
+        query_name = func.__name__
+
+        try:
+            result = await func(*args, **kwargs)
+            elapsed_ms = (time.time() - start_time) * 1000
+
+            # Log slow queries
+            if elapsed_ms > 100:
+                logger.warning(
+                    f"Slow query detected: {query_name} took {elapsed_ms:.2f}ms",
+                    extra={
+                        "query_name": query_name,
+                        "elapsed_ms": elapsed_ms,
+                        "status": "success"
+                    }
+                )
+            else:
+                logger.debug(
+                    f"Query {query_name} completed in {elapsed_ms:.2f}ms"
+                )
+
+            # Record metrics to CSV
+            _record_query_metric(query_name, elapsed_ms, "success")
+
+            return result
+        except Exception as e:
+            elapsed_ms = (time.time() - start_time) * 1000
+            logger.error(
+                f"Query {query_name} failed after {elapsed_ms:.2f}ms: {e}",
+                extra={
+                    "query_name": query_name,
+                    "elapsed_ms": elapsed_ms,
+                    "status": "error",
+                    "error": str(e)
+                }
+            )
+            _record_query_metric(query_name, elapsed_ms, "error", str(e))
+            raise
+
+    @wraps(func)
+    def sync_wrapper(*args, **kwargs):
+        start_time = time.time()
+        query_name = func.__name__
+
+        try:
+            result = func(*args, **kwargs)
+            elapsed_ms = (time.time() - start_time) * 1000
+
+            if elapsed_ms > 100:
+                logger.warning(
+                    f"Slow query detected: {query_name} took {elapsed_ms:.2f}ms"
+                )
+
+            _record_query_metric(query_name, elapsed_ms, "success")
+            return result
+        except Exception as e:
+            elapsed_ms = (time.time() - start_time) * 1000
+            _record_query_metric(query_name, elapsed_ms, "error", str(e))
+            raise
+
+    # Return async wrapper for async functions, sync for sync
+    return async_wrapper if asyncio.iscoroutinefunction(func) else sync_wrapper
+
+
+def _record_query_metric(
+    query_name: str,
+    elapsed_ms: float,
+    status: str,
+    error: Optional[str] = None
+) -> None:
+    """
+    Record query metrics to CSV file for analysis.
+
+    Args:
+        query_name: Name of the query/method
+        elapsed_ms: Execution time in milliseconds
+        status: 'success' or 'error'
+        error: Error message if status is 'error'
+    """
+    try:
+        # Check if file exists to write header
+        file_exists = QUERY_METRICS_CSV.exists()
+
+        with open(QUERY_METRICS_CSV, 'a', newline='') as f:
+            writer = csv.writer(f)
+
+            if not file_exists:
+                writer.writerow([
+                    'timestamp', 'query_name', 'elapsed_ms', 'status', 'error'
+                ])
+
+            writer.writerow([
+                datetime.now().isoformat(),
+                query_name,
+                f"{elapsed_ms:.2f}",
+                status,
+                error or ""
+            ])
+    except Exception as e:
+        # Silently fail metric recording to not break the application
+        logger.debug(f"Failed to record query metric: {e}")
 
 
 class Neo4jConnectionError(Exception):
@@ -279,6 +403,159 @@ class AsyncNeo4jService:
                     # Silently ignore errors - index may already exist
                     pass
 
+    async def setup_indexes(self) -> None:
+        """
+        Set up comprehensive indexes for optimal query performance.
+
+        Creates indexes on frequently accessed fields to optimize:
+        - Entity lookups (name, email, phone, username)
+        - Project queries
+        - Relationship traversals
+        - Field value searches
+        - Date range queries
+
+        Should be called once during application startup.
+        """
+        indexes = [
+            # Entity indexes - core lookups
+            ("CREATE INDEX IF NOT EXISTS FOR (e:Entity) ON (e.name)",
+             "Entity name lookup"),
+            ("CREATE INDEX IF NOT EXISTS FOR (e:Entity) ON (e.email)",
+             "Entity email lookup"),
+            ("CREATE INDEX IF NOT EXISTS FOR (e:Entity) ON (e.phone)",
+             "Entity phone lookup"),
+            ("CREATE INDEX IF NOT EXISTS FOR (e:Entity) ON (e.username)",
+             "Entity username lookup"),
+            ("CREATE INDEX IF NOT EXISTS FOR (e:Entity) ON (e.entity_type)",
+             "Entity type filtering"),
+
+            # Project indexes
+            ("CREATE INDEX IF NOT EXISTS FOR (p:Project) ON (p.name)",
+             "Project name lookup"),
+            ("CREATE INDEX IF NOT EXISTS FOR (p:Project) ON (p.safe_name)",
+             "Project safe_name lookup"),
+            ("CREATE INDEX IF NOT EXISTS FOR (p:Project) ON (p.created_at)",
+             "Project creation time"),
+
+            # Person indexes - common queries
+            ("CREATE INDEX IF NOT EXISTS FOR (p:Person) ON (p.id)",
+             "Person ID lookup"),
+            ("CREATE INDEX IF NOT EXISTS FOR (p:Person) ON (p.email)",
+             "Person email lookup"),
+            ("CREATE INDEX IF NOT EXISTS FOR (p:Person) ON (p.phone)",
+             "Person phone lookup"),
+            ("CREATE INDEX IF NOT EXISTS FOR (p:Person) ON (p.username)",
+             "Person username lookup"),
+            ("CREATE INDEX IF NOT EXISTS FOR (p:Person) ON (p.created_at)",
+             "Person creation time"),
+
+            # Field Value indexes - improve search
+            ("CREATE INDEX IF NOT EXISTS FOR (f:FieldValue) ON (f.section_id, f.field_id)",
+             "Field value section/field lookup"),
+            ("CREATE INDEX IF NOT EXISTS FOR (f:FieldValue) ON (f.value)",
+             "Field value content search"),
+
+            # File indexes
+            ("CREATE INDEX IF NOT EXISTS FOR (f:File) ON (f.id)",
+             "File ID lookup"),
+            ("CREATE INDEX IF NOT EXISTS FOR (f:File) ON (f.section_id)",
+             "File by section"),
+            ("CREATE INDEX IF NOT EXISTS FOR (f:File) ON (f.field_id)",
+             "File by field"),
+
+            # Relationship indexes - improve traversals
+            ("CREATE INDEX IF NOT EXISTS FOR ()-[r:HAS_FIELD_VALUE]-() ON (r)",
+             "Field value relationships"),
+            ("CREATE INDEX IF NOT EXISTS FOR ()-[r:HAS_FILE]-() ON (r)",
+             "File relationships"),
+
+            # Section and field schema indexes
+            ("CREATE INDEX IF NOT EXISTS FOR (s:Section) ON (s.id)",
+             "Section lookup"),
+            ("CREATE INDEX IF NOT EXISTS FOR (s:Section) ON (s.label)",
+             "Section label search"),
+            ("CREATE INDEX IF NOT EXISTS FOR (f:Field) ON (f.id)",
+             "Field lookup"),
+            ("CREATE INDEX IF NOT EXISTS FOR (f:Field) ON (f.type)",
+             "Field type filtering"),
+
+            # DataItem indexes - search optimization
+            ("CREATE INDEX IF NOT EXISTS FOR (d:DataItem) ON (d.hash)",
+             "DataItem hash deduplication"),
+            ("CREATE INDEX IF NOT EXISTS FOR (d:DataItem) ON (d.type)",
+             "DataItem type filtering"),
+            ("CREATE INDEX IF NOT EXISTS FOR (d:DataItem) ON (d.normalized_value)",
+             "DataItem normalized search"),
+        ]
+
+        setup_metrics = []
+        async with self.session() as session:
+            for query, description in indexes:
+                start_time = time.time()
+                try:
+                    await session.run(query)
+                    elapsed_ms = (time.time() - start_time) * 1000
+                    setup_metrics.append({
+                        'index': description,
+                        'status': 'created',
+                        'elapsed_ms': elapsed_ms
+                    })
+                    logger.info(f"Index created: {description} ({elapsed_ms:.2f}ms)")
+                except Exception as e:
+                    elapsed_ms = (time.time() - start_time) * 1000
+                    # Index may already exist - this is not an error
+                    logger.debug(f"Index setup: {description} - {e}")
+                    setup_metrics.append({
+                        'index': description,
+                        'status': 'exists_or_skipped',
+                        'elapsed_ms': elapsed_ms
+                    })
+
+        logger.info(f"Index setup complete: {len(setup_metrics)} indexes processed")
+
+    async def get_query_profiling_info(
+        self,
+        query: str,
+        parameters: Optional[Dict[str, Any]] = None,
+        explain: bool = False,
+    ) -> Dict[str, Any]:
+        """
+        Get profiling information for a query using EXPLAIN or PROFILE.
+
+        Useful for debugging slow queries and understanding query plans.
+
+        Args:
+            query: Cypher query string
+            parameters: Query parameters
+            explain: If True, use EXPLAIN (shows plan); if False, use PROFILE (executes and shows actual)
+
+        Returns:
+            Dictionary containing execution plan and statistics
+        """
+        profile_query = f"EXPLAIN {query}" if explain else f"PROFILE {query}"
+
+        try:
+            async with self.session() as session:
+                result = await session.run(profile_query, parameters or {})
+
+                # Collect all result records for profiling info
+                records = await result.data()
+
+                # Get execution plan/profile from notification
+                summary = await result.consume()
+
+                return {
+                    "query": query,
+                    "mode": "EXPLAIN" if explain else "PROFILE",
+                    "result_count": len(records) if records else 0,
+                    "execution_time_ms": summary.result_consumed_after if hasattr(summary, 'result_consumed_after') else None,
+                    "db_hits": summary.notifications if hasattr(summary, 'notifications') else None,
+                    "records": records,
+                }
+        except Exception as e:
+            logger.error(f"Error getting profiling info: {e}")
+            raise
+
     async def setup_schema_from_config(self, config: Dict[str, Any]) -> None:
         """
         Create relationship types and properties based on the configuration.
@@ -404,9 +681,11 @@ class AsyncNeo4jService:
             if record:
                 project_data = dict(record["p"])
                 project_data["id"] = project_id
-                return project_data
+                # Convert DateTime objects to ISO strings for JSON serialization
+                return self.convert_datetime_fields(project_data)
             return None
 
+    @timing_decorator
     async def get_project(self, safe_name: str) -> Optional[Dict[str, Any]]:
         """
         Retrieve a project by its safe name with all related data.
@@ -428,9 +707,12 @@ class AsyncNeo4jService:
                 return None
 
             project_data = dict(record["p"])
+            # Convert DateTime objects to ISO strings for JSON serialization
+            project_data = self.convert_datetime_fields(project_data)
             project_data["people"] = await self.get_all_people(safe_name)
             return project_data
 
+    @timing_decorator
     async def get_all_projects(self) -> List[Dict[str, Any]]:
         """
         Retrieve all projects with basic info.
@@ -485,7 +767,11 @@ class AsyncNeo4jService:
             """, safe_name=safe_name, properties=self.clean_data(project_data))
 
             record = await result.single()
-            return dict(record["p"]) if record else None
+            if record:
+                updated_data = dict(record["p"])
+                # Convert DateTime objects to ISO strings for JSON serialization
+                return self.convert_datetime_fields(updated_data)
+            return None
 
     async def delete_project(self, safe_name: str) -> bool:
         """
@@ -583,6 +869,7 @@ class AsyncNeo4jService:
 
         return await self.get_person(project_safe_name, person_id)
 
+    @timing_decorator
     async def get_person(
         self,
         project_safe_name: str,
@@ -611,6 +898,8 @@ class AsyncNeo4jService:
                 return None
 
             person_data = dict(record["person"])
+            # Convert DateTime objects to ISO strings for JSON serialization
+            person_data = self.convert_datetime_fields(person_data)
             person_data["profile"] = {}
 
             # Get all profile data
@@ -646,6 +935,8 @@ class AsyncNeo4jService:
             files_records = await files_result.data()
             for file_record in files_records:
                 file_data = dict(file_record["file"])
+                # Convert DateTime objects in file data
+                file_data = self.convert_datetime_fields(file_data)
                 section_id = file_record["section_id"]
                 field_id = file_record["field_id"]
 
@@ -662,6 +953,7 @@ class AsyncNeo4jService:
 
             return person_data
 
+    @timing_decorator
     async def get_all_people(self, project_safe_name: str) -> List[Dict[str, Any]]:
         """
         Retrieve all people in a project with all their data in a single query.
@@ -702,6 +994,8 @@ class AsyncNeo4jService:
             people = []
             for record in records:
                 person_data = dict(record["person"])
+                # Convert DateTime objects to ISO strings for JSON serialization
+                person_data = self.convert_datetime_fields(person_data)
                 person_data["profile"] = {}
 
                 # Process field values
@@ -733,6 +1027,8 @@ class AsyncNeo4jService:
                         continue
 
                     file_info = dict(file_data["file"])
+                    # Convert DateTime objects in file data
+                    file_info = self.convert_datetime_fields(file_info)
                     section_id = file_data["section_id"]
                     field_id = file_data["field_id"]
 
@@ -1098,6 +1394,7 @@ class AsyncNeo4jService:
                 file_properties=self.clean_data(file_props),
                 section_id=section_id, field_id=field_id)
 
+    @timing_decorator
     async def get_file(self, file_id: str) -> Optional[Dict[str, Any]]:
         """
         Retrieve a file by ID.
@@ -1310,6 +1607,31 @@ class AsyncNeo4jService:
         elif hasattr(neo4j_datetime, 'to_native'):
             return neo4j_datetime.to_native().isoformat()
         return str(neo4j_datetime)
+
+    @staticmethod
+    def convert_datetime_fields(data: Any) -> Any:
+        """
+        Recursively convert all Neo4j DateTime objects in a dictionary to ISO strings.
+
+        This ensures all DateTime fields are JSON serializable.
+
+        Args:
+            data: Dictionary (or nested structure) potentially containing DateTime objects
+
+        Returns:
+            Dictionary with all DateTime objects converted to ISO format strings
+        """
+        if data is None:
+            return None
+        if isinstance(data, dict):
+            return {key: AsyncNeo4jService.convert_datetime_fields(value) for key, value in data.items()}
+        elif isinstance(data, (list, tuple)):
+            return [AsyncNeo4jService.convert_datetime_fields(item) for item in data]
+        else:
+            # Convert Neo4j DateTime objects
+            return AsyncNeo4jService.convert_neo4j_datetime(data) if (
+                hasattr(data, 'iso_format') or hasattr(data, 'to_native')
+            ) else data
 
     @staticmethod
     def clean_data(data: Any) -> Any:
@@ -1542,6 +1864,7 @@ class AsyncNeo4jService:
             },
         ]
 
+    @timing_decorator
     async def list_platforms(self, category: Optional[str] = None) -> List[Dict[str, Any]]:
         """
         List all platform entities, optionally filtered by category.
@@ -1717,6 +2040,7 @@ class AsyncNeo4jService:
             record = await result.single()
             return bool(record["count"]) if record else False
 
+    @timing_decorator
     async def get_accounts_for_entity(self, entity_id: str) -> List[Dict[str, Any]]:
         """
         Get all platform accounts for an entity.

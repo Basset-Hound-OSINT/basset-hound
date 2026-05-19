@@ -21,13 +21,14 @@ export async function initAccountManager(entityId, projectName) {
         }
         accountState.currentEntity = await currentEntityRes.json();
 
-        // Fetch accounts from API
+        // Fetch accounts from API (Phase 8: Updated schema)
         const accountsRes = await fetch(
             `/api/v1/projects/${projectName}/entities/${entityId}/accounts`
         );
 
         if (accountsRes.ok) {
             const accountData = await accountsRes.json();
+            // Phase 8 schema: accounts is directly in response, with platform nested object
             accountState.accounts = accountData.accounts || [];
         } else {
             console.warn('Could not fetch accounts from API');
@@ -152,16 +153,17 @@ function renderAccountsList() {
     accountState.accounts.forEach((account, idx) => {
         const row = document.createElement('tr');
         row.className = 'account-row';
+        // Phase 8: platform_id is a direct property of account response
         row.dataset.accountId = account.platform_id;
 
-        // Icon column
+        // Icon column (Phase 8: platform is nested object in response)
         const iconCell = document.createElement('td');
         const platformIconClass = account.platform?.icon_class || 'fas fa-globe';
         const platformColor = account.platform?.color || '#999999';
         iconCell.innerHTML = `<i class="${platformIconClass}" style="color: ${platformColor}; font-size: 1.2em;"></i>`;
         row.appendChild(iconCell);
 
-        // Platform column
+        // Platform column (Phase 8: full platform info embedded in account)
         const platformCell = document.createElement('td');
         const platformBadge = `<span class="badge" style="background-color: ${platformColor}; color: white;">${account.platform?.name || 'Unknown'}</span>`;
         const categoryBadge = account.platform?.category ? `<br><small class="text-muted">${account.platform.category}</small>` : '';
@@ -573,7 +575,8 @@ async function createAccount() {
 
         if (!createRes.ok) {
             const errorData = await createRes.json().catch(() => ({}));
-            throw new Error(errorData.detail || `Failed to link account: ${createRes.statusText}`);
+            // Phase 8: error response may have detail or error fields
+            throw new Error(errorData.detail || errorData.error?.message || `Failed to link account: ${createRes.statusText}`);
         }
 
         showToast('Account linked successfully', 'success');
@@ -656,7 +659,8 @@ async function updateAccount() {
 
         if (!updateRes.ok) {
             const errorData = await updateRes.json().catch(() => ({}));
-            throw new Error(errorData.detail || `Failed to update account: ${updateRes.statusText}`);
+            // Phase 8: error response may have detail or error fields
+            throw new Error(errorData.detail || errorData.error?.message || `Failed to update account: ${updateRes.statusText}`);
         }
 
         showToast('Account updated successfully', 'success');
@@ -753,7 +757,8 @@ async function deleteAccount(platformId) {
 
         if (!deleteRes.ok) {
             const errorData = await deleteRes.json().catch(() => ({}));
-            throw new Error(errorData.detail || `Failed to delete account: ${deleteRes.statusText}`);
+            // Phase 8: error response may have detail or error fields
+            throw new Error(errorData.detail || errorData.error?.message || `Failed to delete account: ${deleteRes.statusText}`);
         }
 
         showToast('Account deleted successfully', 'success');

@@ -370,25 +370,28 @@ class OrphanService:
 
             with self.neo4j.driver.session() as session:
                 # Get total count
-                count_result = session.run(f"""
+                where_clause = (" AND " + " AND ".join(where_clauses)) if where_clauses else ""
+                count_query = """
                     MATCH (project:Project)-[:HAS_ORPHAN]->(orphan:OrphanData)
                     WHERE (project.id = $project_id OR project.safe_name = $project_id)
-                    {where_sql}
+                    """ + where_clause + """
                     RETURN count(orphan) as total
-                """, params)
+                """
+                count_result = session.run(count_query, params)
 
                 total = count_result.single()["total"]
 
                 # Get paginated results
-                result = session.run(f"""
+                result_query = """
                     MATCH (project:Project)-[:HAS_ORPHAN]->(orphan:OrphanData)
                     WHERE (project.id = $project_id OR project.safe_name = $project_id)
-                    {where_sql}
+                    """ + where_clause + """
                     RETURN orphan, project.id as proj_id
                     ORDER BY orphan.discovered_date DESC
                     SKIP $offset
                     LIMIT $limit
-                """, params)
+                """
+                result = session.run(result_query, params)
 
                 orphans = []
                 for record in result:
@@ -451,15 +454,16 @@ class OrphanService:
                 # No updates provided
                 return self.get_orphan(project_id, orphan_id)
 
-            set_sql = ", ".join(set_clauses)
+            set_clause = ", ".join(set_clauses)
 
             with self.neo4j.driver.session() as session:
-                result = session.run(f"""
-                    MATCH (project:Project)-[:HAS_ORPHAN]->(orphan:OrphanData {{id: $orphan_id}})
+                update_query = """
+                    MATCH (project:Project)-[:HAS_ORPHAN]->(orphan:OrphanData {id: $orphan_id})
                     WHERE project.id = $project_id OR project.safe_name = $project_id
-                    SET {set_sql}
+                    SET """ + set_clause + """
                     RETURN orphan, project.id as proj_id
-                """, params)
+                """
+                result = session.run(update_query, params)
 
                 record = result.single()
                 if record:

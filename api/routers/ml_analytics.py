@@ -8,17 +8,30 @@ Provides REST API endpoints for ML analytics including:
 - Community detection
 - Anomaly detection
 
-All endpoints include feature flag checking (ENABLE_ML_ANALYTICS).
+All endpoints include:
+- Feature flag checking (ENABLE_ML_ANALYTICS)
+- Rate limiting to prevent DoS attacks on expensive ML operations
+- Authentication checks (security fix)
+- Operation timeouts to prevent resource exhaustion
+
+Security: Phase 8 Security Fix - Rate Limiting on Expensive ML Operations
 """
 
 import logging
-from typing import Optional
+from typing import Optional, Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
 from api.config import get_settings
+from api.auth.dependencies import CurrentUser, get_current_user
 from api.services.ml_analytics_service import get_ml_analytics_service, MLAnalyticsService
+from api.utils.rate_limiting import (
+    rate_limit,
+    get_user_id,
+    ML_OPERATIONS_LIMITER,
+    with_timeout,
+)
 
 logger = logging.getLogger("basset_hound.ml_analytics_api")
 
@@ -169,10 +182,21 @@ def check_ml_analytics_enabled() -> bool:
     response_model=FeatureEngineeringResponse,
     status_code=status.HTTP_200_OK,
     summary="Extract ML Features",
-    description="Extract and normalize features from entities (name, email, phone, etc.)",
+    description="Extract and normalize features from entities (name, email, phone, etc.). Rate limited to prevent resource exhaustion.",
+    responses={
+        429: {"description": "Rate limit exceeded"},
+        401: {"description": "Authentication required"},
+    },
 )
+@rate_limit(
+    max_requests=ML_OPERATIONS_LIMITER[0],
+    window_seconds=ML_OPERATIONS_LIMITER[1],
+    key_func=get_user_id,
+)
+@with_timeout(timeout_seconds=30)
 async def extract_features(
     request: FeatureEngineeringRequest,
+    user: CurrentUser,
     ml_service: MLAnalyticsService = Depends(get_ml_analytics_service),
 ) -> FeatureEngineeringResponse:
     """
@@ -190,6 +214,13 @@ async def extract_features(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="ML Analytics is disabled (ENABLE_ML_ANALYTICS=false)",
+        )
+
+    # Security: Require authentication for expensive ML operations
+    if user is None or user.user_id == "anonymous":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required for ML analytics operations",
         )
 
     try:
@@ -221,10 +252,21 @@ async def extract_features(
     response_model=DuplicateDetectionResponse,
     status_code=status.HTTP_200_OK,
     summary="Detect Duplicates",
-    description="Detect potential duplicate entities using ML similarity scoring",
+    description="Detect potential duplicate entities using ML similarity scoring. Rate limited (O(n²) complexity). Security: PII redacted from reasoning output.",
+    responses={
+        429: {"description": "Rate limit exceeded"},
+        401: {"description": "Authentication required"},
+    },
 )
+@rate_limit(
+    max_requests=ML_OPERATIONS_LIMITER[0],
+    window_seconds=ML_OPERATIONS_LIMITER[1],
+    key_func=get_user_id,
+)
+@with_timeout(timeout_seconds=45)
 async def detect_duplicates(
     request: DuplicateDetectionRequest,
+    user: CurrentUser,
     ml_service: MLAnalyticsService = Depends(get_ml_analytics_service),
 ) -> DuplicateDetectionResponse:
     """
@@ -238,11 +280,24 @@ async def detect_duplicates(
 
     Scores are computed on 0-100 scale.
     Accuracy target: >90%
+
+    Security Note: Reasoning output is redacted to prevent PII exposure.
+    - Email addresses are replaced with [REDACTED@domain.com]
+    - Phone numbers are replaced with [REDACTED]
+    - Sensitive field names are mapped to generic identifiers
+    - ML quality metrics are preserved for analysis
     """
     if not check_ml_analytics_enabled():
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="ML Analytics is disabled (ENABLE_ML_ANALYTICS=false)",
+        )
+
+    # Security: Require authentication
+    if user is None or user.user_id == "anonymous":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required for ML analytics operations",
         )
 
     try:
@@ -278,10 +333,21 @@ async def detect_duplicates(
     response_model=LinkPredictionResponse,
     status_code=status.HTTP_200_OK,
     summary="Predict Links",
-    description="Predict likely relationships for an entity",
+    description="Predict likely relationships for an entity. Rate limited. Security: PII redacted from reasoning output.",
+    responses={
+        429: {"description": "Rate limit exceeded"},
+        401: {"description": "Authentication required"},
+    },
 )
+@rate_limit(
+    max_requests=ML_OPERATIONS_LIMITER[0],
+    window_seconds=ML_OPERATIONS_LIMITER[1],
+    key_func=get_user_id,
+)
+@with_timeout(timeout_seconds=30)
 async def predict_links(
     request: LinkPredictionRequest,
+    user: CurrentUser,
     ml_service: MLAnalyticsService = Depends(get_ml_analytics_service),
 ) -> LinkPredictionResponse:
     """
@@ -293,11 +359,23 @@ async def predict_links(
     - possibly_related: Potential connection (40-60% similarity)
 
     Recall target: >70%
+
+    Security Note: Reasoning text is redacted to prevent PII exposure.
+    - Email addresses are replaced with [REDACTED@domain.com]
+    - Phone numbers are replaced with [REDACTED]
+    - Confidence scores are preserved for ML analysis
     """
     if not check_ml_analytics_enabled():
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="ML Analytics is disabled (ENABLE_ML_ANALYTICS=false)",
+        )
+
+    # Security: Require authentication
+    if user is None or user.user_id == "anonymous":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required for ML analytics operations",
         )
 
     try:
@@ -335,10 +413,21 @@ async def predict_links(
     response_model=CommunityDetectionResponse,
     status_code=status.HTTP_200_OK,
     summary="Detect Communities",
-    description="Detect entity clusters using Louvain community detection",
+    description="Detect entity clusters using Louvain community detection. Rate limited due to graph algorithm complexity.",
+    responses={
+        429: {"description": "Rate limit exceeded"},
+        401: {"description": "Authentication required"},
+    },
 )
+@rate_limit(
+    max_requests=ML_OPERATIONS_LIMITER[0],
+    window_seconds=ML_OPERATIONS_LIMITER[1],
+    key_func=get_user_id,
+)
+@with_timeout(timeout_seconds=60)
 async def detect_communities(
     request: CommunityDetectionRequest,
+    user: CurrentUser,
     ml_service: MLAnalyticsService = Depends(get_ml_analytics_service),
 ) -> CommunityDetectionResponse:
     """
@@ -357,6 +446,13 @@ async def detect_communities(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="ML Analytics is disabled (ENABLE_ML_ANALYTICS=false)",
+        )
+
+    # Security: Require authentication
+    if user is None or user.user_id == "anonymous":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required for ML analytics operations",
         )
 
     try:
@@ -393,10 +489,21 @@ async def detect_communities(
     response_model=AnomalyDetectionResponse,
     status_code=status.HTTP_200_OK,
     summary="Detect Anomalies",
-    description="Detect unusual entity patterns (rapid updates, sparse data, etc.)",
+    description="Detect unusual entity patterns (rapid updates, sparse data, etc.). Rate limited.",
+    responses={
+        429: {"description": "Rate limit exceeded"},
+        401: {"description": "Authentication required"},
+    },
 )
+@rate_limit(
+    max_requests=ML_OPERATIONS_LIMITER[0],
+    window_seconds=ML_OPERATIONS_LIMITER[1],
+    key_func=get_user_id,
+)
+@with_timeout(timeout_seconds=30)
 async def detect_anomalies(
     request: AnomalyDetectionRequest,
+    user: CurrentUser,
     ml_service: MLAnalyticsService = Depends(get_ml_analytics_service),
 ) -> AnomalyDetectionResponse:
     """
@@ -412,6 +519,13 @@ async def detect_anomalies(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="ML Analytics is disabled (ENABLE_ML_ANALYTICS=false)",
+        )
+
+    # Security: Require authentication
+    if user is None or user.user_id == "anonymous":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required for ML analytics operations",
         )
 
     try:

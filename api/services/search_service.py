@@ -522,16 +522,23 @@ class SearchService:
         query: str,
         project_id: Optional[str] = None,
         limit: int = 10,
-        suggestion_type: str = "entities"
+        suggestion_type: str = "entities",
+        accessible_projects: Optional[List[str]] = None
     ) -> List[Dict[str, Any]]:
         """
         Get autocomplete suggestions with ranking by popularity.
+
+        Security: If accessible_projects is provided, results are filtered to only
+        include data from those projects. If None, all projects are searched (when
+        no project_id is specified).
 
         Args:
             query: Partial search text for autocomplete
             project_id: Optional project ID to scope suggestions
             limit: Maximum number of suggestions
             suggestion_type: Type of suggestions ('entities', 'domains', 'tags')
+            accessible_projects: Optional list of project IDs to filter by. If provided,
+                                only suggestions from these projects are returned.
 
         Returns:
             List of suggestion dictionaries with name, count, type
@@ -540,7 +547,9 @@ class SearchService:
             return []
 
         # Check autocomplete cache
-        cache_key = f"autocomplete:{suggestion_type}:{project_id or 'all'}:{query}"
+        # Note: Cache key includes accessible_projects hash for multi-user scenarios
+        projects_key = str(sorted(accessible_projects)) if accessible_projects else 'all'
+        cache_key = f"autocomplete:{suggestion_type}:{project_id or projects_key}:{query}"
         if cache_key in self._autocomplete_cache:
             cached_time, cached_results = self._autocomplete_cache[cache_key]
             if time.time() - cached_time < AUTOCOMPLETE_CACHE_TTL:
@@ -551,13 +560,19 @@ class SearchService:
         try:
             if suggestion_type == "domains":
                 # Autocomplete for email domains
-                suggestions = self._get_domain_suggestions(query, project_id, limit)
+                suggestions = self._get_domain_suggestions(
+                    query, project_id, limit, accessible_projects
+                )
             elif suggestion_type == "tags":
                 # Autocomplete for tags
-                suggestions = self._get_tag_suggestions(query, project_id, limit)
+                suggestions = self._get_tag_suggestions(
+                    query, project_id, limit, accessible_projects
+                )
             else:
                 # Default: entity name suggestions
-                suggestions = self._get_entity_suggestions(query, project_id, limit)
+                suggestions = self._get_entity_suggestions(
+                    query, project_id, limit, accessible_projects
+                )
 
             # Cache the results
             self._autocomplete_cache[cache_key] = (time.time(), suggestions)
@@ -571,21 +586,30 @@ class SearchService:
         self,
         query: str,
         project_id: Optional[str],
-        limit: int
+        limit: int,
+        accessible_projects: Optional[List[str]] = None
     ) -> List[Dict[str, Any]]:
         """
         Get entity name suggestions, ranked by link count (popularity).
+
+        Security: If accessible_projects is provided, results are filtered to only
+        include entities from those projects.
+
+        Optimized with early termination and limited entity fetching.
 
         Args:
             query: Partial query text
             project_id: Optional project ID
             limit: Max suggestions
+            accessible_projects: Optional list of project IDs to filter by
 
         Returns:
             List of suggestions
         """
         suggestions = []
         query_lower = query.lower()
+        # Need ~2x results for sorting by popularity
+        soft_limit = limit * 2
 
         try:
             if project_id:
@@ -594,7 +618,15 @@ class SearchService:
                     return []
                 projects = [project]
             else:
-                projects = self.neo4j.get_all_projects()
+                all_projects = self.neo4j.get_all_projects()
+                # Filter to accessible projects if provided
+                if accessible_projects:
+                    projects = [
+                        p for p in all_projects
+                        if p.get("id") in accessible_projects or p.get("safe_name") in accessible_projects
+                    ]
+                else:
+                    projects = all_projects
 
             # Collect suggestions with link counts
             suggestion_map = {}
@@ -603,6 +635,10 @@ class SearchService:
                 entities = self.neo4j.get_all_people(project_safe_name)
 
                 for entity in entities:
+                    # Early termination when we have enough suggestions
+                    if len(suggestion_map) >= soft_limit:
+                        break
+
                     profile = entity.get("profile", {})
                     entity_id = entity.get("id", "")
 
@@ -622,6 +658,10 @@ class SearchService:
                             # Count relationships for popularity
                             link_count = len(entity.get("relationships", []))
                             suggestion_map[name] = suggestion_map.get(name, 0) + link_count
+
+                # Early exit from outer loop if we have enough
+                if len(suggestion_map) >= soft_limit:
+                    break
 
             # Sort by popularity (link count) and convert to list
             sorted_suggestions = sorted(
@@ -648,21 +688,30 @@ class SearchService:
         self,
         query: str,
         project_id: Optional[str],
-        limit: int
+        limit: int,
+        accessible_projects: Optional[List[str]] = None
     ) -> List[Dict[str, Any]]:
         """
         Get email domain suggestions.
+
+        Security: If accessible_projects is provided, results are filtered to only
+        include domains from entities in those projects.
+
+        Optimized with early termination and limited entity fetching.
 
         Args:
             query: Partial domain query
             project_id: Optional project ID
             limit: Max suggestions
+            accessible_projects: Optional list of project IDs to filter by
 
         Returns:
             List of domain suggestions
         """
         suggestions = []
         query_lower = query.lower()
+        # Need ~2x results for sorting
+        soft_limit = limit * 3
 
         try:
             if project_id:
@@ -671,7 +720,15 @@ class SearchService:
                     return []
                 projects = [project]
             else:
-                projects = self.neo4j.get_all_projects()
+                all_projects = self.neo4j.get_all_projects()
+                # Filter to accessible projects if provided
+                if accessible_projects:
+                    projects = [
+                        p for p in all_projects
+                        if p.get("id") in accessible_projects or p.get("safe_name") in accessible_projects
+                    ]
+                else:
+                    projects = all_projects
 
             domain_map = {}
             for project in projects:
@@ -679,6 +736,10 @@ class SearchService:
                 entities = self.neo4j.get_all_people(project_safe_name)
 
                 for entity in entities:
+                    # Early termination when we have enough domains
+                    if len(domain_map) >= soft_limit:
+                        break
+
                     profile = entity.get("profile", {})
                     if "core" in profile and "email" in profile["core"]:
                         emails = profile["core"]["email"]
@@ -692,6 +753,10 @@ class SearchService:
                                 domain = str(email).split("@")[-1].lower()
                                 if query_lower in domain:
                                     domain_map[domain] = domain_map.get(domain, 0) + 1
+
+                # Early exit from outer loop if we have enough
+                if len(domain_map) >= soft_limit:
+                    break
 
             sorted_domains = sorted(domain_map.items(), key=lambda x: x[1], reverse=True)
             suggestions = [
@@ -708,21 +773,30 @@ class SearchService:
         self,
         query: str,
         project_id: Optional[str],
-        limit: int
+        limit: int,
+        accessible_projects: Optional[List[str]] = None
     ) -> List[Dict[str, Any]]:
         """
         Get tag suggestions.
+
+        Security: If accessible_projects is provided, results are filtered to only
+        include tags from entities in those projects.
+
+        Optimized with early termination and limited entity fetching.
 
         Args:
             query: Partial tag query
             project_id: Optional project ID
             limit: Max suggestions
+            accessible_projects: Optional list of project IDs to filter by
 
         Returns:
             List of tag suggestions
         """
         suggestions = []
         query_lower = query.lower()
+        # Need ~2x results for sorting
+        soft_limit = limit * 2
 
         try:
             if project_id:
@@ -731,7 +805,15 @@ class SearchService:
                     return []
                 projects = [project]
             else:
-                projects = self.neo4j.get_all_projects()
+                all_projects = self.neo4j.get_all_projects()
+                # Filter to accessible projects if provided
+                if accessible_projects:
+                    projects = [
+                        p for p in all_projects
+                        if p.get("id") in accessible_projects or p.get("safe_name") in accessible_projects
+                    ]
+                else:
+                    projects = all_projects
 
             tag_map = {}
             for project in projects:
@@ -739,12 +821,20 @@ class SearchService:
                 entities = self.neo4j.get_all_people(project_safe_name)
 
                 for entity in entities:
+                    # Early termination when we have enough tags
+                    if len(tag_map) >= soft_limit:
+                        break
+
                     tags = entity.get("tags", [])
                     if isinstance(tags, list):
                         for tag in tags:
                             tag_str = str(tag).lower()
                             if query_lower in tag_str:
                                 tag_map[tag_str] = tag_map.get(tag_str, 0) + 1
+
+                # Early exit from outer loop if we have enough
+                if len(tag_map) >= soft_limit:
+                    break
 
             sorted_tags = sorted(tag_map.items(), key=lambda x: x[1], reverse=True)
             suggestions = [
@@ -782,6 +872,8 @@ class SearchService:
         then enhances results with fuzzy matching if enabled and
         results are sparse. Includes caching for performance.
 
+        Search timeout: 5 seconds max to prevent slow queries from blocking users.
+
         Args:
             query: SearchQuery object containing search parameters
 
@@ -793,6 +885,7 @@ class SearchService:
 
         search_text = query.query.strip()
         search_start = time.time()
+        search_timeout = 5.0  # 5 second timeout for full search
 
         # Check cache for results
         cache_key = self._build_cache_key(query)
@@ -813,7 +906,10 @@ class SearchService:
             results, total = await self._fulltext_search(query, search_text)
 
             # If results are sparse and fuzzy matching is enabled, enhance with fuzzy
-            if query.fuzzy and len(results) < query.limit and self.fuzzy_matcher:
+            # but only if we still have time
+            elapsed = time.time() - search_start
+            if (query.fuzzy and len(results) < query.limit and self.fuzzy_matcher
+                    and elapsed < search_timeout * 0.8):
                 fuzzy_results = await self._fuzzy_search(query, search_text, results)
                 results.extend(fuzzy_results)
                 # Deduplicate by entity_id
@@ -884,6 +980,8 @@ class SearchService:
         """
         Execute a parsed boolean query against entities.
 
+        Optimized with early termination to limit evaluation cost.
+
         Args:
             query: Search query parameters
             parsed: Parsed query tokens
@@ -892,6 +990,8 @@ class SearchService:
             List of SearchResult
         """
         results = []
+        # Soft limit for boolean search results (to reduce evaluation cost)
+        soft_limit = query.limit * 3 + 50
 
         # Get all entities to search
         if query.project_id:
@@ -903,12 +1003,20 @@ class SearchService:
             projects = self.neo4j.get_all_projects()
 
         for project in projects:
+            # Early termination when we have enough results
+            if len(results) >= soft_limit:
+                break
+
             project_safe_name = project.get("safe_name")
             project_id = project.get("id", project_safe_name)
 
             entities = self.neo4j.get_all_people(project_safe_name)
 
             for entity in entities:
+                # Early termination for boolean query
+                if len(results) >= soft_limit:
+                    break
+
                 entity_id = entity.get("id", "")
                 profile = entity.get("profile", {})
 
@@ -1277,6 +1385,7 @@ class SearchService:
         Fallback search using property matching.
 
         This is used when full-text indexes are not available.
+        Optimized with early termination and limiting.
 
         Args:
             query: Search query parameters
@@ -1288,6 +1397,10 @@ class SearchService:
         results = []
         search_lower = search_text.lower()
 
+        # Set a soft limit to prevent processing too many results
+        # We need extra results for fuzzy matching potential
+        soft_limit = query.limit * 3 + 50
+
         # Get all entities and search through them
         if query.project_id:
             # Get project by ID
@@ -1298,6 +1411,8 @@ class SearchService:
         else:
             projects = self.neo4j.get_all_projects()
 
+        total_count = 0
+
         for project in projects:
             project_safe_name = project.get("safe_name")
             project_id = project.get("id", project_safe_name)
@@ -1305,6 +1420,11 @@ class SearchService:
             entities = self.neo4j.get_all_people(project_safe_name)
 
             for entity in entities:
+                # Early termination: if we have enough results, stop processing
+                if len(results) >= soft_limit:
+                    total_count += len(entities) - entities.index(entity)
+                    break
+
                 entity_id = entity.get("id", "")
                 profile = entity.get("profile", {})
 
@@ -1312,6 +1432,7 @@ class SearchService:
                 matched_fields = []
                 highlights = {}
                 max_score = 0.0
+                found_match = False
 
                 for section_id, fields in profile.items():
                     if not isinstance(fields, dict):
@@ -1332,12 +1453,13 @@ class SearchService:
                         )
 
                         if match_result["matched"]:
+                            found_match = True
                             matched_fields.append(field_path)
                             if match_result["highlights"]:
                                 highlights[field_path] = match_result["highlights"]
                             max_score = max(max_score, match_result["score"])
 
-                if matched_fields:
+                if found_match:
                     results.append(SearchResult(
                         entity_id=entity_id,
                         project_id=project_id,
@@ -1347,8 +1469,11 @@ class SearchService:
                         matched_fields=matched_fields,
                         entity_data=self._extract_entity_summary(entity),
                     ))
+                    total_count += 1
+                else:
+                    total_count += 1
 
-        return results, len(results)
+        return results, total_count
 
     async def _fuzzy_search(
         self,
@@ -1358,6 +1483,8 @@ class SearchService:
     ) -> List[SearchResult]:
         """
         Enhance search with fuzzy matching.
+
+        Optimized with early termination and limited result collection.
 
         Args:
             query: Search query parameters
@@ -1372,6 +1499,8 @@ class SearchService:
 
         existing_ids = {r.entity_id for r in existing_results}
         fuzzy_results = []
+        # Only get up to 50 additional fuzzy results for performance
+        fuzzy_limit = 50
 
         # Get all entities to search
         if query.project_id:
@@ -1383,12 +1512,20 @@ class SearchService:
             projects = self.neo4j.get_all_projects()
 
         for project in projects:
+            # Early termination when we have enough fuzzy results
+            if len(fuzzy_results) >= fuzzy_limit:
+                break
+
             project_safe_name = project.get("safe_name")
             project_id = project.get("id", project_safe_name)
 
             entities = self.neo4j.get_all_people(project_safe_name)
 
             for entity in entities:
+                # Early termination for fuzzy results
+                if len(fuzzy_results) >= fuzzy_limit:
+                    break
+
                 entity_id = entity.get("id", "")
 
                 # Skip if already in results
@@ -1745,6 +1882,8 @@ class SearchService:
         """
         Convert a Neo4j record to a SearchResult.
 
+        Optimized to limit highlight generation to first 5 matches to save time.
+
         Args:
             record: Neo4j query result record
             search_text: Original search text
@@ -1768,12 +1907,18 @@ class SearchService:
             # Generate highlights if requested
             highlights = {}
             matched_fields = []
+            highlights_count = 0
+            max_highlights = 5  # Limit highlight generation for performance
 
             if highlight and entity:
                 profile = entity.get("profile", {}) if isinstance(entity, dict) else {}
                 for section_id, fields in profile.items():
                     if isinstance(fields, dict):
                         for field_id, value in fields.items():
+                            # Stop generating highlights after 5 to save time
+                            if highlights_count >= max_highlights:
+                                break
+
                             match_result = self._search_in_value(
                                 value,
                                 search_text.lower(),
@@ -1785,6 +1930,7 @@ class SearchService:
                                 matched_fields.append(field_path)
                                 if match_result["highlights"]:
                                     highlights[field_path] = match_result["highlights"]
+                                    highlights_count += 1
 
             return SearchResult(
                 entity_id=entity_id,

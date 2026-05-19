@@ -1,0 +1,272 @@
+================================================================================
+                    AGENT SPAWN INSTRUCTIONS - PHASE 1
+                   Frontend API Compatibility Fixes (4 Agents)
+================================================================================
+
+Date: 2026-05-19
+Status: READY FOR DEPLOYMENT
+Total Agents: 4 (Parallel Execution)
+Estimated Time: 7-11 hours (parallel)
+
+================================================================================
+                           AGENT 1: SEARCH FIX
+================================================================================
+
+Instance Name: js-dev@basset-hound:search
+Target Repository: /home/devel/basset-hound
+Target File (EXCLUSIVE EDIT): static/js/advanced-search.js
+Estimated Time: 3-4 hours
+Priority: CRITICAL
+
+BRIEFING DOCUMENT:
+  /home/devel/basset-hound/docs/handoffs/agent-brief-01-advanced-search.md
+
+REPORT DESTINATION (Agent creates this):
+  /home/devel/basset-hound/docs/handoffs/frontend-fix-advanced-search-report.md
+
+KEY TASK:
+  Update all search endpoints from:
+    /api/v1/projects/{projectName}/search/*
+  To Phase 8 endpoints:
+    /api/v1/search/full-text
+    /api/v1/search/advanced
+    /api/v1/search/autocomplete
+    /api/v1/search/did-you-mean
+
+INSTRUCTIONS FOR AGENT:
+  1. Read briefing: agent-brief-01-advanced-search.md
+  2. Read current code: static/js/advanced-search.js
+  3. Find all fetch() calls containing "/api/v1/projects/{projectName}/search"
+  4. Update URL paths to /api/v1/search/* (remove project prefix)
+  5. Update query parameters to match Phase 8 schema
+  6. Test at least one search endpoint in browser console
+  7. Create report with all changes and test results
+  8. NO git commits - just edit the file
+
+================================================================================
+                          AGENT 2: EXPORT FIX
+================================================================================
+
+Instance Name: js-dev@basset-hound:export
+Target Repository: /home/devel/basset-hound
+Target File (EXCLUSIVE EDIT): static/js/export-handler.js
+Estimated Time: 2-3 hours
+Priority: CRITICAL
+
+BRIEFING DOCUMENT:
+  /home/devel/basset-hound/docs/handoffs/agent-brief-02-export-handler.md
+
+REPORT DESTINATION (Agent creates this):
+  /home/devel/basset-hound/docs/handoffs/frontend-fix-export-handler-report.md
+
+KEY TASK:
+  Convert all export endpoints from GET with query params to POST with JSON body:
+    OLD: GET /api/v1/projects/{proj}/export/csv?fields=id,name
+    NEW: POST /api/v1/projects/{proj}/export/csv with JSON body
+
+  Support formats: CSV, JSON, GraphML, GeoJSON, PDF
+
+INSTRUCTIONS FOR AGENT:
+  1. Read briefing: agent-brief-02-export-handler.md
+  2. Read current code: static/js/export-handler.js
+  3. Find all fetch() calls containing "/export/"
+  4. Change HTTP method from GET to POST
+  5. Move query parameters to JSON request body
+  6. Add Content-Type: application/json header
+  7. Update request structure to match Phase 8 schema
+  8. Test at least one export format
+  9. Create report with all changes and test results
+  10. NO git commits - just edit the file
+
+================================================================================
+                      AGENT 3: COLLABORATION FIX
+================================================================================
+
+Instance Name: js-dev@basset-hound:collaboration
+Target Repository: /home/devel/basset-hound
+Target File (EXCLUSIVE EDIT): static/js/collaboration-manager.js
+Estimated Time: 1-2 hours
+Priority: CRITICAL
+
+BRIEFING DOCUMENT:
+  /home/devel/basset-hound/docs/handoffs/agent-brief-03-collaboration-manager.md
+
+REPORT DESTINATION (Agent creates this):
+  /home/devel/basset-hound/docs/handoffs/frontend-fix-collaboration-manager-report.md
+
+KEY TASK:
+  Update WebSocket endpoint from:
+    /api/v1/collaboration/ws/projects/{proj}
+  To Phase 8 endpoint:
+    /ws/sync/{project_id}
+  
+  Also update message format and event types.
+
+INSTRUCTIONS FOR AGENT:
+  1. Read briefing: agent-brief-03-collaboration-manager.md
+  2. Read current code: static/js/collaboration-manager.js
+  3. Find WebSocket constructor with /api/v1/collaboration/ws/projects/
+  4. Update path to /ws/sync/{project_id}
+  5. Update message type handling for Phase 8 format
+  6. Test WebSocket connection in browser console
+  7. Create report with all changes and test results
+  8. NO git commits - just edit the file
+
+================================================================================
+                      AGENT 4: RELATIONSHIP FIX
+================================================================================
+
+Instance Name: js-dev@basset-hound:relationships
+Target Repository: /home/devel/basset-hound
+Target File (EXCLUSIVE EDIT): static/js/relationship-manager.js
+Estimated Time: 1-2 hours
+Priority: CRITICAL
+
+BRIEFING DOCUMENT:
+  /home/devel/basset-hound/docs/handoffs/agent-brief-04-relationship-manager.md
+
+REPORT DESTINATION (Agent creates this):
+  /home/devel/basset-hound/docs/handoffs/frontend-fix-relationship-manager-report.md
+
+KEY TASK:
+  Remove deprecated include_details=true parameter and update API schema:
+    OLD: GET /api/v1/projects/{proj}/entities/{id}/relationships?include_details=true
+    NEW: GET /projects/{project_id}/relationships?entity_id={id}
+  
+  Update request/response structures for CRUD operations.
+
+INSTRUCTIONS FOR AGENT:
+  1. Read briefing: agent-brief-04-relationship-manager.md
+  2. Read current code: static/js/relationship-manager.js
+  3. Find all relationship endpoint calls
+  4. Remove include_details=true parameter
+  5. Update endpoint paths and parameter names
+  6. Update CRUD request bodies to match Phase 8 schema
+  7. Test CRUD operations (create, read, update, delete)
+  8. Create report with all changes and test results
+  9. NO git commits - just edit the file
+
+================================================================================
+                        SHARED RESOURCES
+================================================================================
+
+All agents have READ-ONLY access to:
+
+1. API Reference Documentation (COMPREHENSIVE)
+   /home/devel/basset-hound/docs/API_REFERENCE.md
+   - Search Optimization Endpoints: ~line 1921
+   - Export Endpoints: ~line 1757
+   - WebSocket/Collaboration: ~line 1415
+   - Relationship Endpoints: ~line 540
+
+2. Original Audit Findings (DETAILED)
+   /home/devel/basset-hound/docs/handoffs/reviewer-frontend-audit.md
+   - Lists all 21 issues found
+   - Provides before/after code examples
+   - Explains each incompatibility
+
+3. Quick Reference Summary
+   /home/devel/basset-hound/docs/handoffs/AUDIT-SUMMARY.txt
+   - Summary of all issues
+   - Quick lookup guide
+
+================================================================================
+                       CRITICAL CONSTRAINTS
+================================================================================
+
+✅ DO:
+  - Edit your assigned file exclusively
+  - Test your changes in browser console
+  - Create a comprehensive report
+  - Reference the briefing document for all details
+  - Read shared reference materials as needed
+  - Identify any remaining issues/blockers
+
+❌ DON'T:
+  - Create git commits (NO git commit)
+  - Edit other JavaScript files
+  - Delete or create files (except for your report)
+  - Modify database or configuration
+  - Edit HTML templates
+  - Work on files assigned to other agents
+
+================================================================================
+                     FILE ISOLATION (No Conflicts)
+================================================================================
+
+Agent 1 → static/js/advanced-search.js (ONLY THIS)
+Agent 2 → static/js/export-handler.js (ONLY THIS)
+Agent 3 → static/js/collaboration-manager.js (ONLY THIS)
+Agent 4 → static/js/relationship-manager.js (ONLY THIS)
+
+No two agents work on the same file. No file conflicts possible.
+
+================================================================================
+                       EXECUTION SEQUENCE
+================================================================================
+
+PARALLEL (Start All 4 Simultaneously):
+  Time 0:00  - All 4 agents start
+  Time 7-11 hours - Agents complete (Search agent likely finishes last)
+  Time 7-11:30 hours - All reports created
+
+AFTER COMPLETION:
+  Run integration tests (instructions in AGENT-SPAWN-SUMMARY.md)
+  Evaluate results
+  Plan Phase 2 work (3 more agents for secondary issues)
+
+================================================================================
+                        TROUBLESHOOTING
+================================================================================
+
+Issue: Can't find endpoint in current code
+Solution: Use grep/find with endpoint path fragments, check imported modules
+
+Issue: API endpoint doesn't match reference doc
+Solution: Check API_REFERENCE.md for correct path, ensure trailing slashes match
+
+Issue: Request body format unclear
+Solution: See briefing document for complete request structure examples
+
+Issue: WebSocket not connecting
+Solution: Check URL protocol (ws:// not http://), test in console first
+
+Issue: Can't find target file
+Solution: Full path is /home/devel/basset-hound/static/js/{filename}
+
+================================================================================
+                        VERIFICATION CHECKLIST
+================================================================================
+
+Before spawning agent, verify:
+  ✅ Briefing document exists
+  ✅ Target file is readable
+  ✅ API reference materials available
+  ✅ No file conflicts with other agents
+  ✅ Report destination path is correct
+  ✅ Constraints understood (NO git commits)
+
+================================================================================
+                          READY TO DEPLOY
+================================================================================
+
+All 4 agents are ready for deployment.
+
+Documentation created:
+  - AGENT-COORDINATION-PLAN.md (master plan)
+  - AGENT-SPAWN-SUMMARY.md (this briefing summary)
+  - AGENT-SPAWN-INSTRUCTIONS.txt (detailed instructions)
+  - agent-brief-01-advanced-search.md
+  - agent-brief-02-export-handler.md
+  - agent-brief-03-collaboration-manager.md
+  - agent-brief-04-relationship-manager.md
+
+To spawn agents, provide each with:
+  1. Their briefing document (agent-brief-0X-*.md)
+  2. Repository path: /home/devel/basset-hound
+  3. Understanding of exclusive file access
+  4. Knowledge of "NO git commits" constraint
+
+Estimated completion: 7-11 hours (parallel execution)
+
+================================================================================

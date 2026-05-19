@@ -79,6 +79,28 @@ class Settings(BaseSettings):
         default=50,
         description="Maximum Neo4j connection pool size"
     )
+    neo4j_connection_lifetime: int = Field(
+        default=3600,
+        description="Maximum Neo4j connection lifetime in seconds (1 hour default)"
+    )
+    neo4j_max_retry_time: int = Field(
+        default=60,
+        description="Neo4j maximum retry time in seconds for transient failures"
+    )
+
+    # Redis Connection Pool Settings (Phase 8: Connection Pool Optimization)
+    redis_max_connections: int = Field(
+        default=100,
+        description="Maximum Redis connection pool size (default 100 for 1000+ concurrent)"
+    )
+    redis_socket_keepalive: bool = Field(
+        default=True,
+        description="Enable TCP keepalive for Redis connections to detect dead connections"
+    )
+    redis_health_check_interval: int = Field(
+        default=30,
+        description="Redis health check interval in seconds to maintain pool health"
+    )
 
     # File Storage Settings
     projects_directory: str = Field(
@@ -96,14 +118,27 @@ class Settings(BaseSettings):
         description="Path to data configuration YAML file"
     )
 
-    # Security Settings (for future auth implementation)
+    # Security Settings (JWT Authentication - Phase 8)
     secret_key: str = Field(
         default="development-secret-key-change-in-production",
-        description="Secret key for JWT and session signing"
+        description="Secret key for JWT token signing and validation. "
+                    "CRITICAL: Must be changed in production. "
+                    "Set via JWT_SECRET_KEY environment variable."
     )
     access_token_expire_minutes: int = Field(
         default=30,
-        description="Access token expiration time in minutes"
+        description="JWT access token expiration time in minutes. "
+                    "Set via JWT_ACCESS_TOKEN_EXPIRE_MINUTES environment variable."
+    )
+    refresh_token_expire_days: int = Field(
+        default=7,
+        description="JWT refresh token expiration time in days. "
+                    "Set via JWT_REFRESH_TOKEN_EXPIRE_DAYS environment variable."
+    )
+    jwt_algorithm: str = Field(
+        default="HS256",
+        description="JWT signing algorithm. Supported: HS256 (HMAC-SHA256). "
+                    "Set via JWT_ALGORITHM environment variable."
     )
 
     # Cache Settings (Phase 4)
@@ -216,6 +251,40 @@ class Settings(BaseSettings):
     ml_analytics_max_cooccurrence: int = Field(
         default=5000,
         description="[ARCHIVED] Maximum query co-occurrence entries"
+    )
+
+    # Database Dump Encryption Settings (Security Enhancement)
+    dump_encryption_enabled: bool = Field(
+        default=True,
+        description="Enable AES-256 encryption for database dumps"
+    )
+    dump_encryption_key: Optional[str] = Field(
+        default=None,
+        description="Master encryption key for database dumps (base64-encoded 32 bytes). "
+                    "If not set, a key will be generated from SECRET_KEY. "
+                    "Set via DUMP_ENCRYPTION_KEY environment variable."
+    )
+
+    # WebSocket Configuration (Phase 8: Production Stability)
+    websocket_heartbeat_interval: int = Field(
+        default=30,
+        description="WebSocket heartbeat/ping interval in seconds. Set via WEBSOCKET_HEARTBEAT_INTERVAL."
+    )
+    websocket_timeout: int = Field(
+        default=60,
+        description="WebSocket timeout for unresponsive connections in seconds. Set via WEBSOCKET_TIMEOUT."
+    )
+    websocket_max_connections: Optional[int] = Field(
+        default=None,
+        description="Maximum concurrent WebSocket connections (None = unlimited). Set via WEBSOCKET_MAX_CONNECTIONS."
+    )
+    websocket_missed_pings_threshold: int = Field(
+        default=3,
+        description="Close connection after this many missed pings. Set via WEBSOCKET_MISSED_PINGS_THRESHOLD."
+    )
+    websocket_enable_metrics: bool = Field(
+        default=True,
+        description="Enable detailed WebSocket connection metrics. Set via WEBSOCKET_ENABLE_METRICS."
     )
 
     @property

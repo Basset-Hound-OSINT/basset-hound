@@ -9,12 +9,13 @@ Provides REST API endpoints for real-time collaboration features:
 - Offline queue management
 
 Phase 8, Stream 6: Real-Time Collaboration Features
+Phase 8, Security Fix: Activity Feed User Verification
 """
 
 import logging
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Path, Query, WebSocket, WebSocketDisconnect, Depends
+from fastapi import APIRouter, Path, Query, WebSocket, WebSocketDisconnect, Depends, HTTPException, status
 from pydantic import BaseModel
 
 from api.services.collaboration_service import (
@@ -23,6 +24,8 @@ from api.services.collaboration_service import (
     ActivityAction,
     ConflictResolutionStrategy,
 )
+from api.auth.dependencies import CurrentUser, get_current_user
+from api.services.audit_logger import get_audit_logger, AuditAction, EntityType
 
 logger = logging.getLogger(__name__)
 
@@ -65,8 +68,9 @@ class ConflictResolutionRequest(BaseModel):
 
 @router.post("/projects/{project_id}/sync/update", tags=["Sync"])
 async def broadcast_entity_update(
-    project_id: str = Path(..., description="Project ID"),
-    request: EntityUpdateRequest = None,
+    project_id: str,
+    request: EntityUpdateRequest,
+    current_user: CurrentUser,
     service: CollaborationService = Depends(get_collaboration_service),
 ) -> Dict[str, Any]:
     """
@@ -76,21 +80,66 @@ async def broadcast_entity_update(
     all connected WebSocket clients. Implements version tracking and conflict
     detection.
 
+    Security: Validates that the user parameter matches the authenticated user.
+
     Args:
         project_id: Project ID
         request: Update request with entity data
+        current_user: Authenticated user from JWT/API key
         service: Collaboration service instance
 
     Returns:
         Update confirmation with version number
+
+    Raises:
+        HTTPException: If user verification fails (403 Forbidden)
     """
     try:
+        # SECURITY FIX: Verify user identity
+        if request.user != current_user.user_id:
+            audit_logger = get_audit_logger()
+            await audit_logger.log(
+                action=AuditAction.UPDATE,
+                entity_type=EntityType.ENTITY,
+                entity_id=request.entity_id,
+                project_id=project_id,
+                changes={
+                    "verification_failure": "user_mismatch_on_sync",
+                    "authenticated_user": current_user.user_id,
+                    "requested_user": request.user,
+                },
+                metadata={
+                    "security_event": True,
+                    "verification_type": "sync_update_user_verification",
+                    "severity": "medium",
+                }
+            )
+            logger.warning(
+                "sync_update_user_verification_failed",
+                authenticated_user=current_user.user_id,
+                requested_user=request.user,
+                project_id=project_id,
+                entity_id=request.entity_id,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="User verification failed: cannot sync as another user",
+            )
+
         update = await service.broadcast_entity_update(
             project_id=project_id,
             entity_id=request.entity_id,
             operation=request.operation,
             data=request.data,
             user=request.user,
+        )
+
+        logger.info(
+            "entity_update_broadcast",
+            project_id=project_id,
+            entity_id=request.entity_id,
+            user=request.user,
+            operation=request.operation,
         )
 
         return {
@@ -100,17 +149,20 @@ async def broadcast_entity_update(
             "version": update.version,
             "timestamp": update.timestamp,
         }
+    except HTTPException:
+        raise  # Re-raise HTTP exceptions
     except Exception as e:
-        logger.error("failed_to_broadcast_update", error=str(e))
-        return {
-            "success": False,
-            "error": str(e),
-        }
+        logger.error("failed_to_broadcast_update", error=str(e), exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to broadcast entity update",
+        )
 
 
 @router.post("/users/{user_id}/sync/reconnect", tags=["Sync"])
 async def sync_on_reconnection(
-    user_id: str = Path(..., description="User ID"),
+    user_id: str,
+    current_user: CurrentUser,
     project_id: str = Query(..., description="Project ID"),
     service: CollaborationService = Depends(get_collaboration_service),
 ) -> Dict[str, Any]:
@@ -120,35 +172,81 @@ async def sync_on_reconnection(
     Retrieves all pending updates from the offline queue and synchronizes them
     with the newly reconnected client.
 
+    Security: Validates that user_id in path matches authenticated user.
+
     Args:
         user_id: User ID
         project_id: Project ID
+        current_user: Authenticated user from JWT/API key
         service: Collaboration service instance
 
     Returns:
         List of pending updates
+
+    Raises:
+        HTTPException: If user verification fails (403 Forbidden)
     """
     try:
+        # SECURITY FIX: Verify that path user_id matches authenticated user
+        if user_id != current_user.user_id:
+            audit_logger = get_audit_logger()
+            await audit_logger.log(
+                action=AuditAction.VIEW,
+                entity_type=EntityType.ENTITY,
+                entity_id="offline_queue",
+                project_id=project_id,
+                changes={
+                    "verification_failure": "user_id_mismatch_in_reconnect",
+                    "authenticated_user": current_user.user_id,
+                    "path_user_id": user_id,
+                },
+                metadata={
+                    "security_event": True,
+                    "verification_type": "reconnection_sync_user_verification",
+                    "severity": "medium",
+                }
+            )
+            logger.warning(
+                "reconnection_sync_user_verification_failed",
+                authenticated_user=current_user.user_id,
+                path_user_id=user_id,
+                project_id=project_id,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="User verification failed: cannot sync for another user",
+            )
+
         updates = await service.handle_offline_queue(user_id, project_id)
+
+        logger.info(
+            "reconnection_sync_completed",
+            user_id=user_id,
+            project_id=project_id,
+            update_count=len(updates),
+        )
 
         return {
             "success": True,
             "updates": [u.to_dict() for u in updates],
             "count": len(updates),
         }
+    except HTTPException:
+        raise  # Re-raise HTTP exceptions
     except Exception as e:
-        logger.error("failed_to_sync_on_reconnection", error=str(e))
-        return {
-            "success": False,
-            "error": str(e),
-        }
+        logger.error("failed_to_sync_on_reconnection", error=str(e), exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to sync on reconnection",
+        )
 
 
 @router.post("/users/{user_id}/queue/offline", tags=["Sync"])
 async def queue_offline_update(
-    user_id: str = Path(..., description="User ID"),
+    user_id: str,
+    request: EntityUpdateRequest,
+    current_user: CurrentUser,
     project_id: str = Query(..., description="Project ID"),
-    request: EntityUpdateRequest = None,
     service: CollaborationService = Depends(get_collaboration_service),
 ) -> Dict[str, Any]:
     """
@@ -157,16 +255,52 @@ async def queue_offline_update(
     Used when a user is offline and sends updates. The updates are queued
     and will be synced when they reconnect.
 
+    Security: Validates that user_id in path matches authenticated user.
+
     Args:
         user_id: User ID
         project_id: Project ID
         request: Update request
+        current_user: Authenticated user from JWT/API key
         service: Collaboration service instance
 
     Returns:
         Confirmation of queued update
+
+    Raises:
+        HTTPException: If user verification fails (403 Forbidden)
     """
     try:
+        # SECURITY FIX: Verify that path user_id matches authenticated user
+        if user_id != current_user.user_id:
+            audit_logger = get_audit_logger()
+            await audit_logger.log(
+                action=AuditAction.UPDATE,
+                entity_type=EntityType.ENTITY,
+                entity_id=request.entity_id,
+                project_id=project_id,
+                changes={
+                    "verification_failure": "user_id_mismatch_in_path",
+                    "authenticated_user": current_user.user_id,
+                    "path_user_id": user_id,
+                },
+                metadata={
+                    "security_event": True,
+                    "verification_type": "offline_queue_user_verification",
+                    "severity": "medium",
+                }
+            )
+            logger.warning(
+                "offline_queue_user_verification_failed",
+                authenticated_user=current_user.user_id,
+                path_user_id=user_id,
+                project_id=project_id,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="User verification failed: cannot queue updates for another user",
+            )
+
         await service.queue_offline_update(
             user=user_id,
             project_id=project_id,
@@ -175,25 +309,35 @@ async def queue_offline_update(
             data=request.data,
         )
 
+        logger.info(
+            "offline_update_queued",
+            user_id=user_id,
+            project_id=project_id,
+            entity_id=request.entity_id,
+        )
+
         return {
             "success": True,
             "queued": True,
             "message": f"Update queued for user {user_id}",
         }
+    except HTTPException:
+        raise  # Re-raise HTTP exceptions
     except Exception as e:
-        logger.error("failed_to_queue_offline_update", error=str(e))
-        return {
-            "success": False,
-            "error": str(e),
-        }
+        logger.error("failed_to_queue_offline_update", error=str(e), exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to queue offline update",
+        )
 
 
 # ===== Conflict Detection & Resolution Endpoints =====
 
 @router.post("/projects/{project_id}/conflicts/detect", tags=["Conflicts"])
 async def detect_concurrent_edit(
-    project_id: str = Path(..., description="Project ID"),
-    request: EntityUpdateRequest = None,
+    project_id: str,
+    request: EntityUpdateRequest,
+    current_user: CurrentUser,
     service: CollaborationService = Depends(get_collaboration_service),
 ) -> Dict[str, Any]:
     """
@@ -201,15 +345,52 @@ async def detect_concurrent_edit(
 
     Checks for concurrent edits and returns conflict information if detected.
 
+    Security: Validates that the user parameter matches the authenticated user.
+
     Args:
         project_id: Project ID
         request: Update request
+        current_user: Authenticated user from JWT/API key
         service: Collaboration service instance
 
     Returns:
         Conflict details if detected, else empty
+
+    Raises:
+        HTTPException: If user verification fails (403 Forbidden)
     """
     try:
+        # SECURITY FIX: Verify user identity
+        if request.user != current_user.user_id:
+            audit_logger = get_audit_logger()
+            await audit_logger.log(
+                action=AuditAction.UPDATE,
+                entity_type=EntityType.ENTITY,
+                entity_id=request.entity_id,
+                project_id=project_id,
+                changes={
+                    "verification_failure": "user_mismatch_on_conflict_detect",
+                    "authenticated_user": current_user.user_id,
+                    "requested_user": request.user,
+                },
+                metadata={
+                    "security_event": True,
+                    "verification_type": "conflict_detect_user_verification",
+                    "severity": "medium",
+                }
+            )
+            logger.warning(
+                "conflict_detect_user_verification_failed",
+                authenticated_user=current_user.user_id,
+                requested_user=request.user,
+                project_id=project_id,
+                entity_id=request.entity_id,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="User verification failed: cannot detect conflicts as another user",
+            )
+
         conflict = await service.detect_concurrent_edit(
             entity_id=request.entity_id,
             user=request.user,
@@ -217,6 +398,13 @@ async def detect_concurrent_edit(
         )
 
         if conflict:
+            logger.info(
+                "concurrent_edit_conflict_detected",
+                project_id=project_id,
+                entity_id=request.entity_id,
+                user=request.user,
+                conflict_id=conflict.conflict_id,
+            )
             return {
                 "success": True,
                 "conflict_detected": True,
@@ -227,18 +415,20 @@ async def detect_concurrent_edit(
                 "success": True,
                 "conflict_detected": False,
             }
+    except HTTPException:
+        raise  # Re-raise HTTP exceptions
     except Exception as e:
-        logger.error("failed_to_detect_conflict", error=str(e))
-        return {
-            "success": False,
-            "error": str(e),
-        }
+        logger.error("failed_to_detect_conflict", error=str(e), exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to detect conflict",
+        )
 
 
 @router.post("/projects/{project_id}/conflicts/resolve", tags=["Conflicts"])
 async def resolve_conflict(
-    project_id: str = Path(..., description="Project ID"),
-    request: ConflictResolutionRequest = None,
+    project_id: str,
+    request: ConflictResolutionRequest,
     service: CollaborationService = Depends(get_collaboration_service),
 ) -> Dict[str, Any]:
     """
@@ -353,7 +543,8 @@ async def get_conflict(
 
 @router.post("/projects/{project_id}/activity/log", tags=["Activity"])
 async def log_activity(
-    project_id: str = Path(..., description="Project ID"),
+    project_id: str,
+    current_user: CurrentUser,
     action: str = Query(..., description="Activity action"),
     entity_id: Optional[str] = Query(None),
     user: Optional[str] = Query(None),
@@ -363,42 +554,101 @@ async def log_activity(
     """
     Log an activity event.
 
+    Security: Validates that the user parameter matches the authenticated user.
+    Prevents audit trail forgery by ensuring users can only log activities as themselves.
+
     Args:
         project_id: Project ID
         action: Activity action type
         entity_id: Entity ID (optional)
         user: User who triggered activity
         details: Additional details
+        current_user: Authenticated user from JWT/API key
         service: Collaboration service instance
 
     Returns:
         Activity event that was logged
+
+    Raises:
+        HTTPException: If user verification fails (403 Forbidden)
+        HTTPException: If invalid action type (400 Bad Request)
     """
     try:
+        # SECURITY FIX: Verify that the user parameter matches the authenticated user
+        # This prevents users from logging activities as other users (audit trail forgery)
+        if user and user != current_user.user_id:
+            audit_logger = get_audit_logger()
+            await audit_logger.log(
+                action=AuditAction.UPDATE,
+                entity_type=EntityType.ENTITY,
+                entity_id=entity_id or "unknown",
+                project_id=project_id,
+                changes={
+                    "verification_failure": "user_mismatch",
+                    "authenticated_user": current_user.user_id,
+                    "requested_user": user,
+                    "action": action,
+                },
+                metadata={
+                    "security_event": True,
+                    "verification_type": "activity_feed_user_verification",
+                    "severity": "medium",
+                }
+            )
+            logger.warning(
+                "activity_feed_user_verification_failed",
+                authenticated_user=current_user.user_id,
+                requested_user=user,
+                project_id=project_id,
+                action=action,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="User verification failed: cannot log activity as another user",
+            )
+
+        # Use authenticated user ID if no user provided
+        activity_user = user or current_user.user_id
+
         activity_action = ActivityAction(action)
         activity = await service.log_activity(
             project_id=project_id,
             action=activity_action,
             entity_id=entity_id,
-            user=user,
+            user=activity_user,
             details=details or {},
+        )
+
+        logger.info(
+            "activity_logged",
+            project_id=project_id,
+            user=activity_user,
+            action=action,
+            entity_id=entity_id,
         )
 
         return {
             "success": True,
             "activity": activity.to_dict(),
         }
-    except ValueError:
-        return {
-            "success": False,
-            "error": f"Invalid action: {action}",
-        }
+    except ValueError as e:
+        logger.warning(
+            "invalid_activity_action",
+            action=action,
+            error=str(e),
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid action: {action}",
+        )
+    except HTTPException:
+        raise  # Re-raise HTTP exceptions
     except Exception as e:
-        logger.error("failed_to_log_activity", error=str(e))
-        return {
-            "success": False,
-            "error": str(e),
-        }
+        logger.error("failed_to_log_activity", error=str(e), exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to log activity",
+        )
 
 
 @router.get("/projects/{project_id}/activity/feed", tags=["Activity"])
@@ -490,8 +740,9 @@ async def archive_activities(
 
 @router.post("/projects/{project_id}/presence/update", tags=["Presence"])
 async def update_presence(
-    project_id: str = Path(..., description="Project ID"),
-    request: PresenceUpdateRequest = None,
+    project_id: str,
+    current_user: CurrentUser,
+    request: PresenceUpdateRequest,
     service: CollaborationService = Depends(get_collaboration_service),
 ) -> Dict[str, Any]:
     """
@@ -499,15 +750,51 @@ async def update_presence(
 
     Tracks which users are active, what entities they're viewing, and if they're editing.
 
+    Security: Validates that the user parameter matches the authenticated user.
+
     Args:
         project_id: Project ID
         request: Presence update request
+        current_user: Authenticated user from JWT/API key
         service: Collaboration service instance
 
     Returns:
         Updated presence indicator
+
+    Raises:
+        HTTPException: If user verification fails (403 Forbidden)
     """
     try:
+        # SECURITY FIX: Verify that request user matches authenticated user
+        if request.user != current_user.user_id:
+            audit_logger = get_audit_logger()
+            await audit_logger.log(
+                action=AuditAction.UPDATE,
+                entity_type=EntityType.ENTITY,
+                entity_id=request.viewing_entity_id or "unknown",
+                project_id=project_id,
+                changes={
+                    "verification_failure": "user_mismatch_on_presence_update",
+                    "authenticated_user": current_user.user_id,
+                    "requested_user": request.user,
+                },
+                metadata={
+                    "security_event": True,
+                    "verification_type": "presence_update_user_verification",
+                    "severity": "medium",
+                }
+            )
+            logger.warning(
+                "presence_update_user_verification_failed",
+                authenticated_user=current_user.user_id,
+                requested_user=request.user,
+                project_id=project_id,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="User verification failed: cannot update presence for another user",
+            )
+
         indicator = await service.update_presence(
             project_id=project_id,
             user=request.user,
@@ -516,16 +803,26 @@ async def update_presence(
             is_editing=request.is_editing,
         )
 
+        logger.debug(
+            "presence_updated",
+            project_id=project_id,
+            user=request.user,
+            viewing_entity_id=request.viewing_entity_id,
+            is_editing=request.is_editing,
+        )
+
         return {
             "success": True,
             "presence": indicator.to_dict(),
         }
+    except HTTPException:
+        raise  # Re-raise HTTP exceptions
     except Exception as e:
-        logger.error("failed_to_update_presence", error=str(e))
-        return {
-            "success": False,
-            "error": str(e),
-        }
+        logger.error("failed_to_update_presence", error=str(e), exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update presence",
+        )
 
 
 @router.get("/projects/{project_id}/presence/active-users", tags=["Presence"])
@@ -681,11 +978,21 @@ async def websocket_collaboration_endpoint(
 
     Handles real-time updates, presence changes, and activity broadcasts.
 
+    Security: The user parameter is passed as query parameter. For WebSocket connections,
+    authentication should be handled at the connection level by the client providing
+    valid JWT token. This endpoint trusts the user parameter but logs all activities
+    for audit purposes.
+
     Args:
         websocket: WebSocket connection
         project_id: Project ID
         user: User ID
         service: Collaboration service instance
+
+    Note:
+        WebSocket authentication in FastAPI is limited by the protocol.
+        For production: Implement token validation before accepting the connection
+        or use custom authentication middleware.
     """
     await websocket.accept()
     logger.info("collaboration_websocket_connected", project_id=project_id, user=user)
@@ -712,17 +1019,24 @@ async def websocket_collaboration_endpoint(
 
             elif message_type == "sync":
                 # Broadcast entity update
-                update = await service.broadcast_entity_update(
-                    project_id=project_id,
-                    entity_id=data.get("entity_id"),
-                    operation=data.get("operation"),
-                    data=data.get("data"),
-                    user=user,
-                )
-                await websocket.send_json({
-                    "type": "sync_confirmed",
-                    "update": update.to_dict(),
-                })
+                try:
+                    update = await service.broadcast_entity_update(
+                        project_id=project_id,
+                        entity_id=data.get("entity_id"),
+                        operation=data.get("operation"),
+                        data=data.get("data"),
+                        user=user,
+                    )
+                    await websocket.send_json({
+                        "type": "sync_confirmed",
+                        "update": update.to_dict(),
+                    })
+                except Exception as sync_error:
+                    logger.error("websocket_sync_error", error=str(sync_error))
+                    await websocket.send_json({
+                        "type": "error",
+                        "error": "Failed to broadcast sync",
+                    })
 
             elif message_type == "activity":
                 # Log activity
@@ -744,10 +1058,23 @@ async def websocket_collaboration_endpoint(
                         "type": "error",
                         "error": f"Invalid action: {data.get('action')}",
                     })
+                except Exception as activity_error:
+                    logger.error("websocket_activity_error", error=str(activity_error))
+                    await websocket.send_json({
+                        "type": "error",
+                        "error": "Failed to log activity",
+                    })
 
             elif message_type == "ping":
-                # Respond to ping
-                await websocket.send_json({"type": "pong"})
+                # Respond to ping with graceful error handling
+                try:
+                    await websocket.send_json({"type": "pong"})
+                except Exception as ping_error:
+                    logger.warning("failed_to_send_pong", error=str(ping_error))
+
+            elif message_type == "pong":
+                # Client responding to our heartbeat
+                logger.debug("pong_received_from_client", user=user)
 
     except WebSocketDisconnect:
         # Remove presence on disconnect
@@ -755,11 +1082,11 @@ async def websocket_collaboration_endpoint(
         logger.info("collaboration_websocket_disconnected", project_id=project_id, user=user)
 
     except Exception as e:
-        logger.error("collaboration_websocket_error", error=str(e))
+        logger.error("collaboration_websocket_error", error=str(e), exc_info=True)
         try:
             await websocket.send_json({
                 "type": "error",
-                "error": str(e),
+                "error": "Internal server error",
             })
         except Exception:
             pass

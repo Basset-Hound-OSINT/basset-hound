@@ -7,6 +7,11 @@ for the Basset Hound authentication system.
 Uses:
 - python-jose for JWT encoding/decoding
 - passlib for secure password hashing
+
+Configuration:
+- Secret key and expiration times loaded from api.config.Settings
+- Can be overridden via environment variables (JWT_SECRET_KEY, JWT_ALGORITHM, etc.)
+- Default settings suitable for development; MUST be changed in production
 """
 
 import os
@@ -18,11 +23,77 @@ from passlib.context import CryptContext
 from pydantic import BaseModel
 
 
-# Configuration - can be overridden via environment variables
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-secret-key-change-in-production")
-ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
-REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("JWT_REFRESH_TOKEN_EXPIRE_DAYS", "7"))
+# Get configuration from settings or environment variables
+def get_jwt_config():
+    """
+    Get JWT configuration from settings or environment variables.
+
+    Tries to load from api.config.Settings first (production recommended),
+    falls back to environment variables (development/legacy).
+    """
+    try:
+        # Try to import and use settings from config
+        from api.config import get_settings
+        settings = get_settings()
+        return {
+            "secret_key": settings.secret_key,
+            "algorithm": settings.jwt_algorithm,
+            "access_token_expire_minutes": settings.access_token_expire_minutes,
+            "refresh_token_expire_days": settings.refresh_token_expire_days,
+        }
+    except ImportError:
+        # Fall back to environment variables
+        return {
+            "secret_key": os.getenv("JWT_SECRET_KEY", "development-secret-key-change-in-production"),
+            "algorithm": os.getenv("JWT_ALGORITHM", "HS256"),
+            "access_token_expire_minutes": int(os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "30")),
+            "refresh_token_expire_days": int(os.getenv("JWT_REFRESH_TOKEN_EXPIRE_DAYS", "7")),
+        }
+
+
+# Configuration - loaded from settings
+_config = None
+
+
+def _ensure_config():
+    """Ensure configuration is loaded."""
+    global _config
+    if _config is None:
+        _config = get_jwt_config()
+    return _config
+
+
+# Access configuration
+@property
+def SECRET_KEY():
+    """Get the JWT secret key."""
+    return _ensure_config()["secret_key"]
+
+
+@property
+def ALGORITHM():
+    """Get the JWT algorithm."""
+    return _ensure_config()["algorithm"]
+
+
+@property
+def ACCESS_TOKEN_EXPIRE_MINUTES():
+    """Get the access token expiration time in minutes."""
+    return _ensure_config()["access_token_expire_minutes"]
+
+
+@property
+def REFRESH_TOKEN_EXPIRE_DAYS():
+    """Get the refresh token expiration time in days."""
+    return _ensure_config()["refresh_token_expire_days"]
+
+
+# Initialize configuration
+_config = get_jwt_config()
+SECRET_KEY = _config["secret_key"]
+ALGORITHM = _config["algorithm"]
+ACCESS_TOKEN_EXPIRE_MINUTES = _config["access_token_expire_minutes"]
+REFRESH_TOKEN_EXPIRE_DAYS = _config["refresh_token_expire_days"]
 
 # Password hashing context
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")

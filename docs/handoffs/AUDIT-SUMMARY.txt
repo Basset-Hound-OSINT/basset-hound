@@ -1,0 +1,290 @@
+================================================================================
+FRONTEND API COMPATIBILITY AUDIT - PHASE 8
+Date: 2026-05-19
+Status: CRITICAL INCOMPATIBILITIES FOUND
+================================================================================
+
+SCOPE:
+  - 20 JavaScript files in static/js/
+  - 4 HTML templates in templates/
+  - Compared against Phase 8 API Reference (50+ endpoints)
+
+================================================================================
+CRITICAL BLOCKERS (Must Fix First)
+================================================================================
+
+1. SEARCH API - PATHS COMPLETELY WRONG
+   Frontend calls: /api/v1/projects/{proj}/search*
+   Phase 8 actual: /api/v1/search/* (different base path)
+   Files affected: advanced-search.js
+   Impact: Search feature will fail completely
+   Fix effort: 3-4 hours
+
+2. EXPORT ENDPOINTS - METHOD & SCHEMA CHANGED
+   Frontend: GET /api/v1/projects/{proj}/export/csv
+   Phase 8: POST /api/v1/projects/{proj}/export/csv + JSON body
+   Files affected: export-handler.js
+   Impact: All exports will fail (GraphML, CSV, JSON, GeoJSON)
+   Fix effort: 2-3 hours
+
+3. COLLABORATION WEBSOCKET - URL WRONG
+   Frontend: /api/v1/collaboration/ws/projects/{proj}
+   Phase 8: /ws/sync/{proj} (different base path entirely)
+   Files affected: collaboration-manager.js
+   Impact: Real-time features won't connect
+   Fix effort: 1-2 hours
+
+4. SUGGESTIONS/MERGE API - COMPLETELY REPLACED
+   Frontend: /api/v1/suggestions/entity/{id}?type=duplicate
+   Phase 8: /api/v1/ml/duplicates?entity_id={id} (new ML module)
+   Files affected: merge-ui.js
+   Impact: Duplicate detection & merging broken
+   Fix effort: 2-3 hours
+
+5. RELATIONSHIPS ENDPOINT - SCHEMA INCOMPATIBLE
+   Frontend: GET with include_details=true parameter
+   Phase 8: Parameter doesn't exist in new schema
+   Files affected: relationship-manager.js
+   Impact: Relationship display will fail
+   Fix effort: 1-2 hours
+
+================================================================================
+WORKING ENDPOINTS (7 legacy endpoints still compatible)
+================================================================================
+✓ GET /get_people
+✓ GET /get_person/{id}
+✓ POST /add_person
+✓ POST /update_person/{id}
+✓ POST /delete_person/{id}
+✓ GET /get_config
+✓ GET /api/v1/platforms
+
+These are Phase 1-7 legacy endpoints that remain functional.
+
+================================================================================
+PHASE 8 FEATURES NOT EXPOSED IN FRONTEND (15+ missing)
+================================================================================
+
+ML Analytics (8 new endpoints):
+  - GET /api/v1/ml/duplicates (duplicate detection)
+  - POST /api/v1/ml/duplicates/merge (merge duplicates)
+  - GET /api/v1/ml/link-prediction (relationship prediction)
+  - GET /api/v1/ml/communities (community detection)
+  - GET /api/v1/ml/anomalies (anomaly detection)
+  + 3 more feature extraction & model status endpoints
+
+Real-Time Collaboration (7 new endpoints):
+  - GET /api/v1/collaboration/presence (active users)
+  - GET /api/v1/collaboration/activity (activity feed)
+  - GET /api/v1/collaboration/conflicts (merge conflicts)
+  - POST /api/v1/collaboration/conflicts/resolve
+  - WebSocket /ws/sync/{project_id} (realtime updates)
+  + 2 more undo & archive endpoints
+
+Advanced Search (8 new endpoints):
+  - GET /api/v1/search/full-text (full-text search)
+  - GET /api/v1/search/autocomplete (entity suggestions)
+  - GET /api/v1/search/did-you-mean (fuzzy matching)
+  + 5 more faceted search, analytics, index management
+
+Cache Management (6 new endpoints):
+  - GET /api/v1/cache/stats
+  - POST /api/v1/cache/clear
+  - GET /api/v1/cache/hit-rate
+  + 3 more cache operations
+
+Plugin System (6 new endpoints):
+  - GET /api/v1/plugins (list plugins)
+  - POST /api/v1/plugins/upload (upload plugin)
+  - POST /api/v1/plugins/{id}/install
+  + 3 more plugin management
+
+Performance Metrics (10+ new endpoints):
+  - GET /api/v1/metrics/performance
+  - GET /api/v1/metrics/latency
+  - GET /api/v1/metrics/throughput
+  + 7 more performance & query analysis endpoints
+
+================================================================================
+PRIORITY 1: CRITICAL FIXES (Days 1-2, 10 hours)
+================================================================================
+
+1. advanced-search.js (3-4h)
+   - Change base path from /api/v1/projects/{proj}/search to /api/v1/search/*
+   - Implement faceted search parameters
+   - Add autocomplete support
+   - Add fuzzy search support
+
+2. export-handler.js (2-3h)
+   - Change GET to POST for all export endpoints
+   - Add request body with filters, fields, pagination
+   - Update response handling
+   - Test all formats (CSV, JSON, GraphML, GeoJSON)
+
+3. collaboration-manager.js (1-2h)
+   - Fix WebSocket URL: /api/v1/collaboration/ws/... → /ws/sync/...
+   - Test message format compatibility
+   - Verify reconnection logic
+
+4. relationship-manager.js (1-2h)
+   - Remove include_details parameter
+   - Update to match new API schema
+   - Test relationship CRUD operations
+
+================================================================================
+PRIORITY 2: HIGH IMPACT FEATURES (Days 3-4, 10 hours)
+================================================================================
+
+5. merge-ui.js (3-4h)
+   - Replace /api/v1/suggestions/entity with /api/v1/ml/duplicates
+   - Implement duplicate detection via ML module
+   - Show ML-based merge recommendations
+   - Test merge operations
+
+6. map-handler.js (2-3h)
+   - Update graph fetching endpoints
+   - Use /api/v1/projects/{id}/graph/paths/shortest for paths
+   - Use /api/v1/projects/{id}/graph/analytics/centrality for nodes
+   - Test graph visualization rendering
+
+7. Account Management & Activity Feed (2-3h)
+   - Update account-manager.js schema
+   - Create UI for activity feed from /api/v1/collaboration/activity
+   - Add presence indicators
+
+================================================================================
+PRIORITY 3: NICE-TO-HAVE (Days 5-6, 6-8 hours)
+================================================================================
+
+8. plugin-manager.js (1-2h)
+   - Fix endpoint paths in loadPlugins()
+   - Update search endpoints
+
+9. Cache Management Dashboard (2-3h)
+   - Create new UI module
+   - Call /api/v1/cache/* endpoints
+
+10. Performance Metrics Dashboard (2-3h)
+    - Create new UI module
+    - Call /api/v1/metrics/* endpoints
+
+================================================================================
+IMPACTED WORKFLOWS (Critical for Testing)
+================================================================================
+
+Search & Discovery: BROKEN
+  Old: /api/v1/projects/{proj}/search → New: /api/v1/search/*
+
+Data Export: BROKEN
+  Old: GET with query params → New: POST with JSON body
+
+Relationships: BROKEN
+  Old: include_details param → New: param doesn't exist
+
+Graph Visualization: BROKEN
+  Old: /api/v1/projects/{proj}/graph/entity → New: multiple endpoints
+
+Collaboration: BROKEN
+  Old: /api/v1/collaboration/ws → New: /ws/sync
+
+Duplicate Detection: BROKEN
+  Old: /api/v1/suggestions/entity → New: /api/v1/ml/duplicates
+
+================================================================================
+FILES TO UPDATE
+================================================================================
+
+CRITICAL (4 files):
+  static/js/advanced-search.js
+  static/js/export-handler.js
+  static/js/collaboration-manager.js
+  static/js/relationship-manager.js
+
+HIGH PRIORITY (3 files):
+  static/js/merge-ui.js
+  static/js/map-handler.js
+  static/js/account-manager.js
+
+MEDIUM PRIORITY (1 file):
+  static/js/plugin-manager.js
+
+LIKELY OK (4 files):
+  static/js/api.js
+  static/js/ui-form-handlers.js
+  static/js/ui-person-details.js
+  static/js/dashboard.js
+
+================================================================================
+TESTING CHECKLIST (After Each Fix)
+================================================================================
+
+Search:
+  [ ] Basic text search returns results
+  [ ] Faceted search (entity_type, tags, date range)
+  [ ] Autocomplete returns suggestions
+  [ ] Fuzzy search handles typos
+
+Export:
+  [ ] CSV export downloads
+  [ ] JSON export complete
+  [ ] GraphML opens in Gephi
+  [ ] GeoJSON displays in map
+
+Collaboration:
+  [ ] WebSocket connects
+  [ ] Presence shows active users
+  [ ] Activity feed updates
+  [ ] Offline queue syncs
+
+Relationships:
+  [ ] Relationship list loads
+  [ ] Add/edit/delete works
+  [ ] Link prediction appears
+
+Graph:
+  [ ] Graph renders correctly
+  [ ] Depth control works
+  [ ] Export to GraphML works
+
+================================================================================
+ESTIMATED EFFORT
+================================================================================
+
+Priority 1 (Critical):    10 hours + 2h testing
+Priority 2 (High):         10 hours + 2h testing
+Priority 3 (Optional):      6-8 hours + 1h testing
+
+Total: 26-32 hours development + 5 hours testing = 31-37 hours
+
+================================================================================
+REFERENCE DOCUMENTATION
+================================================================================
+
+Detailed audit report:
+  /home/devel/basset-hound/docs/handoffs/reviewer-frontend-audit.md
+
+Phase 8 API Reference:
+  /home/devel/basset-hound/docs/API_REFERENCE.md
+
+Implementation guide:
+  /home/devel/basset-hound/docs/PHASE-8-IMPLEMENTATION-GUIDE.md
+
+Current blockers:
+  /home/devel/basset-hound/docs/BLOCKERS-2026-05-07.md
+
+================================================================================
+NEXT STEPS
+================================================================================
+
+1. Dashboard must load first (Jinja2 template blocker fix)
+2. Run Priority 1 fixes (4 files, critical workflows)
+3. Run Priority 2 fixes (3 files, important features)
+4. Comprehensive integration testing
+5. Load testing with real data volumes
+6. Production deployment
+
+================================================================================
+Audit prepared by: Claude Code Reviewer Agent
+Date: 2026-05-19
+Status: COMPLETE - Ready for handoff to frontend developers
+================================================================================

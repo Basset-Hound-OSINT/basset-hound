@@ -73,9 +73,9 @@ export async function initRelationshipManager(entityId, projectName) {
         }
         relationshipState.currentEntity = await currentEntityRes.json();
 
-        // Fetch relationships from API with include_details
+        // Fetch relationships from API
         const relRes = await fetch(
-            `/api/v1/projects/${projectName}/entities/${entityId}/relationships?include_details=true`
+            `/api/v1/projects/${projectName}/entities/${entityId}/relationships`
         );
 
         if (relRes.ok) {

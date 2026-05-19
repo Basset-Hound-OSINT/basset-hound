@@ -404,15 +404,14 @@ async function executeAdvancedSearch(state, projectName) {
             query = query ? query + ' AND ' + dateFilters.join(' AND ') : dateFilters.join(' AND ');
         }
 
-        // Build URL with parameters
-        const url = new URL(`/api/v1/projects/${projectName}/search/advanced`, window.location.origin);
+        // Build URL with parameters (Phase 8: API-level search endpoint)
+        const url = new URL(`/api/v1/search/advanced`, window.location.origin);
         url.searchParams.append('q', query);
         url.searchParams.append('limit', '100');
-        url.searchParams.append('highlight', 'true');
 
         // Add entity types filter if selected
         if (state.entityTypes.length > 0) {
-            url.searchParams.append('entity_types', state.entityTypes.join(','));
+            url.searchParams.append('entity_type', state.entityTypes.join(','));
         }
 
         console.log('Executing search:', {
@@ -705,9 +704,9 @@ function setupBasicSearchInput(projectName, state) {
         // Debounce search
         searchTimeout = setTimeout(async () => {
             try {
-                const url = new URL(`/api/v1/projects/${projectName}/search`, window.location.origin);
+                const url = new URL(`/api/v1/search/full-text`, window.location.origin);
                 url.searchParams.append('q', query);
-                url.searchParams.append('limit', '100');
+                url.searchParams.append('limit', '20');
 
                 const response = await fetch(url);
                 if (response.ok) {

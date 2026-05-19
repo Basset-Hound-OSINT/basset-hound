@@ -153,23 +153,42 @@ async function handleExport(projectSafeName, exportType) {
         showNotification(`Starting ${exportType} export...`, 'info');
 
         let url;
+        let requestBody = {};
         const timestamp = new Date().toISOString().slice(0, 10);
 
         switch (exportType) {
             case 'export-graphml':
                 url = `/api/v1/projects/${projectSafeName}/export/graphml`;
+                requestBody = {
+                    entity_types: [],
+                    tags: [],
+                    include_properties: true
+                };
                 break;
 
             case 'export-csv':
-                url = `/api/v1/projects/${projectSafeName}/export/entities/csv`;
+                url = `/api/v1/projects/${projectSafeName}/export/csv`;
+                requestBody = {
+                    filters: {},
+                    fields: ['id', 'name', 'email'],
+                    page: 1,
+                    limit: 1000
+                };
                 break;
 
             case 'export-json':
-                url = `/api/v1/projects/${projectSafeName}/export/entities/json`;
+                url = `/api/v1/projects/${projectSafeName}/export/json`;
+                requestBody = {
+                    include_entities: true,
+                    include_relationships: true
+                };
                 break;
 
             case 'export-geojson':
-                url = `/api/v1/projects/${projectSafeName}/export/locations/geojson`;
+                url = `/api/v1/projects/${projectSafeName}/export/geojson`;
+                requestBody = {
+                    entity_type: 'Location'
+                };
                 break;
 
             case 'export-report-html':
@@ -197,7 +216,11 @@ async function handleExport(projectSafeName, exportType) {
                 return;
 
             case 'export-database':
-                url = `/api/v1/projects/${projectSafeName}/export/database-dump`;
+                url = `/api/v1/projects/${projectSafeName}/export/database`;
+                requestBody = {
+                    encrypt: false,
+                    compression: 'gzip'
+                };
                 break;
 
             default:
@@ -205,9 +228,9 @@ async function handleExport(projectSafeName, exportType) {
                 return;
         }
 
-        // Download file from URL
+        // Download file from API endpoint using POST
         if (url) {
-            downloadFile(url);
+            await downloadFileWithPost(url, requestBody);
             showNotification('Export completed successfully', 'success');
         }
 
@@ -218,7 +241,51 @@ async function handleExport(projectSafeName, exportType) {
 }
 
 /**
- * Download file from URL
+ * Download file from API endpoint with POST request
+ * @param {string} url - The API endpoint URL
+ * @param {Object} requestBody - The request body to send
+ */
+async function downloadFileWithPost(url, requestBody = {}) {
+    try {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(requestBody)
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const blob = await response.blob();
+        const blobUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = blobUrl;
+
+        // Extract filename from Content-Disposition header if available
+        const contentDisposition = response.headers.get('Content-Disposition');
+        if (contentDisposition) {
+            const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/);
+            if (filenameMatch) {
+                link.download = filenameMatch[1];
+            }
+        }
+
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(blobUrl);
+
+    } catch (error) {
+        console.error('Failed to download file:', error);
+        throw error;
+    }
+}
+
+/**
+ * Download file from URL (legacy GET method)
  * @param {string} url - The URL to download from
  */
 function downloadFile(url) {
@@ -312,19 +379,15 @@ async function downloadReport(projectSafeName, format, reportData) {
  */
 export async function exportWithFilters(projectSafeName, filters) {
     try {
-        const params = new URLSearchParams();
-        if (filters.entity_types) {
-            params.append('entity_types', filters.entity_types.join(','));
-        }
-        if (filters.limit) {
-            params.append('limit', filters.limit);
-        }
-        if (filters.offset) {
-            params.append('offset', filters.offset);
-        }
+        const url = `/api/v1/projects/${projectSafeName}/export/csv`;
+        const requestBody = {
+            filters: filters || {},
+            fields: ['id', 'name', 'email'],
+            page: 1,
+            limit: filters.limit || 1000
+        };
 
-        const url = `/api/v1/projects/${projectSafeName}/export/entities/csv?${params.toString()}`;
-        downloadFile(url);
+        await downloadFileWithPost(url, requestBody);
         showNotification('Filtered export completed', 'success');
 
     } catch (error) {

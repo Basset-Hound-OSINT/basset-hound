@@ -17,6 +17,7 @@ Phase 4: Real-time Communication Layer
 import asyncio
 import json
 import logging
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
@@ -455,6 +456,9 @@ class WebSocketConnection:
         last_activity: Timestamp of last activity on this connection
         metadata: Optional metadata about the connection
         quality: Connection quality metrics
+        last_ping_sent_at: Timestamp of last ping sent to client
+        missed_pings: Count of consecutive missed ping responses
+        is_healthy: Whether the connection is considered healthy
     """
     connection_id: str
     websocket: WebSocket
@@ -464,6 +468,9 @@ class WebSocketConnection:
     last_activity: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     metadata: Dict[str, Any] = field(default_factory=dict)
     quality: ConnectionQuality = field(default_factory=ConnectionQuality)
+    last_ping_sent_at: float = field(default_factory=time.time)
+    missed_pings: int = 0
+    is_healthy: bool = True
 
     def update_activity(self) -> None:
         """Update the last activity timestamp."""
@@ -559,6 +566,50 @@ class ConnectionManager:
         self._total_connections: int = 0
         self._total_messages_sent: int = 0
         self._total_errors: int = 0
+        # Heartbeat task
+        self._heartbeat_task: Optional[asyncio.Task] = None
+        # Configuration
+        self._heartbeat_interval: int = 30
+        self._heartbeat_timeout: int = 60
+        self._max_connections: Optional[int] = None
+        self._missed_pings_threshold: int = 3
+        self._enable_metrics: bool = True
+        # Metrics
+        self._total_pings_sent: int = 0
+        self._total_pongs_received: int = 0
+        self._total_disconnections_due_to_timeout: int = 0
+
+    def configure(
+        self,
+        heartbeat_interval: int = 30,
+        heartbeat_timeout: int = 60,
+        max_connections: Optional[int] = None,
+        missed_pings_threshold: int = 3,
+        enable_metrics: bool = True,
+    ) -> None:
+        """
+        Configure WebSocket connection manager settings.
+
+        Args:
+            heartbeat_interval: Seconds between heartbeat pings
+            heartbeat_timeout: Seconds to wait for pong response
+            max_connections: Maximum concurrent connections (None = unlimited)
+            missed_pings_threshold: Close connection after this many missed pings
+            enable_metrics: Enable detailed metrics tracking
+        """
+        self._heartbeat_interval = heartbeat_interval
+        self._heartbeat_timeout = heartbeat_timeout
+        self._max_connections = max_connections
+        self._missed_pings_threshold = missed_pings_threshold
+        self._enable_metrics = enable_metrics
+        logger.info(
+            "websocket_manager_configured",
+            heartbeat_interval=heartbeat_interval,
+            heartbeat_timeout=heartbeat_timeout,
+            max_connections=max_connections,
+            missed_pings_threshold=missed_pings_threshold,
+            enable_metrics=enable_metrics,
+        )
 
     @property
     def active_connections(self) -> int:
@@ -1258,6 +1309,153 @@ class ConnectionManager:
             },
         }
 
+    async def start_heartbeat(self) -> None:
+        """
+        Start the heartbeat task that periodically pings all connections.
+
+        Should be called during application startup.
+        """
+        if self._heartbeat_task is not None:
+            logger.warning("Heartbeat already started")
+            return
+
+        self._heartbeat_task = asyncio.create_task(self._heartbeat_loop())
+        logger.info(f"WebSocket heartbeat started (interval={self._heartbeat_interval}s)")
+
+    async def stop_heartbeat(self) -> None:
+        """
+        Stop the heartbeat task.
+
+        Should be called during application shutdown.
+        """
+        if self._heartbeat_task:
+            self._heartbeat_task.cancel()
+            try:
+                await self._heartbeat_task
+            except asyncio.CancelledError:
+                pass
+            self._heartbeat_task = None
+        logger.info("WebSocket heartbeat stopped")
+
+    async def _heartbeat_loop(self) -> None:
+        """
+        Periodic heartbeat loop that pings all connections.
+
+        Closes connections that don't respond to pings.
+        """
+        while True:
+            try:
+                await asyncio.sleep(self._heartbeat_interval)
+
+                # Get snapshot of connections
+                connections_snapshot = list(self._connections.items())
+
+                if not connections_snapshot:
+                    continue
+
+                current_time = time.time()
+                dead_connections: List[str] = []
+
+                for connection_id, connection in connections_snapshot:
+                    try:
+                        # Check if connection has exceeded timeout
+                        time_since_last_ping = current_time - connection.last_ping_sent_at
+                        if time_since_last_ping > self._heartbeat_timeout:
+                            # Connection didn't respond to previous ping
+                            connection.missed_pings += 1
+                            if connection.missed_pings >= self._missed_pings_threshold:
+                                logger.warning(
+                                    "websocket_connection_timeout",
+                                    connection_id=connection_id,
+                                    missed_pings=connection.missed_pings,
+                                )
+                                dead_connections.append(connection_id)
+                                if self._enable_metrics:
+                                    self._total_disconnections_due_to_timeout += 1
+                                continue
+
+                        # Send ping
+                        await self._send_to_connection(
+                            connection,
+                            WebSocketMessage(type=NotificationType.PING)
+                        )
+                        connection.last_ping_sent_at = current_time
+                        if self._enable_metrics:
+                            self._total_pings_sent += 1
+
+                    except Exception as e:
+                        logger.error(f"Error sending ping to {connection_id}: {e}")
+                        dead_connections.append(connection_id)
+
+                # Cleanup dead connections
+                for connection_id in dead_connections:
+                    await self.disconnect(connection_id)
+
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Error in heartbeat loop: {e}", exc_info=True)
+                await asyncio.sleep(1)  # Brief pause before retrying
+
+    async def record_pong(self, connection_id: str) -> bool:
+        """
+        Record that a connection responded to a ping.
+
+        Args:
+            connection_id: The connection ID that sent the pong
+
+        Returns:
+            True if connection found and pong recorded
+        """
+        connection = self._connections.get(connection_id)
+        if connection is None:
+            return False
+
+        connection.missed_pings = 0
+        if self._enable_metrics:
+            self._total_pongs_received += 1
+        return True
+
+    def can_accept_connection(self) -> bool:
+        """
+        Check if the connection pool can accept a new connection.
+
+        Returns:
+            True if a new connection can be accepted, False if at capacity
+        """
+        if self._max_connections is None:
+            return True
+        return len(self._connections) < self._max_connections
+
+    def get_pool_status(self) -> Dict[str, Any]:
+        """
+        Get the current connection pool status.
+
+        Returns:
+            Dictionary with pool statistics
+        """
+        total_healthy = sum(1 for c in self._connections.values() if c.is_healthy)
+        total_unhealthy = len(self._connections) - total_healthy
+        avg_connection_age = 0
+        if self._connections:
+            now = datetime.now(timezone.utc).isoformat()
+            ages = []
+            for conn in self._connections.values():
+                # Rough calculation - in real scenario would parse ISO strings
+                ages.append(1)  # Placeholder
+            avg_connection_age = sum(ages) / len(ages) if ages else 0
+
+        return {
+            "active_connections": len(self._connections),
+            "healthy_connections": total_healthy,
+            "unhealthy_connections": total_unhealthy,
+            "capacity": self._max_connections,
+            "capacity_used_percent": (len(self._connections) / self._max_connections * 100) if self._max_connections else 0,
+            "total_pings_sent": self._total_pings_sent,
+            "total_pongs_received": self._total_pongs_received,
+            "disconnections_due_to_timeout": self._total_disconnections_due_to_timeout,
+        }
+
     async def close_all(self) -> int:
         """
         Close all active connections.
@@ -1265,6 +1463,9 @@ class ConnectionManager:
         Returns:
             Number of connections closed
         """
+        # Stop heartbeat first
+        await self.stop_heartbeat()
+
         connection_ids = list(self._connections.keys())
 
         for connection_id in connection_ids:

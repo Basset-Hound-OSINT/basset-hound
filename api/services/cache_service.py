@@ -490,20 +490,24 @@ class RedisCache(BaseCacheBackend):
         url: str = "redis://localhost:6379/0",
         prefix: str = "basset:",
         default_ttl: Optional[int] = 300,
-        max_connections: int = 10,
+        max_connections: int = 100,
         socket_timeout: float = 5.0,
         socket_connect_timeout: float = 5.0,
+        socket_keepalive: bool = True,
+        health_check_interval: int = 30,
     ):
         """
-        Initialize the Redis cache.
+        Initialize the Redis cache with optimized connection pooling.
 
         Args:
             url: Redis connection URL
             prefix: Key prefix for all cache entries
             default_ttl: Default TTL in seconds
-            max_connections: Maximum connections in the pool
+            max_connections: Maximum connections in the pool (default 100, optimized for 1000+ concurrent)
             socket_timeout: Socket timeout in seconds
             socket_connect_timeout: Connection timeout in seconds
+            socket_keepalive: Enable TCP keepalive to detect dead connections
+            health_check_interval: Health check interval in seconds to maintain pool health
         """
         self._url = url
         self._prefix = prefix
@@ -511,6 +515,8 @@ class RedisCache(BaseCacheBackend):
         self._max_connections = max_connections
         self._socket_timeout = socket_timeout
         self._socket_connect_timeout = socket_connect_timeout
+        self._socket_keepalive = socket_keepalive
+        self._health_check_interval = health_check_interval
         self._client = None
         self._stats = CacheStats()
         self._connected = False
@@ -525,33 +531,45 @@ class RedisCache(BaseCacheBackend):
 
     async def connect(self) -> bool:
         """
-        Connect to Redis.
+        Connect to Redis with optimized connection pooling for 1000+ concurrent connections.
 
         Returns:
             True if connected successfully, False otherwise.
         """
         try:
+            logger.debug(f"Attempting Redis connection to {self._url}")
             import redis.asyncio as redis
+
+            # Create connection pool with optimized settings
+            pool_kwargs = {
+                "max_connections": self._max_connections,
+                "socket_timeout": self._socket_timeout,
+                "socket_connect_timeout": self._socket_connect_timeout,
+                "decode_responses": True,
+                "socket_keepalive": self._socket_keepalive,
+                "health_check_interval": self._health_check_interval,
+            }
 
             self._client = redis.from_url(
                 self._url,
-                max_connections=self._max_connections,
-                socket_timeout=self._socket_timeout,
-                socket_connect_timeout=self._socket_connect_timeout,
-                decode_responses=True,
+                **pool_kwargs
             )
 
             # Test connection
+            logger.debug("Testing Redis connection with PING...")
             await self._client.ping()
             self._connected = True
-            logger.info(f"Connected to Redis at {self._url}")
+            logger.info(
+                f"REDIS CONNECTED SUCCESSFULLY! Using Redis cache at {self._url} with pool_size={self._max_connections}, "
+                f"socket_keepalive={self._socket_keepalive}, health_check_interval={self._health_check_interval}s"
+            )
             return True
 
-        except ImportError:
-            logger.warning("redis-py not installed. Install with: pip install redis")
+        except ImportError as e:
+            logger.error(f"redis-py not installed: {e}. Install with: pip install redis")
             return False
         except Exception as e:
-            logger.warning(f"Failed to connect to Redis: {e}")
+            logger.warning(f"Failed to connect to Redis at {self._url}: {e}")
             self._connected = False
             return False
 
@@ -755,7 +773,9 @@ class RedisCache(BaseCacheBackend):
                 stats["redis_memory_used"] = info.get("used_memory_human", "unknown")
 
                 # Count keys with our prefix
-                stats["key_count"] = len(await self.keys("*"))
+                key_count = len(await self.keys("*"))
+                stats["key_count"] = key_count
+                logger.debug(f"Redis stats: hits={stats['hits']}, misses={stats['misses']}, keys={key_count}")
 
             except Exception as e:
                 logger.error(f"Error getting Redis stats: {e}")
@@ -815,9 +835,12 @@ class CacheService:
         prefer_redis: bool = True,
         enable_multi_level: bool = True,
         cache_warm_entities: Optional[List[str]] = None,
+        redis_max_connections: int = 100,
+        redis_socket_keepalive: bool = True,
+        redis_health_check_interval: int = 30,
     ):
         """
-        Initialize the cache service.
+        Initialize the cache service with optimized connection pooling.
 
         Args:
             redis_url: Redis connection URL (None to use memory only)
@@ -830,6 +853,9 @@ class CacheService:
             prefer_redis: Whether to prefer Redis over memory cache
             enable_multi_level: Enable multi-level caching (L1/L2/L3)
             cache_warm_entities: Entity keys to warm on startup
+            redis_max_connections: Max connections in Redis pool (default 100 for 1000+ concurrent)
+            redis_socket_keepalive: Enable TCP keepalive for Redis connections
+            redis_health_check_interval: Health check interval in seconds for Redis pool
         """
         self._redis_url = redis_url
         self._cache_enabled = cache_enabled
@@ -841,6 +867,11 @@ class CacheService:
         self._prefer_redis = prefer_redis
         self._enable_multi_level = enable_multi_level
         self._cache_warm_entities = cache_warm_entities or []
+
+        # Connection pool configuration
+        self._redis_max_connections = redis_max_connections
+        self._redis_socket_keepalive = redis_socket_keepalive
+        self._redis_health_check_interval = redis_health_check_interval
 
         self._backend: Optional[BaseCacheBackend] = None
         self._l1_cache: Optional[MemoryCache] = None  # L1 in-memory cache
@@ -863,12 +894,15 @@ class CacheService:
             The type of backend that was initialized.
         """
         if self._initialized:
+            logger.debug(f"Cache already initialized with backend: {self._backend_type.value}")
             return self._backend_type
 
         if not self._cache_enabled:
-            logger.info("Caching is disabled")
+            logger.info("Caching is disabled (cache_enabled=False)")
             self._initialized = True
             return self._backend_type
+
+        logger.info(f"Initializing cache service - redis_url={self._redis_url}, prefer_redis={self._prefer_redis}, multi_level={self._enable_multi_level}")
 
         # Initialize L1 cache (always in-memory)
         l1_cache = MemoryCache(
@@ -881,9 +915,13 @@ class CacheService:
 
         # Try Redis for L2 cache if URL is provided and Redis is preferred
         if self._redis_url and self._prefer_redis and self._enable_multi_level:
+            logger.info(f"Attempting to connect to Redis: {self._redis_url}")
             redis_cache = RedisCache(
                 url=self._redis_url,
                 default_ttl=self.L2_TTL,  # 30 seconds for Redis
+                max_connections=self._redis_max_connections,
+                socket_keepalive=self._redis_socket_keepalive,
+                health_check_interval=self._redis_health_check_interval,
             )
 
             if await redis_cache.connect():
@@ -891,18 +929,29 @@ class CacheService:
                 self._backend = redis_cache
                 self._backend_type = CacheBackend.REDIS
                 self._initialized = True
-                logger.info("Multi-level caching initialized (L1=memory 1s, L2=Redis 30s)")
+                logger.info(
+                    f"Multi-level caching initialized - Using Redis cache! "
+                    f"(L1=memory 1s, L2=Redis 30s) - "
+                    f"pool_size={self._redis_max_connections}, socket_keepalive={self._redis_socket_keepalive}"
+                )
 
                 # Warm cache on startup
                 await self._warm_cache()
                 return self._backend_type
             else:
-                logger.warning("Redis unavailable for L2, using single-level memory cache")
+                logger.warning("Redis connection failed for L2, falling back to single-level memory cache")
                 self._backend = l1_cache
                 self._backend_type = CacheBackend.MEMORY
                 self._initialized = True
                 logger.info("Using in-memory cache backend (Redis unavailable)")
                 return self._backend_type
+        else:
+            if not self._redis_url:
+                logger.info("No REDIS_URL configured, using memory cache")
+            elif not self._prefer_redis:
+                logger.info("CACHE_PREFER_REDIS=false, using memory cache")
+            elif not self._enable_multi_level:
+                logger.info("Multi-level caching disabled, using memory cache")
 
         # Fall back to single-level memory cache
         self._backend = l1_cache
@@ -1058,17 +1107,27 @@ class CacheService:
         if self._enable_multi_level:
             l1_result = await self._get_from_l1(key)
             if l1_result is not None:
+                logger.debug(f"Cache HIT: L1 for entity {entity_id}")
                 return l1_result
 
             # Try L2 cache
             l2_result = await self._get_from_l2(key)
             if l2_result is not None:
+                logger.debug(f"Cache HIT: L2 (Redis) for entity {entity_id}, populating L1")
                 # Populate L1 for next access
                 await self._set_l1(key, l2_result)
                 return l2_result
 
-        # Fall back to main backend
-        return await self._backend.get(key)
+            logger.debug(f"Cache MISS: entity {entity_id} not in L1 or L2")
+            return None
+
+        # Fall back to main backend (single-level caching)
+        result = await self._backend.get(key)
+        if result is None:
+            logger.debug(f"Cache MISS: {key} not in backend")
+        else:
+            logger.debug(f"Cache HIT: backend for {key}")
+        return result
 
     async def set_entity(
         self,
@@ -1190,17 +1249,27 @@ class CacheService:
         if self._enable_multi_level:
             l1_result = await self._get_from_l1(key)
             if l1_result is not None:
+                logger.debug(f"Cache HIT: L1 relationships for entity {entity_id}")
                 return l1_result
 
             # Try L2 cache
             l2_result = await self._get_from_l2(key)
             if l2_result is not None:
+                logger.debug(f"Cache HIT: L2 (Redis) relationships for entity {entity_id}, populating L1")
                 # Populate L1
                 await self._set_l1(key, l2_result)
                 return l2_result
 
+            logger.debug(f"Cache MISS: relationships for entity {entity_id} not in L1 or L2")
+            return None
+
         # Fall back to main backend
-        return await self._backend.get(key)
+        result = await self._backend.get(key)
+        if result is None:
+            logger.debug(f"Cache MISS: {key}")
+        else:
+            logger.debug(f"Cache HIT: {key}")
+        return result
 
     async def set_relationships(
         self,
@@ -1714,7 +1783,7 @@ class CacheService:
     # ==================== Utility Methods ====================
 
     async def get_stats(self) -> Dict[str, Any]:
-        """Get cache statistics."""
+        """Get aggregated cache statistics across all levels."""
         if not self._backend:
             return {
                 "enabled": self._cache_enabled,
@@ -1722,7 +1791,20 @@ class CacheService:
                 "backend": None,
             }
 
-        return await self._backend.get_stats()
+        # Get stats from primary backend
+        backend_stats = await self._backend.get_stats()
+
+        # If multi-level is enabled, also include L1 stats for diagnosis
+        if self._enable_multi_level and self._l1_cache:
+            l1_stats = await self._l1_cache.get_stats()
+            backend_stats["l1_cache"] = l1_stats
+
+        if self._enable_multi_level and self._l2_cache:
+            l2_stats = await self._l2_cache.get_stats()
+            backend_stats["l2_cache"] = l2_stats
+
+        logger.debug(f"Aggregated cache stats: {backend_stats}")
+        return backend_stats
 
     async def health_check(self) -> Dict[str, Any]:
         """
@@ -1780,6 +1862,7 @@ def get_cache_service(
     global _cache_service
 
     if _cache_service is None:
+        logger.debug(f"Creating new cache service with redis_url={redis_url}, cache_enabled={cache_enabled}")
         _cache_service = CacheService(
             redis_url=redis_url,
             cache_enabled=cache_enabled,
@@ -1787,9 +1870,11 @@ def get_cache_service(
         )
     elif redis_url is not None:
         # Update configuration if provided
+        logger.debug(f"Updating cache service with redis_url={redis_url}, cache_enabled={cache_enabled}")
         _cache_service._redis_url = redis_url
         _cache_service._cache_enabled = cache_enabled
 
+    logger.debug(f"Cache service backend type: {_cache_service._backend_type.value if hasattr(_cache_service, '_backend_type') else 'unknown'}")
     return _cache_service
 
 

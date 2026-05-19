@@ -98,6 +98,9 @@ async function initApp() {
         setupEntityTypeModal();
         initTagModal();
 
+        // Setup metrics dashboard button (Phase 8)
+        setupMetricsButton();
+
         // Setup export handlers (Phase 8)
         const projectSafeName = window.currentProjectSafeName || sessionStorage.getItem('currentProjectSafeName') || '';
         if (projectSafeName) {
@@ -171,6 +174,29 @@ function setupFormHandlers() {
             }
             form.classList.add('was-validated');
         });
+    });
+}
+
+// Setup metrics dashboard button (Phase 8)
+function setupMetricsButton() {
+    const metricsBtn = document.getElementById('metrics-toggle-btn');
+    if (!metricsBtn) return;
+
+    metricsBtn.addEventListener('click', async () => {
+        // Dynamically import metrics dashboard
+        try {
+            const { toggleMetricsDashboard } = await import('./metrics-dashboard.js');
+            toggleMetricsDashboard(true);
+
+            // Hide person details and show metrics
+            const personDetails = document.getElementById('person-details');
+            const personForm = document.getElementById('person-form-container');
+            if (personDetails) personDetails.style.display = 'none';
+            if (personForm) personForm.style.display = 'none';
+        } catch (error) {
+            console.error('Error loading metrics dashboard:', error);
+            alert('Failed to load performance metrics dashboard');
+        }
     });
 }
 

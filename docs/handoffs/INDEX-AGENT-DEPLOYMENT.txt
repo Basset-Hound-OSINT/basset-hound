@@ -1,0 +1,386 @@
+================================================================================
+                     BASSET HOUND PHASE 1 DEPLOYMENT
+                    Frontend API Compatibility Fixes
+                    Agent Coordination & Briefing Index
+================================================================================
+
+Repository: /home/devel/basset-hound
+Date: 2026-05-19
+Coordinator: Claude Code Agent
+Status: READY FOR DEPLOYMENT
+
+================================================================================
+                       QUICK START
+================================================================================
+
+To spawn the 4 parallel agents:
+
+1. Read: AGENT-SPAWN-SUMMARY.md (2-page overview)
+2. Review: AGENT-SPAWN-INSTRUCTIONS.txt (detailed instructions)
+3. Distribute: agent-brief-0X-*.md files to each agent
+4. Monitor: Watch for frontend-fix-*.md reports (created by agents)
+5. Verify: Run integration tests (instructions in summary)
+
+Expected completion: 7-11 hours (parallel execution)
+
+================================================================================
+                      DOCUMENTATION INDEX
+================================================================================
+
+MASTER COORDINATION DOCUMENTS:
+  (Start here for overview and high-level coordination)
+
+  📋 AGENT-SPAWN-SUMMARY.md
+     Quick 2-page overview of 4 agents, their tasks, and timeline.
+     Contains integration testing procedures and next steps.
+     **READ THIS FIRST**
+
+  📋 AGENT-SPAWN-INSTRUCTIONS.txt
+     Detailed step-by-step instructions for spawning and managing agents.
+     Includes troubleshooting guide and verification checklist.
+     **REFERENCE FOR COORDINATION**
+
+  📋 AGENT-COORDINATION-PLAN.md
+     Master coordination plan with full context, timeline, and Phase 2 preview.
+     Complete orchestration rules and resource allocation.
+     **FOR COMPREHENSIVE UNDERSTANDING**
+
+================================================================================
+                    AGENT BRIEFING DOCUMENTS
+================================================================================
+
+Distribute one briefing to each agent. Each contains:
+  - Problem statement with code examples
+  - Phase 8 API endpoint specifications
+  - Request/response structures
+  - Implementation steps
+  - Testing procedures
+  - Success criteria
+
+AGENT 1 - SEARCH FIX:
+  📄 agent-brief-01-advanced-search.md (92 lines)
+  Instance: js-dev@basset-hound:search
+  File: static/js/advanced-search.js
+  Task: Update search endpoints (/api/v1/search/*)
+  Time: 3-4 hours
+
+AGENT 2 - EXPORT FIX:
+  📄 agent-brief-02-export-handler.md (140 lines)
+  Instance: js-dev@basset-hound:export
+  File: static/js/export-handler.js
+  Task: Convert to POST with JSON bodies
+  Time: 2-3 hours
+
+AGENT 3 - COLLABORATION FIX:
+  📄 agent-brief-03-collaboration-manager.md (121 lines)
+  Instance: js-dev@basset-hound:collaboration
+  File: static/js/collaboration-manager.js
+  Task: Update WebSocket path (/ws/sync/{proj})
+  Time: 1-2 hours
+
+AGENT 4 - RELATIONSHIP FIX:
+  📄 agent-brief-04-relationship-manager.md (156 lines)
+  Instance: js-dev@basset-hound:relationships
+  File: static/js/relationship-manager.js
+  Task: Remove include_details, update schema
+  Time: 1-2 hours
+
+Total Briefing Content: 509 lines
+
+================================================================================
+                    REFERENCE MATERIALS (SHARED)
+================================================================================
+
+All agents have READ-ONLY access to:
+
+  📚 ../API_REFERENCE.md (2000+ lines)
+     Complete Phase 8 API documentation
+     - Search Optimization: ~line 1921
+     - Export: ~line 1757
+     - WebSocket/Collaboration: ~line 1415
+     - Relationships: ~line 540
+
+  📚 ../reviewer-frontend-audit.md
+     Detailed audit findings for all 21 frontend issues
+     Provides context and before/after code examples
+
+  📚 ./AUDIT-SUMMARY.txt
+     Quick reference summary of all issues
+
+================================================================================
+                    EXPECTED AGENT OUTPUTS
+================================================================================
+
+After agents complete, they create report files in this directory:
+
+  📄 frontend-fix-advanced-search-report.md
+     Agent 1 report with all search endpoint changes and test results
+
+  📄 frontend-fix-export-handler-report.md
+     Agent 2 report with all export method changes and format tests
+
+  📄 frontend-fix-collaboration-manager-report.md
+     Agent 3 report with WebSocket path update and connection tests
+
+  📄 frontend-fix-relationship-manager-report.md
+     Agent 4 report with parameter removal and CRUD operation tests
+
+All reports go to: /home/devel/basset-hound/docs/handoffs/
+
+================================================================================
+                       FILE ORGANIZATION
+================================================================================
+
+THIS DIRECTORY (/home/devel/basset-hound/docs/handoffs/):
+
+Coordination Documents:
+  ✓ INDEX-AGENT-DEPLOYMENT.txt (this file)
+  ✓ AGENT-SPAWN-SUMMARY.md
+  ✓ AGENT-SPAWN-INSTRUCTIONS.txt
+  ✓ AGENT-COORDINATION-PLAN.md
+
+Agent Briefings:
+  ✓ agent-brief-01-advanced-search.md
+  ✓ agent-brief-02-export-handler.md
+  ✓ agent-brief-03-collaboration-manager.md
+  ✓ agent-brief-04-relationship-manager.md
+
+Existing Reference Materials:
+  ✓ reviewer-frontend-audit.md (original audit)
+  ✓ AUDIT-SUMMARY.txt (quick summary)
+  ✓ README.md (project overview)
+  ✓ security-reviewer-findings.md (security review)
+
+Expected Agent Output (Created After Deployment):
+  ⧗ frontend-fix-advanced-search-report.md
+  ⧗ frontend-fix-export-handler-report.md
+  ⧗ frontend-fix-collaboration-manager-report.md
+  ⧗ frontend-fix-relationship-manager-report.md
+
+Target Files (In static/js/ - Agents edit these):
+  @ /home/devel/basset-hound/static/js/advanced-search.js
+  @ /home/devel/basset-hound/static/js/export-handler.js
+  @ /home/devel/basset-hound/static/js/collaboration-manager.js
+  @ /home/devel/basset-hound/static/js/relationship-manager.js
+
+================================================================================
+                      AGENT ISOLATION RULES
+================================================================================
+
+EXCLUSIVE EDIT ACCESS (One agent per file, no conflicts):
+  Agent 1 → static/js/advanced-search.js (ONLY THIS FILE)
+  Agent 2 → static/js/export-handler.js (ONLY THIS FILE)
+  Agent 3 → static/js/collaboration-manager.js (ONLY THIS FILE)
+  Agent 4 → static/js/relationship-manager.js (ONLY THIS FILE)
+
+SHARED READ-ONLY ACCESS:
+  All agents → API_REFERENCE.md
+  All agents → reviewer-frontend-audit.md
+  All agents → AUDIT-SUMMARY.txt
+
+FILE CONFLICTS:
+  ✅ IMPOSSIBLE - each agent has exclusive edit access to one file
+
+================================================================================
+                      GLOBAL CONSTRAINTS
+================================================================================
+
+CRITICAL RULES:
+  ❌ NO GIT COMMITS - User explicitly requested no commits
+  ❌ NO DATABASE CHANGES
+  ❌ NO FILE CONFLICTS
+  ✅ PARALLEL EXECUTION REQUIRED
+  ✅ REPORTS REQUIRED FROM EACH AGENT
+  ✅ BROWSER CONSOLE TESTING REQUIRED
+
+WHAT AGENTS MUST DO:
+  1. Read briefing document
+  2. Analyze current code
+  3. Make API compatibility fixes
+  4. Test locally in browser console
+  5. Create comprehensive report
+  6. Do NOT create git commits
+
+WHAT AGENTS MUST NOT DO:
+  1. Modify other JavaScript files
+  2. Delete or create new code files
+  3. Commit to git
+  4. Change database or config
+  5. Edit HTML templates
+  6. Interfere with other agents' work
+
+================================================================================
+                       TIMELINE & EXECUTION
+================================================================================
+
+START TIME: 2026-05-19 14:35 UTC (approximately)
+
+PARALLEL EXECUTION (All 4 agents start simultaneously):
+  Agent 1 (Search):       3-4 hours
+  Agent 2 (Export):       2-3 hours
+  Agent 3 (Collaboration): 1-2 hours
+  Agent 4 (Relationships): 1-2 hours
+  
+  CRITICAL PATH: Agent 1 (3-4 hours)
+  TOTAL PARALLEL TIME: 7-11 hours
+
+END TIME: 2026-05-19 21:35-22:35 UTC (approximately)
+
+INTEGRATION TESTING:
+  Duration: 0.5 hours
+  When: After all agents complete
+  How: Instructions in AGENT-SPAWN-SUMMARY.md
+
+PHASE 2 (Secondary agents, after Phase 1):
+  Agents: 3 (merge-ui, map-handler, account-manager)
+  Time: 8-12 hours
+  When: After Phase 1 verification
+
+TOTAL PROJECT TIME:
+  Parallel: ~20 hours
+  Sequential: 31-37 hours (per original audit)
+  Savings: 11-17 hours with parallel execution
+
+================================================================================
+                      HOW TO USE THIS INDEX
+================================================================================
+
+IF YOU'RE THE COORDINATOR:
+  1. Read AGENT-SPAWN-SUMMARY.md (overview)
+  2. Review AGENT-SPAWN-INSTRUCTIONS.txt (how to deploy)
+  3. Distribute agent-brief-0X-*.md to each agent
+  4. Monitor /home/devel/basset-hound/docs/handoffs/ for reports
+  5. Run integration tests when all agents complete
+
+IF YOU'RE AN AGENT:
+  1. Read your assigned agent-brief-0X-*.md file
+  2. Follow the instructions in your briefing
+  3. Read the target JavaScript file
+  4. Make the required API fixes
+  5. Test your changes in browser console
+  6. Create a report file with results
+  7. Return report to coordinator
+
+IF YOU'RE REVIEWING RESULTS:
+  1. Read the 4 agent report files (frontend-fix-*.md)
+  2. Verify all changes are correct
+  3. Run integration tests (in AGENT-SPAWN-SUMMARY.md)
+  4. Evaluate Phase 2 work requirements
+  5. Plan next steps (dashboard Jinja2 fix, Phase 2, deployment)
+
+================================================================================
+                      KEY DOCUMENTS TO READ
+================================================================================
+
+START HERE (Choose Based on Your Role):
+
+For Quick Overview (5 min read):
+  → AGENT-SPAWN-SUMMARY.md
+
+For Detailed Coordination (10 min read):
+  → AGENT-SPAWN-INSTRUCTIONS.txt
+
+For Comprehensive Context (15 min read):
+  → AGENT-COORDINATION-PLAN.md
+
+If You're an Agent (Required Reading):
+  → Your specific agent-brief-0X-*.md file
+
+For Technical Reference (As Needed):
+  → ../API_REFERENCE.md (search for relevant section)
+  → ../reviewer-frontend-audit.md (for context)
+
+================================================================================
+                      QUICK FACTS
+================================================================================
+
+Repository: /home/devel/basset-hound
+Agents: 4 parallel JavaScript developers
+Files to Fix: 4 (one per agent)
+Briefings: 4 comprehensive documents (509 lines total)
+Time Estimate: 7-11 hours (parallel execution)
+Blockers Fixed: 4 critical frontend issues
+API Version: Phase 8 (50+ new endpoints)
+Dashboard Status: Blocked by Jinja2 template error (separate issue)
+Backend Status: Complete and tested
+Constraints: No git commits, no database changes, no file conflicts
+Success Criteria: All agents complete fixes, pass tests, create reports
+
+================================================================================
+                      DEPLOYMENT READINESS
+================================================================================
+
+Documentation:          ✅ COMPLETE (7 files, 1000+ lines)
+Briefings:             ✅ COMPLETE (509 lines, comprehensive)
+Reference Materials:    ✅ AVAILABLE (2000+ line API reference)
+File Isolation:         ✅ VERIFIED (no conflicts)
+Constraints:            ✅ CLEAR (documented)
+Success Criteria:       ✅ DEFINED (explicit)
+Testing Procedures:     ✅ PROVIDED (integration tests documented)
+Integration Plan:       ✅ PREPARED (Phase 2 preview available)
+
+Status: 🟢 READY FOR IMMEDIATE DEPLOYMENT
+
+================================================================================
+                      NEXT STEPS
+================================================================================
+
+1. ⏭️ DISTRIBUTE BRIEFINGS
+   Send agent-brief-0X-*.md files to each of 4 agents
+
+2. ⏭️ MONITOR PROGRESS
+   Watch for frontend-fix-*.md reports appearing in this directory
+
+3. ⏭️ INTEGRATION TESTING
+   Run tests (instructions in AGENT-SPAWN-SUMMARY.md) after all agents finish
+
+4. ⏭️ EVALUATE RESULTS
+   Review reports and determine Phase 2 work
+
+5. ⏭️ PLAN NEXT PHASE
+   3 more agents for secondary issues (Phase 2)
+
+================================================================================
+                    CONTACT & ESCALATION
+================================================================================
+
+Issues with Agent Briefings:
+  → Check AGENT-SPAWN-INSTRUCTIONS.txt (Troubleshooting section)
+
+API Reference Questions:
+  → Check ../API_REFERENCE.md (comprehensive documentation)
+
+Coordination Questions:
+  → Check AGENT-COORDINATION-PLAN.md (master plan)
+
+File Location Issues:
+  → All files in: /home/devel/basset-hound/docs/handoffs/
+  → All target files in: /home/devel/basset-hound/static/js/
+
+Agent-Specific Issues:
+  → Review agent's assigned brief document
+  → Check if issue is in Troubleshooting section of instructions
+
+================================================================================
+                        FILE CREATED
+================================================================================
+
+This index file: /home/devel/basset-hound/docs/handoffs/INDEX-AGENT-DEPLOYMENT.txt
+
+Date: 2026-05-19 14:35 UTC
+Size: Comprehensive reference guide
+Purpose: Help users navigate agent deployment documentation
+
+Status: READY FOR USE
+
+================================================================================
+                         END OF INDEX
+================================================================================
+
+Next Action: Read AGENT-SPAWN-SUMMARY.md to begin deployment.
+
+Coordinator: Claude Code Agent
+Repository: /home/devel/basset-hound
+Date: 2026-05-19
+
+================================================================================

@@ -13,6 +13,48 @@ This documentation describes the architecture and integration strategy for conne
 
 ## Documentation Index
 
+### For Getting Started
+
+**[SETUP.md](./SETUP.md)** - Local development setup guide
+- System requirements and prerequisites
+- Docker quick start (< 5 minutes)
+- Manual Python setup for development
+- IDE configuration (VS Code, PyCharm, Vim)
+- Environment variables reference
+- Running tests locally
+
+**[QUICK START](../README.md#quick-start)** - Quick start in main README
+- Docker Compose installation
+- Access points (Dashboard, API, Grafana)
+- Quick test commands
+
+### For Troubleshooting
+
+**[TROUBLESHOOTING.md](./TROUBLESHOOTING.md)** - Common issues and solutions
+- Quick diagnostics and health checks
+- Docker issues and fixes
+- API, database, and frontend problems
+- Performance optimization
+- Integration issues
+- Advanced debugging techniques
+
+### For Development & Integration
+
+**[FRONTEND-INTEGRATION.md](./FRONTEND-INTEGRATION.md)** - Frontend integration guide
+- JavaScript/TypeScript API client setup
+- React hooks and components
+- Authentication patterns
+- Complete code examples (entity management, search, relationships, ML features)
+- WebSocket real-time updates
+- Error handling patterns
+- Testing strategies
+
+**[API_REFERENCE.md](./API_REFERENCE.md)** - Complete API documentation
+- 50+ REST endpoints documented
+- Phase 8 new features (ML, collaboration, plugins, export)
+- Request/response examples
+- Error codes and handling
+
 ### Phase 8 Implementation (Latest - 2026-05-07)
 
 **[PHASE-8-IMPLEMENTATION-GUIDE.md](./PHASE-8-IMPLEMENTATION-GUIDE.md)** - Quick start for Phase 8 features
@@ -22,6 +64,12 @@ This documentation describes the architecture and integration strategy for conne
 - Real-time collaboration guide
 - Custom plugin development
 - Export configuration and examples
+
+**[PHASE-8-DOCUMENTATION-INDEX.md](./PHASE-8-DOCUMENTATION-INDEX.md)** - Navigation guide for all Phase 8 docs
+- Quick navigation by role (developers, operators, architects)
+- Document purposes and audiences
+- Key metrics summary
+- Cross-reference index
 
 **[archive/PHASE-8-SUMMARY-2026-05-07.md](./archive/PHASE-8-SUMMARY-2026-05-07.md)** - Comprehensive Phase 8 overview (68 KB)
 - 8 parallel workstreams summary

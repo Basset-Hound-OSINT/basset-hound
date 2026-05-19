@@ -96,6 +96,8 @@ async def handle_client_message(
             latency = (time.time() * 1000) - _pending_pings[ping_key]
             await manager.record_latency(connection_id, latency)
             del _pending_pings[ping_key]
+        # Record pong for heartbeat mechanism
+        await manager.record_pong(connection_id)
 
     elif message_type == "subscribe":
         project_id = message_data.get("project_id")

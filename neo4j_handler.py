@@ -23,17 +23,30 @@ except ImportError:
 
 class Neo4jHandler:
     def __init__(self):
-        """Initialize Neo4j connection using environment variables."""
+        """Initialize Neo4j connection using environment variables with optimized connection pooling."""
         self.uri = os.getenv("NEO4J_URI", "bolt://localhost:7687")
         self.user = os.getenv("NEO4J_USER", "neo4j")
         self.password = os.getenv("NEO4J_PASSWORD", "neo4jbasset")
         self.driver = None
 
+        # Connection pool configuration - optimized for 1000+ concurrent connections
+        self.pool_size = int(os.getenv("NEO4J_POOL_SIZE", "50"))
+        self.connection_lifetime = int(os.getenv("NEO4J_CONNECTION_LIFETIME", "3600"))
+        self.max_retry_time = int(os.getenv("NEO4J_MAX_RETRY_TIME", "60"))
+        self.connection_timeout = float(os.getenv("NEO4J_CONNECTION_TIMEOUT", "30.0"))
+
         # Wait for Neo4j to be available
         wait_start = time.time()
         while True:
             try:
-                self.driver = GraphDatabase.driver(self.uri, auth=(self.user, self.password))
+                self.driver = GraphDatabase.driver(
+                    self.uri,
+                    auth=(self.user, self.password),
+                    max_connection_pool_size=self.pool_size,
+                    max_connection_lifetime=self.connection_lifetime,
+                    max_retry_time=self.max_retry_time,
+                    connection_acquisition_timeout=self.connection_timeout,
+                )
                 # Try a simple query to test connection
                 with self.driver.session() as session:
                     session.run("RETURN 1")
@@ -45,6 +58,7 @@ class Neo4jHandler:
 
         elapsed_total = int(time.time() - wait_start)
         print(f"\rConnected to Neo4j at {self.uri} after {elapsed_total}s.{' ' * 20}")
+        print(f"Neo4j pool size: {self.pool_size}, connection lifetime: {self.connection_lifetime}s")
 
         # Log connection with structured logging
         try:
@@ -52,6 +66,9 @@ class Neo4jHandler:
                 "neo4j_connected",
                 uri=self.uri,
                 connection_time_seconds=elapsed_total,
+                pool_size=self.pool_size,
+                connection_lifetime=self.connection_lifetime,
+                max_retry_time=self.max_retry_time,
             )
         except Exception:
             pass  # Silently ignore logging errors during initialization
@@ -204,7 +221,7 @@ class Neo4jHandler:
         """Create a new project in Neo4j."""
         if not safe_name:
             safe_name = self.slugify(project_name)
-            
+
         with self.driver.session() as session:
             project_id = str(uuid4())  # Generate a UUID for the project
             result = session.run("""
@@ -217,12 +234,13 @@ class Neo4jHandler:
                 })
                 RETURN p
             """, id=project_id, name=project_name, safe_name=safe_name)
-            
+
             record = result.single()
             if record:
                 project_data = dict(record["p"])
                 project_data["id"] = project_id  # Ensure ID is included
-                return project_data
+                # Convert DateTime objects to ISO strings for JSON serialization
+                return self.convert_datetime_fields(project_data)
             return None
 
     def get_project(self, safe_name):
@@ -233,12 +251,14 @@ class Neo4jHandler:
                 MATCH (p:Project {safe_name: $safe_name})
                 RETURN p
             """, safe_name=safe_name)
-            
+
             project_record = result.single()
             if not project_record:
                 return None
-                
+
             project_data = dict(project_record["p"])
+            # Convert DateTime objects to ISO strings for JSON serialization
+            project_data = self.convert_datetime_fields(project_data)
             project_data["people"] = self.get_all_people(safe_name)
             return project_data
 
@@ -264,26 +284,56 @@ class Neo4jHandler:
 
     def convert_neo4j_datetime(self, neo4j_datetime):
         """Convert Neo4j DateTime object to ISO format string."""
+        if neo4j_datetime is None:
+            return None
         if hasattr(neo4j_datetime, 'iso_format'):
             return neo4j_datetime.iso_format()
         elif hasattr(neo4j_datetime, 'to_native'):
             return neo4j_datetime.to_native().isoformat()
         return str(neo4j_datetime)
+
+    def convert_datetime_fields(self, data):
+        """
+        Recursively convert all Neo4j DateTime objects in a dictionary to ISO strings.
+
+        This ensures all DateTime fields are JSON serializable.
+
+        Args:
+            data: Dictionary (or nested structure) potentially containing DateTime objects
+
+        Returns:
+            Dictionary with all DateTime objects converted to ISO format strings
+        """
+        if data is None:
+            return None
+        if isinstance(data, dict):
+            return {key: self.convert_datetime_fields(value) for key, value in data.items()}
+        elif isinstance(data, (list, tuple)):
+            return [self.convert_datetime_fields(item) for item in data]
+        else:
+            # Convert Neo4j DateTime objects
+            return self.convert_neo4j_datetime(data) if (
+                hasattr(data, 'iso_format') or hasattr(data, 'to_native')
+            ) else data
     
     def update_project(self, safe_name, project_data):
         """Update project properties."""
         if "people" in project_data:
             del project_data["people"]
-            
+
         with self.driver.session() as session:
             result = session.run("""
                 MATCH (p:Project {safe_name: $safe_name})
                 SET p += $properties
                 RETURN p
             """, safe_name=safe_name, properties=self.clean_data(project_data))
-            
+
             record = result.single()
-            return dict(record["p"]) if record else None
+            if record:
+                updated_data = dict(record["p"])
+                # Convert DateTime objects to ISO strings for JSON serialization
+                return self.convert_datetime_fields(updated_data)
+            return None
     
     def delete_project(self, safe_name):
         """Delete a project and all its associated data."""
@@ -428,59 +478,63 @@ class Neo4jHandler:
                 MATCH (project:Project {safe_name: $project_safe_name})-[:HAS_PERSON]->(person:Person {id: $person_id})
                 RETURN person
             """, project_safe_name=project_safe_name, person_id=person_id)
-            
+
             record = result.single()
             if not record:
                 return None
-                
+
             person_data = dict(record["person"])
+            # Convert DateTime objects to ISO strings for JSON serialization
+            person_data = self.convert_datetime_fields(person_data)
             person_data["profile"] = {}
-            
+
             # Get all profile data
             profile_result = session.run("""
                 MATCH (person:Person {id: $person_id})-[:HAS_FIELD_VALUE]->(fv:FieldValue)
                 RETURN fv.section_id as section_id, fv.field_id as field_id, fv.value as value
             """, person_id=person_id)
-            
+
             for field_record in profile_result:
                 section_id = field_record["section_id"]
                 field_id = field_record["field_id"]
                 value = field_record["value"]
-                
+
                 if section_id not in person_data["profile"]:
                     person_data["profile"][section_id] = {}
-                
+
                 # Try to parse JSON strings
                 if isinstance(value, str):
                     try:
                         value = json.loads(value)
                     except json.JSONDecodeError:
                         pass
-                
+
                 person_data["profile"][section_id][field_id] = value
-            
+
             # Get all file references with relationship properties
             files_result = session.run("""
                 MATCH (person:Person {id: $person_id})-[r:HAS_FILE]->(file:File)
                 RETURN file, r.section_id as section_id, r.field_id as field_id
             """, person_id=person_id)
-            
+
             for file_record in files_result:
                 file_data = dict(file_record["file"])
+                # Convert DateTime objects in file data
+                file_data = self.convert_datetime_fields(file_data)
                 section_id = file_record["section_id"]
                 field_id = file_record["field_id"]
-                
+
                 if section_id not in person_data["profile"]:
                     person_data["profile"][section_id] = {}
-                
+
                 if field_id not in person_data["profile"][section_id]:
                     person_data["profile"][section_id][field_id] = []
-                
+
                 if isinstance(person_data["profile"][section_id][field_id], list):
                     person_data["profile"][section_id][field_id].append(file_data)
                 else:
                     person_data["profile"][section_id][field_id] = file_data
-            
+
             return person_data
 
     def get_all_people(self, project_safe_name):
@@ -515,6 +569,8 @@ class Neo4jHandler:
             people = []
             for record in result:
                 person_data = dict(record["person"])
+                # Convert DateTime objects to ISO strings for JSON serialization
+                person_data = self.convert_datetime_fields(person_data)
                 person_data["profile"] = {}
 
                 # Process field values
@@ -546,6 +602,8 @@ class Neo4jHandler:
                         continue
 
                     file_info = dict(file_data["file"])
+                    # Convert DateTime objects in file data
+                    file_info = self.convert_datetime_fields(file_info)
                     section_id = file_data["section_id"]
                     field_id = file_data["field_id"]
 

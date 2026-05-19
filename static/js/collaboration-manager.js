@@ -69,7 +69,7 @@ class CollaborationManager {
      */
     connect() {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const url = `${protocol}//${window.location.host}/api/v1/collaboration/ws/projects/${this.projectId}?user=${this.userId}`;
+        const url = `${protocol}//${window.location.host}/ws/sync/${this.projectId}?user=${this.userId}`;
 
         try {
             this.websocket = new WebSocket(url);
@@ -134,31 +134,45 @@ class CollaborationManager {
 
     /**
      * Setup message handlers for WebSocket messages
+     * Phase 8: Updated to support new message types and formats
      */
     setupMessageHandlers() {
+        // Presence updates from other users
         this.messageHandlers.set('presence_updated', (data) => {
-            this.emit('presenceUpdated', data.presence);
+            this.emit('presenceUpdated', data.presence || data);
         });
 
+        // Entity sync confirmations
         this.messageHandlers.set('sync_confirmed', (data) => {
-            this.emit('syncConfirmed', data.update);
+            this.emit('syncConfirmed', data.update || data);
         });
 
+        // Entity update events (Phase 8)
+        this.messageHandlers.set('entity_updated', (data) => {
+            this.activityFeed.push(data);
+            this.emit('activityLogged', data);
+            this.emit('syncConfirmed', data);
+        });
+
+        // Activity logging
         this.messageHandlers.set('activity_logged', (data) => {
-            this.activityFeed.push(data.activity);
-            this.emit('activityLogged', data.activity);
+            this.activityFeed.push(data.activity || data);
+            this.emit('activityLogged', data.activity || data);
         });
 
+        // Conflict detection
         this.messageHandlers.set('conflict_detected', (data) => {
-            this.emit('conflictDetected', data.conflict);
+            this.emit('conflictDetected', data.conflict || data);
         });
 
+        // Ping/pong for connection keep-alive
         this.messageHandlers.set('pong', () => {
             // Ping response received
         });
 
+        // Error messages
         this.messageHandlers.set('error', (data) => {
-            console.error('[Collaboration] Server error:', data.error);
+            console.error('[Collaboration] Server error:', data.error || data.message);
         });
     }
 
@@ -284,18 +298,20 @@ class CollaborationManager {
 
     /**
      * Sync pending updates from offline queue on reconnection
+     * Note: Phase 8 syncing happens automatically via WebSocket reconnection
      */
     async syncOnReconnection() {
         try {
+            // Phase 8: Sync endpoint changed to activity API
             const response = await fetch(
-                `/api/v1/collaboration/users/${this.userId}/sync/reconnect?project_id=${this.projectId}`
+                `/api/v1/collaboration/activity?project_id=${this.projectId}&limit=100`
             );
             const data = await response.json();
 
-            if (data.success && data.updates && data.updates.length > 0) {
-                console.log(`[Collaboration] Synced ${data.updates.length} pending updates`);
-                data.updates.forEach(update => {
-                    this.emit('syncConfirmed', update);
+            if (data.status === 'success' && data.data && data.data.length > 0) {
+                console.log(`[Collaboration] Synced ${data.data.length} pending updates`);
+                data.data.forEach(activity => {
+                    this.emit('syncConfirmed', activity);
                 });
             }
         } catch (error) {
@@ -354,16 +370,17 @@ class CollaborationManager {
      */
     async getActiveUsers() {
         try {
+            // Phase 8: Updated to new presence endpoint
             const response = await fetch(
-                `/api/v1/collaboration/projects/${this.projectId}/presence/active-users`
+                `/api/v1/collaboration/presence?project_id=${this.projectId}`
             );
             const data = await response.json();
 
-            if (data.success) {
+            if (data.status === 'success') {
                 this.presenceIndicators = new Map(
-                    data.active_users.map(user => [user.user, user])
+                    data.data.active_users.map(user => [user.user_id, user])
                 );
-                return data.active_users;
+                return data.data.active_users;
             }
         } catch (error) {
             console.error('[Collaboration] Failed to get active users:', error);
@@ -373,16 +390,20 @@ class CollaborationManager {
 
     /**
      * Get users currently viewing an entity
+     * Note: Phase 8 presence data comes via WebSocket messages, this filters them
      */
     async getEntityViewers(entityId) {
         try {
+            // Phase 8: Get active users and filter by viewing_entity
             const response = await fetch(
-                `/api/v1/collaboration/entities/${entityId}/presence/viewers`
+                `/api/v1/collaboration/presence?project_id=${this.projectId}`
             );
             const data = await response.json();
 
-            if (data.success) {
-                return data.viewers;
+            if (data.status === 'success') {
+                return data.data.active_users.filter(
+                    user => user.viewing_entity_id === entityId
+                );
             }
         } catch (error) {
             console.error('[Collaboration] Failed to get entity viewers:', error);
@@ -395,28 +416,24 @@ class CollaborationManager {
      */
     async getActivityFeed(options = {}) {
         try {
+            // Phase 8: Updated to new activity endpoint structure
             const params = new URLSearchParams({
+                project_id: this.projectId,
                 limit: options.limit || 100,
             });
 
-            if (options.userFilter) {
-                params.append('user_filter', options.userFilter);
-            }
-            if (options.actionFilter) {
-                params.append('action_filter', options.actionFilter);
-            }
-            if (options.entityTypeFilter) {
-                params.append('entity_type_filter', options.entityTypeFilter);
+            if (options.offset) {
+                params.append('offset', options.offset);
             }
 
             const response = await fetch(
-                `/api/v1/collaboration/projects/${this.projectId}/activity/feed?${params}`
+                `/api/v1/collaboration/activity?${params}`
             );
             const data = await response.json();
 
-            if (data.success) {
-                this.activityFeed = data.activities;
-                return data.activities;
+            if (data.status === 'success') {
+                this.activityFeed = data.data;
+                return data.data;
             }
         } catch (error) {
             console.error('[Collaboration] Failed to get activity feed:', error);
@@ -426,29 +443,25 @@ class CollaborationManager {
 
     /**
      * Detect concurrent edits for an entity
+     * Note: Phase 8 conflict detection primarily happens via WebSocket messages
      */
     async detectConcurrentEdit(entityId, data) {
         try {
+            // Phase 8: Get conflicts endpoint to check for active conflicts
             const response = await fetch(
-                `/api/v1/collaboration/projects/${this.projectId}/conflicts/detect`,
-                {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        entity_id: entityId,
-                        operation: 'update',
-                        data: data,
-                        user: this.userId,
-                    }),
-                }
+                `/api/v1/collaboration/conflicts?project_id=${this.projectId}`
             );
             const result = await response.json();
 
-            if (result.conflict_detected) {
-                this.emit('conflictDetected', result.conflict);
-                return result.conflict;
+            if (result.status === 'success') {
+                const entityConflicts = result.data.filter(
+                    conflict => conflict.entity_id === entityId
+                );
+                if (entityConflicts.length > 0) {
+                    const conflict = entityConflicts[0];
+                    this.emit('conflictDetected', conflict);
+                    return conflict;
+                }
             }
         } catch (error) {
             console.error('[Collaboration] Failed to detect concurrent edit:', error);
@@ -459,10 +472,11 @@ class CollaborationManager {
     /**
      * Resolve a conflict
      */
-    async resolveConflict(conflictId, strategy = 'last_write_wins') {
+    async resolveConflict(conflictId, strategy = 'merge') {
         try {
+            // Phase 8: Updated conflicts/resolve endpoint format
             const response = await fetch(
-                `/api/v1/collaboration/projects/${this.projectId}/conflicts/resolve`,
+                `/api/v1/collaboration/conflicts/resolve`,
                 {
                     method: 'POST',
                     headers: {
@@ -470,19 +484,19 @@ class CollaborationManager {
                     },
                     body: JSON.stringify({
                         conflict_id: conflictId,
-                        strategy: strategy,
+                        resolution: strategy,
                     }),
                 }
             );
             const result = await response.json();
 
-            if (result.success) {
+            if (result.status === 'success') {
                 this.emit('conflictResolved', {
                     conflictId: conflictId,
-                    mergedData: result.merged_data,
+                    mergedData: result.data,
                     strategy: strategy,
                 });
-                return result.merged_data;
+                return result.data;
             }
         } catch (error) {
             console.error('[Collaboration] Failed to resolve conflict:', error);
@@ -553,11 +567,13 @@ class CollaborationManager {
 
         let html = '<div class="presence-list">';
         users.forEach(user => {
+            // Phase 8: Handle both old (user) and new (name/user_id) field names
+            const userName = user.name || user.user || 'Unknown';
             const isEditing = user.is_editing ? '✏️' : '';
             const viewingText = user.viewing_entity_id ? ` (viewing entity)` : '';
             html += `
                 <div class="presence-item">
-                    <span class="presence-user">${isEditing} ${this.escapeHtml(user.user)}</span>
+                    <span class="presence-user">${isEditing} ${this.escapeHtml(userName)}</span>
                     <span class="presence-status">${viewingText}</span>
                 </div>
             `;
@@ -586,10 +602,14 @@ class CollaborationManager {
         let html = '<div class="activity-list">';
         activities.forEach(activity => {
             const timestamp = new Date(activity.timestamp).toLocaleString();
-            const userBadge = activity.user ? `<span class="badge bg-info">${this.escapeHtml(activity.user)}</span>` : '';
+            // Phase 8: Handle both user and user_id field names
+            const userName = activity.user || activity.user_id || 'Unknown';
+            const userBadge = userName ? `<span class="badge bg-info">${this.escapeHtml(userName)}</span>` : '';
+            // Phase 8: Activity structure may use 'action' or message from type
+            const actionText = activity.action || activity.type || 'Unknown action';
             html += `
                 <div class="activity-item">
-                    <div class="activity-action">${activity.action}</div>
+                    <div class="activity-action">${actionText}</div>
                     <div class="activity-meta">
                         ${userBadge}
                         <span class="activity-time">${timestamp}</span>
@@ -608,7 +628,13 @@ class CollaborationManager {
     showMergeConflictDialog(conflict) {
         const dialog = document.createElement('div');
         dialog.className = 'modal fade';
-        dialog.id = `conflict-dialog-${conflict.conflict_id}`;
+        dialog.id = `conflict-dialog-${conflict.conflict_id || conflict.id}`;
+        // Phase 8: Handle both old and new field names
+        const conflictId = conflict.conflict_id || conflict.id;
+        const entityId = conflict.entity_id || 'Unknown';
+        const user1 = conflict.user_1 || conflict.source_user || 'Unknown';
+        const user2 = conflict.user_2 || conflict.target_user || 'Unknown';
+
         dialog.innerHTML = `
             <div class="modal-dialog">
                 <div class="modal-content">
@@ -617,16 +643,16 @@ class CollaborationManager {
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
-                        <p>Entity <strong>${this.escapeHtml(conflict.entity_id)}</strong> is being edited by multiple users.</p>
-                        <p>User 1: <strong>${this.escapeHtml(conflict.user_1)}</strong></p>
-                        <p>User 2: <strong>${this.escapeHtml(conflict.user_2)}</strong></p>
+                        <p>Entity <strong>${this.escapeHtml(entityId)}</strong> is being edited by multiple users.</p>
+                        <p>User 1: <strong>${this.escapeHtml(user1)}</strong></p>
+                        <p>User 2: <strong>${this.escapeHtml(user2)}</strong></p>
                         <p>How would you like to resolve this?</p>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-primary" onclick="window.collaborationManager.resolveConflict('${conflict.conflict_id}', 'last_write_wins')">
+                        <button type="button" class="btn btn-primary" onclick="window.collaborationManager.resolveConflict('${conflictId}', 'last_write')">
                             Use Latest Changes
                         </button>
-                        <button type="button" class="btn btn-secondary" onclick="window.collaborationManager.resolveConflict('${conflict.conflict_id}', 'merge')">
+                        <button type="button" class="btn btn-secondary" onclick="window.collaborationManager.resolveConflict('${conflictId}', 'merge')">
                             Merge Changes
                         </button>
                     </div>

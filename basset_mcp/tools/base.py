@@ -13,7 +13,7 @@ from typing import Optional, Dict, List
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from neo4j_handler import Neo4jHandler
-from config_loader import load_config, get_section_by_id, get_field_by_id
+from config.config_loader import load_config, get_section_by_id, get_field_by_id
 
 # Lazy initialization of Neo4j handler
 _neo4j_handler: Optional[Neo4jHandler] = None

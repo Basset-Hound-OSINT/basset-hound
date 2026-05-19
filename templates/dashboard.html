@@ -36,6 +36,9 @@
                             <i class="fas fa-bell suggestions-bell-icon" id="suggestions-bell-icon"></i>
                             <span class="suggestions-badge" id="suggestions-count">0</span>
                         </div>
+                        <button class="btn btn-sm btn-outline-info me-2" id="metrics-toggle-btn" title="View Performance Metrics">
+                            <i class="fas fa-chart-line"></i> Metrics
+                        </button>
                         <a href="/" class="btn btn-sm btn-outline-secondary me-2">Exit</a>
                         <button class="btn btn-sm btn-outline-primary" id="add-entity-btn" data-bs-toggle="modal" data-bs-target="#entityTypeModal">Add Entity</button>
                     </div>
@@ -63,6 +66,11 @@
                 <!-- Mobile back button -->
                 <button id="back-to-list" class="btn btn-outline-primary d-md-none mb-3">
                     <i class="fas fa-arrow-left"></i> Back to List
+                </button>
+
+                <!-- Close metrics button (shown when metrics are displayed) -->
+                <button id="close-metrics-btn" class="btn btn-outline-primary mb-3" style="display:none;">
+                    <i class="fas fa-arrow-left"></i> Back to People
                 </button>
 
                 <!-- Person Form Container (for both Add and Edit) -->
@@ -102,6 +110,7 @@
     <script type="module" src="/static/js/utils.js"></script>
     <script type="module" src="/static/js/tag-handler.js"></script>
     <script type="module" src="/static/js/report-handler.js"></script>
+    <script type="module" src="/static/js/metrics-dashboard.js"></script>
 
     <!-- React Library (async, required by Suggestions Panel) -->
     <script async crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>

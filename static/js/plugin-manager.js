@@ -91,7 +91,7 @@ class PluginManager {
     async searchByType(type) {
         try {
             const response = await fetch(
-                `${this.pluginsEndpoint}/search/by-type?plugin_type=${type}`
+                `${this.pluginsEndpoint}?plugin_type=${type}`
             );
             if (!response.ok) throw new Error('Search failed');
 
@@ -107,17 +107,18 @@ class PluginManager {
 
     /**
      * Download and load plugin code
+     * Retrieves plugin metadata and code from server
      */
     async downloadPlugin(pluginId) {
         try {
-            const response = await fetch(`${this.pluginsEndpoint}/${pluginId}/download`);
+            const response = await fetch(`${this.pluginsEndpoint}/${pluginId}`);
             if (!response.ok) throw new Error('Download failed');
 
-            const data = await response.json();
+            const plugin = await response.json();
             return {
                 id: pluginId,
-                code: data.code,
-                manifest: data.manifest,
+                code: plugin.code,
+                manifest: plugin.manifest,
             };
         } catch (error) {
             console.error(`Failed to download plugin ${pluginId}:`, error);
@@ -130,6 +131,13 @@ class PluginManager {
      */
     async installPlugin(pluginId) {
         try {
+            // Call install endpoint on server
+            const installResponse = await fetch(`${this.pluginsEndpoint}/${pluginId}/install`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+            });
+            if (!installResponse.ok) throw new Error('Install request failed');
+
             const metadata = await this.getPlugin(pluginId);
             const pluginCode = await this.downloadPlugin(pluginId);
 
@@ -155,11 +163,21 @@ class PluginManager {
      * Uninstall a plugin
      */
     async uninstallPlugin(pluginId) {
-        const instance = this.plugins.get(pluginId);
-        if (instance) {
-            await instance.destroy();
-            this.plugins.delete(pluginId);
-            this.emit('plugin-uninstalled', { pluginId });
+        try {
+            const response = await fetch(`${this.pluginsEndpoint}/${pluginId}`, {
+                method: 'DELETE',
+            });
+            if (!response.ok) throw new Error('Uninstall request failed');
+
+            const instance = this.plugins.get(pluginId);
+            if (instance) {
+                await instance.destroy();
+                this.plugins.delete(pluginId);
+                this.emit('plugin-uninstalled', { pluginId });
+            }
+        } catch (error) {
+            console.error(`Failed to uninstall plugin ${pluginId}:`, error);
+            throw error;
         }
     }
 
@@ -285,45 +303,29 @@ class PluginManager {
         setTimeout(() => this.cache.delete(key), ttl);
     }
 
-    // ==================== Reviews & Ratings ====================
+    // ==================== Plugin Metadata & Data ====================
 
     /**
-     * Add a review to a plugin
+     * Get plugin data with filters
+     * Phase 8 API endpoint: GET /api/v1/plugins/{plugin_id}/data
      */
-    async reviewPlugin(pluginId, rating, comment, userId = 'anonymous') {
+    async getPluginData(pluginId, filters = {}) {
         try {
-            const response = await fetch(
-                `${this.pluginsEndpoint}/${pluginId}/reviews?user_id=${userId}`,
-                {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ rating, comment }),
-                }
-            );
+            const params = new URLSearchParams();
+            if (filters.start_date) params.append('start_date', filters.start_date);
+            if (filters.entity_type) params.append('entity_type', filters.entity_type);
 
-            if (!response.ok) throw new Error('Failed to add review');
+            let url = `${this.pluginsEndpoint}/${pluginId}/data`;
+            if (params.toString()) {
+                url += '?' + params.toString();
+            }
 
-            const review = await response.json();
-            this.emit('review-added', { pluginId, review });
-            return review;
-
-        } catch (error) {
-            console.error('Failed to add review:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * Get plugin reviews
-     */
-    async getReviews(pluginId) {
-        try {
-            const response = await fetch(`${this.pluginsEndpoint}/${pluginId}/reviews`);
-            if (!response.ok) throw new Error('Failed to get reviews');
+            const response = await fetch(url);
+            if (!response.ok) throw new Error('Failed to get plugin data');
 
             return await response.json();
         } catch (error) {
-            console.error('Failed to get reviews:', error);
+            console.error('Failed to get plugin data:', error);
             throw error;
         }
     }
@@ -360,35 +362,36 @@ class PluginManager {
         });
     }
 
-    // ==================== Plugin Registration ====================
+    // ==================== Plugin Upload ====================
 
     /**
-     * Register a new plugin
+     * Upload a custom plugin
+     * Phase 8 API endpoint: POST /api/v1/plugins/upload
+     * Supports multipart/form-data with plugin.zip (max 5MB)
      */
-    async registerPlugin(manifest, code, userId = 'anonymous') {
+    async uploadPlugin(pluginFile) {
         try {
-            const response = await fetch(
-                `${this.pluginsEndpoint}/register?user_id=${userId}`,
-                {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ manifest, code }),
-                }
-            );
+            const formData = new FormData();
+            formData.append('file', pluginFile);
+
+            const response = await fetch(`${this.pluginsEndpoint}/upload`, {
+                method: 'POST',
+                body: formData,
+            });
 
             if (!response.ok) {
                 const error = await response.json();
-                throw new Error(error.detail || 'Registration failed');
+                throw new Error(error.detail || 'Upload failed');
             }
 
             const plugin = await response.json();
             this.registry.set(plugin.id, plugin);
-            this.emit('plugin-registered', { plugin });
+            this.emit('plugin-uploaded', { plugin });
 
             return plugin;
 
         } catch (error) {
-            console.error('Plugin registration error:', error);
+            console.error('Plugin upload error:', error);
             throw error;
         }
     }

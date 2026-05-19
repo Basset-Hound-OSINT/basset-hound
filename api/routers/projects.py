@@ -15,6 +15,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..dependencies import get_neo4j_handler, get_current_project, set_current_project as set_current_project_state
+from ..services.cache_service import get_cache_service
 
 
 router = APIRouter(
@@ -147,9 +148,25 @@ async def list_projects(neo4j_handler=Depends(get_neo4j_handler)):
 
     Returns a list of all projects with their basic information including
     ID, name, safe_name, and creation timestamp.
+
+    Uses 1-hour cache for project list.
     """
     try:
+        cache_service = get_cache_service()
+
+        # Try to get from cache first (1-hour TTL for project lists)
+        if cache_service and cache_service.is_enabled:
+            cached_projects = await cache_service.get_entity_list("__projects__")
+            if cached_projects is not None:
+                return cached_projects
+
+        # Cache miss - fetch from database
         projects = neo4j_handler.get_all_projects()
+
+        # Cache the result (1-hour TTL)
+        if cache_service and cache_service.is_enabled:
+            await cache_service.set_entity_list("__projects__", projects, ttl=3600)
+
         return projects
     except Exception as e:
         raise HTTPException(
@@ -196,6 +213,11 @@ async def create_project(
         project_id = project.get('id')
         os.makedirs(f'projects/{project_id}', exist_ok=True)
 
+        # Invalidate project list cache since we added a new project
+        cache_service = get_cache_service()
+        if cache_service and cache_service.is_enabled:
+            await cache_service.invalidate_entity_list("__projects__")
+
         return project
 
     except HTTPException:
@@ -232,7 +254,18 @@ async def get_project(
     Returns detailed project information including all people associated with the project.
 
     - **safe_name**: The URL-safe identifier for the project
+
+    Uses 1-hour cache for project details.
     """
+    cache_service = get_cache_service()
+
+    # Try to get from cache first (1-hour TTL for project details)
+    if cache_service and cache_service.is_enabled:
+        cached_project = await cache_service.get_project(safe_name)
+        if cached_project is not None:
+            return cached_project
+
+    # Cache miss - fetch from database
     project = neo4j_handler.get_project(safe_name)
 
     if not project:
@@ -240,6 +273,10 @@ async def get_project(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Project '{safe_name}' not found"
         )
+
+    # Cache the result (1-hour TTL)
+    if cache_service and cache_service.is_enabled:
+        await cache_service.set_project(safe_name, project, ttl=3600)
 
     return project
 
@@ -300,6 +337,14 @@ async def update_project(
                 detail="Failed to update project"
             )
 
+        # Invalidate caches for this project
+        cache_service = get_cache_service()
+        if cache_service and cache_service.is_enabled:
+            project_id = updated_project.get('id')
+            if project_id:
+                await cache_service.invalidate_project(project_id)
+            await cache_service.invalidate_entity_list("__projects__")
+
         return updated_project
 
     except HTTPException:
@@ -333,6 +378,9 @@ async def delete_project(
 
     - **safe_name**: The URL-safe identifier for the project to delete
     """
+    # Get project ID for cache invalidation
+    project = neo4j_handler.get_project(safe_name)
+
     success = neo4j_handler.delete_project(safe_name)
 
     if not success:
@@ -340,6 +388,15 @@ async def delete_project(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Project '{safe_name}' not found"
         )
+
+    # Invalidate caches for deleted project
+    cache_service = get_cache_service()
+    if cache_service and cache_service.is_enabled:
+        if project:
+            project_id = project.get('id')
+            if project_id:
+                await cache_service.invalidate_project(project_id)
+        await cache_service.invalidate_entity_list("__projects__")
 
     return None
 

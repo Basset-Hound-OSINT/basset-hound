@@ -9,7 +9,7 @@ import yaml
 import os
 
 from ..dependencies import Neo4jDep, ConfigDep, get_neo4j_handler, get_app_config
-from config_loader import load_config
+from config.config_loader import load_config
 
 
 router = APIRouter(

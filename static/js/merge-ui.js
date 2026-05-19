@@ -105,20 +105,23 @@ async function findDuplicates(entityId, projectName) {
         if (!currentEntityRes.ok) throw new Error('Failed to fetch current entity');
         const currentEntity = await currentEntityRes.json();
 
-        // Fetch duplicate suggestions using the API endpoint
-        const duplicatesRes = await fetch(`/api/v1/suggestions/entity/${entityId}?type=duplicate&min_confidence=0.6&limit=100`);
+        // Fetch duplicate candidates using the ML module
+        const duplicatesRes = await fetch(`/api/v1/ml/duplicates?entity_id=${entityId}&confidence_threshold=0.75&limit=10`);
         if (!duplicatesRes.ok) {
-            throw new Error(`Failed to fetch duplicate suggestions (${duplicatesRes.status})`);
+            throw new Error(`Failed to fetch duplicate candidates (${duplicatesRes.status})`);
         }
         const duplicatesData = await duplicatesRes.json();
 
-        // Extract all matches from suggestions
+        // Extract all matches from ML duplicates response
         const allMatches = [];
-        if (duplicatesData.data && duplicatesData.data.suggestions) {
-            duplicatesData.data.suggestions.forEach(group => {
-                if (group.matches) {
-                    allMatches.push(...group.matches);
-                }
+        if (duplicatesData.data && duplicatesData.data.duplicates) {
+            // ML module returns duplicates array with id, name, similarity, reason
+            duplicatesData.data.duplicates.forEach(duplicate => {
+                allMatches.push({
+                    matched_entity_id: duplicate.id,
+                    confidence_score: duplicate.similarity,
+                    reason: duplicate.reason
+                });
             });
         }
 
@@ -465,17 +468,15 @@ async function performMerge(modal, currentEntity, currentEntityId, duplicateEnti
     `;
 
     try {
-        const response = await fetch('/api/v1/suggestions/linking/merge-entities', {
+        const response = await fetch('/api/v1/ml/duplicates/merge', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                entity_id_1: currentEntityId,
-                entity_id_2: duplicateEntityId,
-                keep_entity_id: currentEntityId,
-                reason: 'Duplicate entity merged via UI',
-                created_by: 'web-ui'
+                source_id: duplicateEntityId,
+                target_id: currentEntityId,
+                strategy: 'merge_fields'
             })
         });
 

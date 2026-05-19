@@ -87,11 +87,21 @@ function createStyleRules(entityId, degrees) {
                 'font-size': '11px',
                 'text-margin-y': 5,
                 'width': function(node) {
-                    // Size proportional to degree
+                    // Size proportional to centrality score if available, otherwise degree
+                    const centralityScore = node.data('centrality_score');
+                    if (centralityScore !== undefined) {
+                        // Centrality score is typically 0-1, scale it up
+                        return 30 + (centralityScore * 40);
+                    }
                     const degree = degrees[node.id()] || 0;
                     return 30 + Math.min(degree * 3, 25);
                 },
                 'height': function(node) {
+                    // Size proportional to centrality score if available, otherwise degree
+                    const centralityScore = node.data('centrality_score');
+                    if (centralityScore !== undefined) {
+                        return 30 + (centralityScore * 40);
+                    }
                     const degree = degrees[node.id()] || 0;
                     return 30 + Math.min(degree * 3, 25);
                 },
@@ -191,21 +201,78 @@ async function fetchGraphData(projectSafeName, entityId, depth = 2) {
         return cachedGraphData;
     }
 
-    const response = await fetch(
-        `/api/v1/projects/${projectSafeName}/graph/entity/${entityId}?format=cytoscape&depth=${depth}`
-    );
-    if (!response.ok) {
-        throw new Error(`Failed to fetch graph data: ${response.statusText}`);
+    try {
+        // Fetch centrality analysis to identify important nodes
+        const centralityResponse = await fetch(
+            `/api/v1/projects/${projectSafeName}/graph/analytics/centrality?algorithm=BETWEENNESS&limit=${Math.min(depth * 10, 50)}`
+        );
+        if (!centralityResponse.ok) {
+            throw new Error(`Failed to fetch centrality data: ${centralityResponse.statusText}`);
+        }
+        const centralityData = await centralityResponse.json();
+
+        // Collect all entity IDs to fetch paths for (center + top central entities)
+        const entityIds = new Set([entityId]);
+        if (centralityData.data && centralityData.data.results) {
+            centralityData.data.results.slice(0, Math.min(depth * 5, 20)).forEach(result => {
+                entityIds.add(result.entity_id);
+            });
+        }
+
+        // Fetch the center entity's subgraph as the base
+        const subgraphResponse = await fetch(
+            `/api/v1/projects/${projectSafeName}/graph/entity/${entityId}?format=cytoscape&depth=${depth}`
+        );
+        if (!subgraphResponse.ok) {
+            throw new Error(`Failed to fetch subgraph data: ${subgraphResponse.statusText}`);
+        }
+        const subgraphData = await subgraphResponse.json();
+
+        // Enhance the subgraph with centrality scores
+        if (centralityData.data && centralityData.data.results) {
+            const centralityMap = {};
+            centralityData.data.results.forEach(result => {
+                centralityMap[result.entity_id] = result.score;
+            });
+
+            // Augment nodes with centrality scores
+            if (subgraphData.elements && subgraphData.elements.nodes) {
+                subgraphData.elements.nodes.forEach(node => {
+                    if (centralityMap[node.data.id]) {
+                        node.data.centrality_score = centralityMap[node.data.id];
+                    }
+                });
+            }
+        }
+
+        // Cache the data
+        cachedGraphData = subgraphData;
+        cachedProjectName = projectSafeName;
+        cachedEntityId = entityId;
+
+        return subgraphData;
+
+    } catch (error) {
+        // Fallback: try the direct entity endpoint if new endpoints fail
+        console.warn('New graph endpoints failed, trying fallback:', error.message);
+        try {
+            const response = await fetch(
+                `/api/v1/projects/${projectSafeName}/graph/entity/${entityId}?format=cytoscape&depth=${depth}`
+            );
+            if (!response.ok) {
+                throw new Error(`Failed to fetch graph data: ${response.statusText}`);
+            }
+
+            const data = await response.json();
+            cachedGraphData = data;
+            cachedProjectName = projectSafeName;
+            cachedEntityId = entityId;
+
+            return data;
+        } catch (fallbackError) {
+            throw new Error(`Graph data fetch failed: ${error.message}, Fallback failed: ${fallbackError.message}`);
+        }
     }
-
-    const data = await response.json();
-
-    // Cache the data
-    cachedGraphData = data;
-    cachedProjectName = projectSafeName;
-    cachedEntityId = entityId;
-
-    return data;
 }
 
 async function fetchEntityName(projectSafeName, entityId) {
@@ -247,7 +314,16 @@ function clamp(value, min, max) {
 async function exportGraphML(projectSafeName) {
     try {
         const response = await fetch(
-            `/api/v1/projects/${projectSafeName}/visualization/export/graphml`
+            `/api/v1/projects/${projectSafeName}/export/graphml`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    include_properties: true
+                })
+            }
         );
         if (!response.ok) {
             throw new Error(`Export failed: ${response.statusText}`);

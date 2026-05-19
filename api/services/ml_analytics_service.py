@@ -19,6 +19,7 @@ Features:
 import asyncio
 import json
 import logging
+import re
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -52,6 +53,127 @@ except ImportError:
 from api.services.neo4j_service import AsyncNeo4jService
 
 logger = logging.getLogger("basset_hound.ml_analytics")
+
+
+class PIIRedactor:
+    """Utility class for redacting personally identifiable information from ML outputs."""
+
+    # Email pattern: match full email addresses and extract domain
+    EMAIL_PATTERN = re.compile(r'\b[A-Za-z0-9._%+-]+@([A-Za-z0-9.-]+\.[A-Z|a-z]{2,})\b')
+
+    # Phone pattern: match various phone number formats
+    PHONE_PATTERN = re.compile(
+        r'(\+?1?)[\s.-]?\(?(\d{3})\)?[\s.-]?(\d{3})[\s.-]?(\d{4})'
+    )
+
+    # Normalized phone: digits only, 10+ digits
+    NORMALIZED_PHONE_PATTERN = re.compile(r'\d{10,}')
+
+    @staticmethod
+    def redact_email(text: str) -> str:
+        """Replace email addresses with [REDACTED@domain.com] pattern."""
+        if not isinstance(text, str):
+            return text
+
+        def replace_email(match):
+            domain = match.group(1)
+            return f"[REDACTED@{domain}]"
+
+        return PIIRedactor.EMAIL_PATTERN.sub(replace_email, text)
+
+    @staticmethod
+    def redact_phone(text: str) -> str:
+        """Replace phone numbers with [REDACTED] pattern."""
+        if not isinstance(text, str):
+            return text
+
+        # First replace formatted phone numbers
+        text = PIIRedactor.PHONE_PATTERN.sub('[REDACTED]', text)
+
+        # Then replace normalized phone numbers (10+ consecutive digits)
+        text = PIIRedactor.NORMALIZED_PHONE_PATTERN.sub('[REDACTED]', text)
+
+        return text
+
+    @staticmethod
+    def redact_pii_in_reasoning(reasoning: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Redact PII from reasoning dictionary while preserving ML quality.
+
+        Strategy:
+        - Keep confidence scores (numeric values)
+        - Mask field names that contain sensitive data (email_domain_match -> contact_identifier_match)
+        - Keep technical similarity metrics
+
+        Args:
+            reasoning: Dictionary with feature contributions from duplicate detection
+
+        Returns:
+            Redacted reasoning dictionary
+        """
+        if not isinstance(reasoning, dict):
+            return reasoning
+
+        redacted = {}
+
+        # Map sensitive field names to generic equivalents
+        field_name_mapping = {
+            'email_exact': 'contact_exact_match',
+            'email_domain': 'contact_domain_match',
+            'email_domain_match': 'contact_identifier_match',
+            'email_normalized': 'contact_normalized',
+            'phone_exact': 'phone_match',
+            'phone_normalized': 'phone_identifier',
+            'ml_email_domain': 'ml_contact_domain',
+        }
+
+        for key, value in reasoning.items():
+            # Map sensitive field names
+            new_key = field_name_mapping.get(key, key)
+
+            # Keep numeric scores as-is (they're not PII)
+            if isinstance(value, (int, float)):
+                redacted[new_key] = value
+            # Redact string values that might contain actual PII
+            elif isinstance(value, str):
+                redacted[new_key] = PIIRedactor.redact_email(
+                    PIIRedactor.redact_phone(value)
+                )
+            else:
+                redacted[new_key] = value
+
+        return redacted
+
+    @staticmethod
+    def redact_feature_value(value: Any, field_name: str) -> Any:
+        """
+        Redact sensitive field values. Called when storing features.
+
+        Args:
+            value: The field value
+            field_name: Name of the field
+
+        Returns:
+            Redacted or original value
+        """
+        if not value:
+            return value
+
+        # Don't store actual email domains as entity properties
+        if field_name in ('ml_email_domain', 'email_domain', 'email'):
+            if isinstance(value, str) and '@' in value:
+                # Return domain only without the full email
+                domain = value.split('@')[1] if '@' in value else value
+                # Hash or anonymize the domain
+                return '[CONTACT_DOMAIN_HASH]'
+            return '[REDACTED_DOMAIN]'
+
+        # Don't store actual phone numbers
+        if field_name in ('phone', 'phone_normalized', 'ml_phone'):
+            if isinstance(value, str):
+                return '[REDACTED_PHONE]'
+
+        return value
 
 
 @dataclass
@@ -522,7 +644,13 @@ class MLAnalyticsService:
             await self.neo4j_service.close()
 
     async def extract_and_store_features(self, project_id: str) -> Dict[str, Any]:
-        """Extract features for all entities in a project."""
+        """
+        Extract features for all entities in a project.
+
+        Note: Features are extracted and used for analysis, but sensitive fields
+        like email domains are NOT stored as entity properties to prevent PII exposure.
+        Features are computed on-demand during analysis operations.
+        """
         try:
             entities = await self.neo4j_service.get_entities(project_id=project_id)
 
@@ -530,13 +658,14 @@ class MLAnalyticsService:
             for entity in entities:
                 features = MLFeaturesExtractor.extract_entity_features(entity)
 
-                # Store features in Neo4j as properties
+                # Store only non-sensitive normalized features in Neo4j
+                # NOTE: DO NOT store ml_email_domain - it's PII-sensitive
+                # Email domain matching is computed during analysis only, not stored
                 await self.neo4j_service.update_entity(
                     project_id=project_id,
                     entity_id=entity["id"],
                     data={
                         "ml_name_normalized": features.name_normalized,
-                        "ml_email_domain": features.email_domain or "",
                         "ml_features_extracted": True,
                     },
                 )
@@ -553,7 +682,12 @@ class MLAnalyticsService:
     async def detect_duplicates(
         self, project_id: str, min_score: float = 0.7
     ) -> Dict[str, Any]:
-        """Detect potential duplicates in project."""
+        """
+        Detect potential duplicates in project.
+
+        Returns confidence scores and generic field match indicators, but
+        redacts specific PII values (email domains, phone numbers) from reasoning.
+        """
         try:
             entities = await self.neo4j_service.get_entities(project_id=project_id)
 
@@ -567,13 +701,16 @@ class MLAnalyticsService:
                     score = self.duplicate_detector.score_duplicate(features1, features2)
 
                     if score.similarity_score >= min_score:
+                        # Redact PII from reasoning while preserving ML quality metrics
+                        redacted_reasoning = PIIRedactor.redact_pii_in_reasoning(score.reasoning)
+
                         duplicates.append(
                             {
                                 "entity_id_1": score.entity_id_1,
                                 "entity_id_2": score.entity_id_2,
                                 "similarity_score": round(score.similarity_score, 3),
                                 "duplicate_probability": round(score.duplicate_probability, 1),
-                                "reasoning": score.reasoning,
+                                "reasoning": redacted_reasoning,
                             }
                         )
 
@@ -589,7 +726,12 @@ class MLAnalyticsService:
     async def predict_relationships(
         self, project_id: str, entity_id: str, top_k: int = 5
     ) -> Dict[str, Any]:
-        """Predict likely relationships for an entity."""
+        """
+        Predict likely relationships for an entity.
+
+        Returns confidence scores and relationship types, but redacts
+        any PII from reasoning text (email domains, phone numbers).
+        """
         try:
             entities = await self.neo4j_service.get_entities(project_id=project_id)
 
@@ -606,7 +748,9 @@ class MLAnalyticsService:
                     "relationship_type": p.relationship_type,
                     "prediction_score": round(p.prediction_score, 1),
                     "confidence": round(p.confidence, 3),
-                    "reasoning": p.reasoning,
+                    "reasoning": PIIRedactor.redact_email(
+                        PIIRedactor.redact_phone(p.reasoning)
+                    ),
                 }
                 for p in predictions
             ]

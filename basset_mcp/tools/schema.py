@@ -10,7 +10,7 @@ import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from config_loader import get_section_by_id, get_field_by_id
+from config.config_loader import get_section_by_id, get_field_by_id
 from .base import get_schema_config, reload_schema_config
 
 
