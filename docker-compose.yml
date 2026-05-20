@@ -34,7 +34,7 @@ services:
     networks:
       - basset-hound
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/nginx-health"]
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/nginx-health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -150,6 +150,11 @@ services:
         condition: service_healthy
       basset_verify:
         condition: service_healthy
+    command: >
+      uvicorn api.main:app
+      --host 0.0.0.0
+      --port 8000
+      --workers 4
     environment:
       # Neo4j Connection (internal network)
       - NEO4J_URI=bolt://neo4j:7687
@@ -160,6 +165,9 @@ services:
       - DEBUG=1
       - HOST=0.0.0.0
       - PORT=8000
+      # Multi-worker Configuration (Phase 9)
+      - UVICORN_WORKERS=4
+      - REQUEST_TIMEOUT=30
       # Redis Configuration (internal network)
       - REDIS_URL=redis://redis:6379/1
       # Celery Configuration (internal network)
@@ -208,6 +216,12 @@ services:
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
     networks:
       - basset-hound
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A api.tasks inspect ping -d celery@$$HOSTNAME || exit 1"]
+      interval: 30s
+      timeout: 15s
+      retries: 3
+      start_period: 30s
 
   # ==========================================================================
   # CELERY BEAT - Scheduled Task Scheduler (Internal Only)
@@ -234,6 +248,12 @@ services:
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
     networks:
       - basset-hound
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'celery.*beat' > /dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   # ==========================================================================
   # PROMETHEUS - Metrics Collection & Storage

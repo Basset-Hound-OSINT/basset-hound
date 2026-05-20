@@ -2,21 +2,47 @@
 
 ---
 
-## Project Status: BACKEND COMPLETE - FRONTEND BLOCKED 🚧
+## Project Status: STABILIZED — AUDIT & HARDENING PASS COMPLETE ✅
 
-**Date:** 2026-05-07 (Phase 8 Complete, Dashboard Error)
+**Date:** 2026-05-20 (Multi-Agent Audit & Hardening)
 
-**Status:** 95% complete - Backend fully functional, frontend needs debugging
+**Status:** Backend stable, all 9 services healthy. Audit pass complete; cleanup and hardening applied.
 
 | Metric | Value |
 |--------|-------|
 | Backend Implementation | 100% (Phase 8 complete) |
-| API Endpoints | 50+ (fully documented) |
-| Tests | 3,000+ (95%+ passing) |
+| API Endpoints | ~405 mounted routes |
+| Tests | 3,041 collected, 0 collection errors |
 | Services Deployed | 9/9 healthy |
-| Dashboard Access | ❌ BLOCKED (Jinja2 template error) |
-| Frontend Compatibility | ⚠️ NEEDS AUDIT (Phase 8 API changes) |
-| Production Readiness | 🚧 BLOCKED - Dashboard must load first |
+| API Container | ✅ Healthy (startup hang fixed) |
+| Production Readiness | 🚧 Pending Phase 8 load-test re-validation |
+
+**Latest session:** [docs/archives/session_records/2026-05-20_Multi-Agent-Audit-And-Hardening.md](archives/session_records/2026-05-20_Multi-Agent-Audit-And-Hardening.md)
+**Master handoff:** [docs/handoffs/MASTER-HANDOFF-2026-05-20.md](handoffs/MASTER-HANDOFF-2026-05-20.md)
+**All findings:** [docs/findings/INDEX.md](findings/INDEX.md)
+
+### Done in 2026-05-20 session
+- Fixed API container startup hang (invalid `max_retry_time` Neo4j driver kwarg, silently retried forever)
+- 10-stream audit across docs, security, tests, routers, docker/nginx, dependencies, frontend
+- Deleted ~1,800 LOC dead code (3 orphan routers, 1 deprecated shim, 288 KB dead frontend assets)
+- nginx keepalive fix (`$connection_upgrade` map) — suspected Phase 8 throughput ceiling
+- Repaired celery + nginx healthchecks; unified `REQUEST_TIMEOUT`; unblocked test collection
+- `python-dotenv` CVE-2026-28684 fix + dependency pin hardening
+- Added 70 unit tests for `normalizer_v2`
+
+### Next session priorities
+1. Re-run 100-concurrent-user load test to validate the nginx keepalive fix
+2. Diagnose `/health` false-negatives (redis/celery reported unavailable despite healthy)
+3. Fix `scripts/minify-js.js` (broken regex minifier)
+4. `neo4j_service.py` refactor Phase A; raise coverage on 7 zero-coverage services
+
+---
+
+## Historical: Project Status 2026-05-07 (BACKEND COMPLETE - FRONTEND BLOCKED)
+
+The dashboard Jinja2 blocker and Phase 1-7/8 frontend incompatibility noted on 2026-05-07
+are retained below for history. See `docs/BLOCKERS-2026-05-07.md` and
+`docs/TODO-NEXT-SESSION-2026-05-07.md`.
 
 ---
 

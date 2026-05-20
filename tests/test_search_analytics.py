@@ -1001,28 +1001,22 @@ class TestAnalyticsRouter:
     """Tests for the analytics router endpoints."""
 
     def test_router_import(self):
-        """Test that router can be imported from deprecated module."""
-        import warnings
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            from api.routers.analytics import router, project_analytics_router
+        """Test that router can be imported from analytics_v2 module."""
+        from api.routers.analytics_v2 import router, project_router as project_analytics_router
         assert router is not None
         assert project_analytics_router is not None
 
     def test_response_models_import(self):
-        """Test that v2 response models can be imported via deprecated wrapper."""
-        import warnings
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            from api.routers.analytics import (
-                RecordSearchRequest,
-                RecordSearchResponse,
-                QueryStatsResponse,
-                TopQueriesResponse,
-                SuggestionsResponse,
-                ClearAnalyticsResponse,
-                AnalyticsSummaryResponse,
-            )
+        """Test that v2 response models can be imported from analytics_v2."""
+        from api.routers.analytics_v2 import (
+            RecordSearchRequest,
+            RecordSearchResponse,
+            QueryStatsResponse,
+            TopQueriesResponse,
+            SuggestionsResponse,
+            ClearAnalyticsResponse,
+            AnalyticsSummaryResponse,
+        )
 
         # Verify models have expected fields
         assert hasattr(RecordSearchRequest, "model_fields")

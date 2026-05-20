@@ -20,7 +20,7 @@ from api.services.cletus_ingestion import CletusIngestionService
 logger = logging.getLogger("basset_hound.routers.cletus_integration")
 
 router = APIRouter(
-    prefix="/api/v1/cletus",
+    prefix="/cletus",
     tags=["cletus"],
     responses={
         503: {"description": "Cletus service unavailable"},

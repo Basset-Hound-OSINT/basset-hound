@@ -36,7 +36,10 @@ class Neo4jHandler:
         self.connection_timeout = float(os.getenv("NEO4J_CONNECTION_TIMEOUT", "30.0"))
 
         # Wait for Neo4j to be available
+        from neo4j.exceptions import ConfigurationError, AuthError
         wait_start = time.time()
+        max_wait_seconds = int(os.getenv("NEO4J_STARTUP_MAX_WAIT", "120"))
+        last_error = None
         while True:
             try:
                 self.driver = GraphDatabase.driver(
@@ -44,15 +47,20 @@ class Neo4jHandler:
                     auth=(self.user, self.password),
                     max_connection_pool_size=self.pool_size,
                     max_connection_lifetime=self.connection_lifetime,
-                    max_retry_time=self.max_retry_time,
                     connection_acquisition_timeout=self.connection_timeout,
                 )
-                # Try a simple query to test connection
                 with self.driver.session() as session:
-                    session.run("RETURN 1")
-                break  # Success!
+                    session.run("RETURN 1").consume()
+                break
+            except (ConfigurationError, AuthError) as e:
+                raise RuntimeError(f"Neo4j driver fatal error (cannot recover by retry): {e}") from e
             except Exception as e:
+                last_error = e
                 elapsed = int(time.time() - wait_start)
+                if elapsed >= max_wait_seconds:
+                    raise RuntimeError(
+                        f"Neo4j unreachable after {elapsed}s at {self.uri}: {last_error}"
+                    ) from last_error
                 print(f"\rWaiting to connect to Neo4j ({self.uri})... {elapsed}s", end='', flush=True)
                 time.sleep(2)
 

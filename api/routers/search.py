@@ -1183,7 +1183,7 @@ async def autocomplete(
     type: str = Query(
         "entities",
         description="Type of suggestions: 'entities', 'domains', or 'tags'",
-        regex="^(entities|domains|tags)$"
+        pattern="^(entities|domains|tags)$"
     ),
     limit: int = Query(
         10,
@@ -1291,7 +1291,7 @@ async def project_autocomplete(
     type: str = Query(
         "entities",
         description="Type of suggestions: 'entities', 'domains', or 'tags'",
-        regex="^(entities|domains|tags)$"
+        pattern="^(entities|domains|tags)$"
     ),
     limit: int = Query(
         10,

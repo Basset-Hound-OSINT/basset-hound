@@ -32,7 +32,7 @@ TEST_PROJECT_NAME = f"GraphVizTest_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 TEST_PROJECT_SAFE_NAME = TEST_PROJECT_NAME.lower().replace(" ", "_")
 
 
-class TestResult:
+class GraphVizTestResult:
     """Container for test results."""
 
     def __init__(self, name: str):
@@ -69,7 +69,7 @@ class GraphVisualizationTest:
     """End-to-end tests for graph visualization."""
 
     def __init__(self):
-        self.results: List[TestResult] = []
+        self.results: List[GraphVizTestResult] = []
         self.project_safe_name: Optional[str] = None
         self.entity_ids: List[str] = []
         self.session = requests.Session()
@@ -97,9 +97,9 @@ class GraphVisualizationTest:
             response = self.session.request(method, url, allow_redirects=True, **kwargs)
         return response
 
-    def test_api_health(self) -> TestResult:
+    def test_api_health(self) -> GraphVizTestResult:
         """Test that the API is accessible."""
-        result = TestResult("API Health Check")
+        result = GraphVizTestResult("API Health Check")
         try:
             response = self.session.get(f"{API_BASE_URL}/docs")
             if response.status_code == 200:
@@ -109,9 +109,9 @@ class GraphVisualizationTest:
         except requests.RequestException as e:
             return result.failure("Cannot connect to API", str(e))
 
-    def test_create_project(self) -> TestResult:
+    def test_create_project(self) -> GraphVizTestResult:
         """Create a test project for graph visualization testing."""
-        result = TestResult("Create Test Project")
+        result = GraphVizTestResult("Create Test Project")
         try:
             # First try to create a new project
             response = self._api_request(
@@ -155,9 +155,9 @@ class GraphVisualizationTest:
         except requests.RequestException as e:
             return result.failure("Request failed", str(e))
 
-    def test_create_entities_with_relationships(self) -> TestResult:
+    def test_create_entities_with_relationships(self) -> GraphVizTestResult:
         """Create test entities with relationships for graph testing."""
-        result = TestResult("Create Entities with Relationships")
+        result = GraphVizTestResult("Create Entities with Relationships")
 
         if not self.project_safe_name:
             return result.failure("No project available")
@@ -291,9 +291,9 @@ class GraphVisualizationTest:
         except requests.RequestException as e:
             return result.failure("Request failed", str(e))
 
-    def test_project_graph_endpoint(self) -> TestResult:
+    def test_project_graph_endpoint(self) -> GraphVizTestResult:
         """Test the full project graph endpoint."""
-        result = TestResult("Project Graph API Endpoint")
+        result = GraphVizTestResult("Project Graph API Endpoint")
 
         if not self.project_safe_name:
             return result.failure("No project available")
@@ -328,9 +328,9 @@ class GraphVisualizationTest:
         except requests.RequestException as e:
             return result.failure("Request failed", str(e))
 
-    def test_graph_cytoscape_format(self) -> TestResult:
+    def test_graph_cytoscape_format(self) -> GraphVizTestResult:
         """Test the graph endpoint with Cytoscape.js format."""
-        result = TestResult("Graph API Cytoscape Format")
+        result = GraphVizTestResult("Graph API Cytoscape Format")
 
         if not self.project_safe_name:
             return result.failure("No project available")
@@ -404,9 +404,9 @@ class GraphVisualizationTest:
         except requests.RequestException as e:
             return result.failure("Request failed", str(e))
 
-    def test_entity_subgraph_endpoint(self) -> TestResult:
+    def test_entity_subgraph_endpoint(self) -> GraphVizTestResult:
         """Test the entity-centered subgraph endpoint."""
-        result = TestResult("Entity Subgraph API Endpoint")
+        result = GraphVizTestResult("Entity Subgraph API Endpoint")
 
         if not self.project_safe_name or not self.entity_ids:
             return result.failure("No project or entities available")
@@ -476,9 +476,9 @@ class GraphVisualizationTest:
         except requests.RequestException as e:
             return result.failure("Request failed", str(e))
 
-    def test_entity_subgraph_depth_variations(self) -> TestResult:
+    def test_entity_subgraph_depth_variations(self) -> GraphVizTestResult:
         """Test subgraph with different depth values."""
-        result = TestResult("Entity Subgraph Depth Variations")
+        result = GraphVizTestResult("Entity Subgraph Depth Variations")
 
         if not self.project_safe_name or not self.entity_ids:
             return result.failure("No project or entities available")
@@ -514,9 +514,9 @@ class GraphVisualizationTest:
         except requests.RequestException as e:
             return result.failure("Request failed", str(e))
 
-    def test_graph_d3_format(self) -> TestResult:
+    def test_graph_d3_format(self) -> GraphVizTestResult:
         """Test graph endpoint with D3.js format."""
-        result = TestResult("Graph API D3 Format")
+        result = GraphVizTestResult("Graph API D3 Format")
 
         if not self.project_safe_name:
             return result.failure("No project available")
@@ -560,9 +560,9 @@ class GraphVisualizationTest:
         except requests.RequestException as e:
             return result.failure("Request failed", str(e))
 
-    def test_graph_vis_format(self) -> TestResult:
+    def test_graph_vis_format(self) -> GraphVizTestResult:
         """Test graph endpoint with vis.js format."""
-        result = TestResult("Graph API vis.js Format")
+        result = GraphVizTestResult("Graph API vis.js Format")
 
         if not self.project_safe_name:
             return result.failure("No project available")
@@ -620,9 +620,9 @@ class GraphVisualizationTest:
         except requests.RequestException as e:
             return result.failure("Request failed", str(e))
 
-    def test_nonexistent_entity_subgraph(self) -> TestResult:
+    def test_nonexistent_entity_subgraph(self) -> GraphVizTestResult:
         """Test subgraph request for non-existent entity returns 404."""
-        result = TestResult("Non-existent Entity Subgraph (404)")
+        result = GraphVizTestResult("Non-existent Entity Subgraph (404)")
 
         if not self.project_safe_name:
             return result.failure("No project available")
@@ -649,9 +649,9 @@ class GraphVisualizationTest:
         except requests.RequestException as e:
             return result.failure("Request failed", str(e))
 
-    def test_invalid_depth_parameter(self) -> TestResult:
+    def test_invalid_depth_parameter(self) -> GraphVizTestResult:
         """Test depth parameter validation."""
-        result = TestResult("Invalid Depth Parameter Validation")
+        result = GraphVizTestResult("Invalid Depth Parameter Validation")
 
         if not self.project_safe_name or not self.entity_ids:
             return result.failure("No project or entities available")
@@ -678,9 +678,9 @@ class GraphVisualizationTest:
         except requests.RequestException as e:
             return result.failure("Request failed", str(e))
 
-    def test_map_html_accessible(self) -> TestResult:
+    def test_map_html_accessible(self) -> GraphVizTestResult:
         """Test that map.html template is accessible."""
-        result = TestResult("Map HTML Template Accessible")
+        result = GraphVizTestResult("Map HTML Template Accessible")
 
         try:
             response = self.session.get(f"{API_BASE_URL}/map.html")
@@ -719,9 +719,9 @@ class GraphVisualizationTest:
         except requests.RequestException as e:
             return result.failure("Request failed", str(e))
 
-    def test_map_handler_js_accessible(self) -> TestResult:
+    def test_map_handler_js_accessible(self) -> GraphVizTestResult:
         """Test that map-handler.js is accessible."""
-        result = TestResult("Map Handler JS Accessible")
+        result = GraphVizTestResult("Map Handler JS Accessible")
 
         try:
             response = self.session.get(f"{API_BASE_URL}/static/js/map-handler.js")
@@ -760,9 +760,9 @@ class GraphVisualizationTest:
         except requests.RequestException as e:
             return result.failure("Request failed", str(e))
 
-    def test_cytoscape_elements_compatibility(self) -> TestResult:
+    def test_cytoscape_elements_compatibility(self) -> GraphVizTestResult:
         """Verify the API response is compatible with Cytoscape.js elements format."""
-        result = TestResult("Cytoscape.js Elements Compatibility")
+        result = GraphVizTestResult("Cytoscape.js Elements Compatibility")
 
         if not self.project_safe_name:
             return result.failure("No project available")
@@ -827,9 +827,9 @@ class GraphVisualizationTest:
         except requests.RequestException as e:
             return result.failure("Request failed", str(e))
 
-    def cleanup(self) -> TestResult:
+    def cleanup(self) -> GraphVizTestResult:
         """Clean up test project (only if we created it)."""
-        result = TestResult("Cleanup Test Project")
+        result = GraphVizTestResult("Cleanup Test Project")
 
         if not self.project_safe_name:
             return result.success("No cleanup needed")
@@ -855,7 +855,7 @@ class GraphVisualizationTest:
         except requests.RequestException as e:
             return result.failure("Cleanup request failed", str(e))
 
-    def run_all_tests(self) -> List[TestResult]:
+    def run_all_tests(self) -> List[GraphVizTestResult]:
         """Run all tests in sequence."""
         # Pre-flight tests
         self.results.append(self.test_api_health())
@@ -894,7 +894,7 @@ class GraphVisualizationTest:
         return self.results
 
 
-def generate_report(results: List[TestResult]) -> str:
+def generate_report(results: List[GraphVizTestResult]) -> str:
     """Generate a formatted test report."""
     lines = []
     lines.append("=" * 80)

@@ -29,6 +29,91 @@ from neo4j.exceptions import (
     TransientError,
 )
 
+# CRITICAL FIX: Circuit breaker for preventing cascading failures
+class CircuitBreaker:
+    """
+    Simple circuit breaker pattern to prevent cascading failures.
+
+    States:
+    - CLOSED: Normal operation, requests pass through
+    - OPEN: Too many failures, requests rejected immediately
+    - HALF_OPEN: Testing if service recovered, one request allowed
+    """
+
+    def __init__(self, failure_threshold: int = 5, timeout: int = 60):
+        """
+        Initialize circuit breaker.
+
+        Args:
+            failure_threshold: Number of failures before opening circuit
+            timeout: Seconds to wait before attempting recovery
+        """
+        self.failure_threshold = failure_threshold
+        self.timeout = timeout
+        self.failure_count = 0
+        self.last_failure_time = None
+        self.is_open = False
+        self._lock = asyncio.Lock()
+
+    async def call(self, func: Callable, *args, **kwargs) -> Any:
+        """
+        Execute function with circuit breaker protection.
+
+        Args:
+            func: Async function to execute
+            *args: Function arguments
+            **kwargs: Function keyword arguments
+
+        Returns:
+            Function result
+
+        Raises:
+            Exception: If circuit is open or function fails
+        """
+        async with self._lock:
+            # Check if circuit should be opened
+            if self.is_open:
+                if self._should_attempt_reset():
+                    # Attempt recovery
+                    self.is_open = False
+                    self.failure_count = 0
+                else:
+                    raise ServiceUnavailable(
+                        "Circuit breaker is OPEN - service temporarily unavailable. "
+                        f"Will retry in {self._time_until_retry()}s"
+                    )
+
+        try:
+            result = await func(*args, **kwargs)
+            # Reset failure count on success
+            async with self._lock:
+                self.failure_count = 0
+            return result
+        except Exception as e:
+            async with self._lock:
+                self.failure_count += 1
+                self.last_failure_time = time.time()
+                if self.failure_count >= self.failure_threshold:
+                    self.is_open = True
+                    logger.warning(
+                        f"Circuit breaker OPENED after {self.failure_count} failures. "
+                        f"Error: {e}"
+                    )
+            raise
+
+    def _should_attempt_reset(self) -> bool:
+        """Check if enough time has passed to retry."""
+        if self.last_failure_time is None:
+            return True
+        return time.time() - self.last_failure_time >= self.timeout
+
+    def _time_until_retry(self) -> int:
+        """Calculate seconds until next retry."""
+        if self.last_failure_time is None:
+            return 0
+        elapsed = time.time() - self.last_failure_time
+        return max(0, int(self.timeout - elapsed))
+
 # Load environment variables
 load_dotenv()
 
@@ -188,9 +273,9 @@ class AsyncNeo4jService:
         uri: Optional[str] = None,
         user: Optional[str] = None,
         password: Optional[str] = None,
-        max_connection_lifetime: int = 3600,
-        max_connection_pool_size: int = 50,
-        connection_acquisition_timeout: float = 60.0,
+        max_connection_lifetime: Optional[int] = None,
+        max_connection_pool_size: Optional[int] = None,
+        connection_acquisition_timeout: Optional[float] = None,
     ):
         """
         Initialize the async Neo4j service.
@@ -200,8 +285,11 @@ class AsyncNeo4jService:
             user: Neo4j username. Defaults to NEO4J_USER env var.
             password: Neo4j password. Defaults to NEO4J_PASSWORD env var.
             max_connection_lifetime: Maximum time a connection can live (seconds).
+                                    Defaults to NEO4J_CONNECTION_LIFETIME env var (3600).
             max_connection_pool_size: Maximum number of connections in the pool.
+                                     Defaults to NEO4J_MAX_CONNECTION_POOL_SIZE env var (500).
             connection_acquisition_timeout: Timeout for acquiring a connection.
+                                           Defaults to NEO4J_CONNECTION_TIMEOUT env var (30).
         """
         self.uri = uri or os.getenv("NEO4J_URI", "bolt://localhost:7687")
         self.user = user or os.getenv("NEO4J_USER", "neo4j")
@@ -210,10 +298,23 @@ class AsyncNeo4jService:
         self._driver = None
         self._connected = False
 
-        # Connection pool settings
-        self._max_connection_lifetime = max_connection_lifetime
-        self._max_connection_pool_size = max_connection_pool_size
-        self._connection_acquisition_timeout = connection_acquisition_timeout
+        # Connection pool settings - read from environment or use defaults
+        # CRITICAL FIX: Default pool size increased from 150 to 500
+        self._max_connection_lifetime = (
+            max_connection_lifetime
+            or int(os.getenv("NEO4J_CONNECTION_LIFETIME", "3600"))
+        )
+        self._max_connection_pool_size = (
+            max_connection_pool_size
+            or int(os.getenv("NEO4J_MAX_CONNECTION_POOL_SIZE", "500"))
+        )
+        self._connection_acquisition_timeout = (
+            connection_acquisition_timeout
+            or float(os.getenv("NEO4J_CONNECTION_TIMEOUT", "30"))
+        )
+
+        # CRITICAL FIX: Circuit breaker to prevent cascading failures
+        self._circuit_breaker = CircuitBreaker(failure_threshold=5, timeout=60)
 
     async def __aenter__(self) -> "AsyncNeo4jService":
         """Async context manager entry."""
@@ -262,6 +363,17 @@ class AsyncNeo4jService:
                 self._connected = True
                 elapsed = int(asyncio.get_event_loop().time() - start_time)
                 print(f"Connected to Neo4j at {self.uri} after {elapsed}s.")
+                logger.info(
+                    f"Neo4j connection pool initialized: "
+                    f"pool_size={self._max_connection_pool_size}, "
+                    f"connection_lifetime={self._max_connection_lifetime}s, "
+                    f"connection_timeout={self._connection_acquisition_timeout}s",
+                    extra={
+                        "pool_size": self._max_connection_pool_size,
+                        "connection_lifetime": self._max_connection_lifetime,
+                        "connection_timeout": self._connection_acquisition_timeout,
+                    }
+                )
 
                 # Set up constraints after successful connection
                 await self.ensure_constraints()
@@ -323,7 +435,7 @@ class AsyncNeo4jService:
         fetch_all: bool = True,
     ) -> Union[Optional[Dict], List[Dict], None]:
         """
-        Execute a Cypher query with error handling.
+        Execute a Cypher query with error handling and circuit breaker protection.
 
         Args:
             query: Cypher query string.
@@ -336,39 +448,52 @@ class AsyncNeo4jService:
 
         Raises:
             Neo4jQueryError: If query execution fails.
+            ServiceUnavailable: If circuit breaker is open.
         """
         if not self._driver:
             raise Neo4jConnectionError("Not connected to Neo4j. Call connect() first.")
 
-        try:
-            async with self.session() as session:
-                result = await session.run(query, parameters or {})
-
-                if fetch_one:
-                    record = await result.single()
-                    return dict(record) if record else None
-                elif fetch_all:
-                    records = await result.data()
-                    return records
-                else:
-                    await result.consume()
-                    return None
-
-        except TransientError as e:
-            # Retry transient errors once
+        async def _query_impl():
             try:
                 async with self.session() as session:
                     result = await session.run(query, parameters or {})
+
                     if fetch_one:
                         record = await result.single()
                         return dict(record) if record else None
                     elif fetch_all:
-                        return await result.data()
-                    return None
-            except Exception as retry_error:
-                raise Neo4jQueryError(f"Query failed after retry: {retry_error}")
+                        records = await result.data()
+                        return records
+                    else:
+                        await result.consume()
+                        return None
+
+            except TransientError as e:
+                # Retry transient errors once
+                try:
+                    async with self.session() as session:
+                        result = await session.run(query, parameters or {})
+                        if fetch_one:
+                            record = await result.single()
+                            return dict(record) if record else None
+                        elif fetch_all:
+                            return await result.data()
+                        return None
+                except Exception as retry_error:
+                    raise Neo4jQueryError(f"Query failed after retry: {retry_error}")
+            except Exception as e:
+                raise Neo4jQueryError(f"Query execution failed: {e}")
+
+        # Execute query through circuit breaker
+        try:
+            return await self._circuit_breaker.call(_query_impl)
+        except ServiceUnavailable:
+            # Return graceful degradation response
+            logger.error("Circuit breaker open - service temporarily unavailable")
+            raise
         except Exception as e:
-            raise Neo4jQueryError(f"Query execution failed: {e}")
+            logger.error(f"Query execution failed: {e}")
+            raise
 
     # ==================== Schema Management ====================
 

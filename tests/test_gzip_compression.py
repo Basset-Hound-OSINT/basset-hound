@@ -14,28 +14,28 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi import FastAPI
-from fastapi.middleware.gzip import GZIPMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.testclient import TestClient
 from fastapi.responses import JSONResponse
 
 
 def test_gzip_middleware_installed():
-    """Test that GZIPMiddleware is properly installed in the app."""
+    """Test that GZipMiddleware is properly installed in the app."""
     from api.main import create_application
 
     app = create_application()
 
-    # Check if GZIPMiddleware is in the app's user_middleware
+    # Check if GZipMiddleware is in the app's user_middleware
     middleware_classes = [m.cls for m in app.user_middleware]
 
-    # GZIPMiddleware should be present
-    assert GZIPMiddleware in middleware_classes, "GZIPMiddleware not found in app middleware"
+    # GZipMiddleware should be present
+    assert GZipMiddleware in middleware_classes, "GZipMiddleware not found in app middleware"
 
 
 def test_gzip_compression_large_response():
     """Test that large responses are compressed with GZIP."""
     app = FastAPI()
-    app.add_middleware(GZIPMiddleware, minimum_size=1000)
+    app.add_middleware(GZipMiddleware, minimum_size=1000)
 
     # Create a large response (> 1000 bytes)
     large_data = {
@@ -77,7 +77,7 @@ def test_gzip_compression_large_response():
 def test_no_compression_small_response():
     """Test that small responses are not compressed."""
     app = FastAPI()
-    app.add_middleware(GZIPMiddleware, minimum_size=1000)
+    app.add_middleware(GZipMiddleware, minimum_size=1000)
 
     @app.get("/test/small")
     async def get_small():
@@ -102,7 +102,7 @@ def test_websocket_not_compressed():
     """Test that WebSocket connections are not affected by GZIP."""
     # This is a theoretical test since actual WebSocket compression
     # is handled differently than HTTP response compression
-    # The GZIPMiddleware only applies to HTTP responses, not WebSocket
+    # The GZipMiddleware only applies to HTTP responses, not WebSocket
 
     from api.main import create_application
 
@@ -112,8 +112,8 @@ def test_websocket_not_compressed():
     # WebSocket middleware would be separate from HTTP middleware
     middleware_classes = [m.cls.__name__ for m in app.user_middleware]
 
-    # GZIPMiddleware should only apply to HTTP, not WebSocket
-    assert "GZIPMiddleware" in str(middleware_classes)
+    # GZipMiddleware should only apply to HTTP, not WebSocket
+    assert "GZipMiddleware" in str(middleware_classes)
 
 
 def test_minimum_size_configuration():
@@ -121,7 +121,7 @@ def test_minimum_size_configuration():
     app = FastAPI()
 
     # Add middleware with 1000 byte minimum (as per requirements)
-    app.add_middleware(GZIPMiddleware, minimum_size=1000)
+    app.add_middleware(GZipMiddleware, minimum_size=1000)
 
     # Create responses of different sizes
     size_500 = {"data": "x" * 500}
