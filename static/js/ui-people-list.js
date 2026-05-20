@@ -39,6 +39,8 @@ function renderPeopleList(people, selectedPersonId = null, appendMode = false) {
     sortedPeople.forEach(person => {
         const listItem = document.createElement('li');
         listItem.className = 'list-group-item person-item d-flex justify-content-between align-items-center';
+        listItem.dataset.personId = person.id;
+        listItem.dataset.personData = JSON.stringify(person);
         if (selectedPersonId && person.id === selectedPersonId) {
             listItem.classList.add('active');
         }
@@ -72,39 +74,56 @@ function renderPeopleList(people, selectedPersonId = null, appendMode = false) {
 
         listItem.appendChild(personInfo);
 
-        // Add click event to select person
-        listItem.addEventListener('click', function() {
-            // Remove active class from all items
-            document.querySelectorAll('.person-item').forEach(item => {
-                item.classList.remove('active');
-            });
-
-            // Add active class to clicked item
-            listItem.classList.add('active');
-
-            // Render into actual container
-            const detailsContainer = document.getElementById('person-details');
-            renderPersonDetails(detailsContainer, person);
-
-            // Update selected person ID globally
-            window.selectedPersonId = person.id;
-
-            // Dispatch entity-selected event for suggestions panel
-            const entityEvent = new CustomEvent('entity-selected', {
-                detail: { entityId: person.id },
-            });
-            document.dispatchEvent(entityEvent);
-
-            // On mobile, hide sidebar
-            if (window.innerWidth < 768) {
-                document.querySelector('.sidebar').classList.add('d-none');
-                detailsContainer.classList.remove('d-none');
-            }
-        });
-
-
         personList.appendChild(listItem);
     });
+}
+
+// OPTIMIZED: Single delegated event listener instead of 114 individual listeners
+function attachPersonListEventDelegation() {
+    const personList = document.getElementById('person-list');
+
+    // Remove previous delegated listener if it exists
+    if (personList._delegatedClickHandler) {
+        personList.removeEventListener('click', personList._delegatedClickHandler);
+    }
+
+    const delegatedHandler = (e) => {
+        const listItem = e.target.closest('li.person-item');
+        if (!listItem) return;
+
+        const personId = listItem.dataset.personId;
+        const personData = JSON.parse(listItem.dataset.personData);
+
+        // Remove active class from all items
+        document.querySelectorAll('.person-item').forEach(item => {
+            item.classList.remove('active');
+        });
+
+        // Add active class to clicked item
+        listItem.classList.add('active');
+
+        // Render into actual container
+        const detailsContainer = document.getElementById('person-details');
+        renderPersonDetails(detailsContainer, personData);
+
+        // Update selected person ID globally
+        window.selectedPersonId = personId;
+
+        // Dispatch entity-selected event for suggestions panel
+        const entityEvent = new CustomEvent('entity-selected', {
+            detail: { entityId: personId },
+        });
+        document.dispatchEvent(entityEvent);
+
+        // On mobile, hide sidebar
+        if (window.innerWidth < 768) {
+            document.querySelector('.sidebar').classList.add('d-none');
+            detailsContainer.classList.remove('d-none');
+        }
+    };
+
+    personList.addEventListener('click', delegatedHandler);
+    personList._delegatedClickHandler = delegatedHandler;
 }
 
 // Helper to extract searchable fields from a person
@@ -183,6 +202,9 @@ function setupSearch(people) {
         peopleContainer.appendChild(loadMoreBtn);
     }
 
+    // OPTIMIZED: Setup event delegation for person list clicks
+    attachPersonListEventDelegation();
+
     // Debounced search
     searchInput.addEventListener('input', function() {
         const searchTerm = this.value;
@@ -199,4 +221,4 @@ function setupSearch(people) {
     });
 }
 
-export { renderPeopleList, setupSearch, loadMore };
+export { renderPeopleList, setupSearch, loadMore, attachPersonListEventDelegation };

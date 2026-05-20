@@ -488,9 +488,13 @@ async function renderTaggedPeopleSection(container, personId) {
 
     if (!Array.isArray(taggedIds) || taggedIds.length === 0) return; // Only render if there are tags
 
-    // Fetch all people to resolve names
-    const peopleRes = await fetch('/get_people');
-    const allPeople = await peopleRes.json();
+    // OPTIMIZED: Reuse cached people data instead of fetching again
+    let allPeople = window.people;
+    if (!allPeople) {
+        const peopleRes = await fetch('/get_people');
+        allPeople = await peopleRes.json();
+        window.people = allPeople; // Cache for future use
+    }
 
     // Build a map for quick lookup
     const peopleMap = {};
@@ -527,9 +531,13 @@ async function renderTaggedPeopleSection(container, personId) {
 }
 
 async function renderTransitivePeopleSection(container, personId) {
-    // Fetch all people and this person's tags
-    const peopleRes = await fetch('/get_people');
-    const allPeople = await peopleRes.json();
+    // OPTIMIZED: Reuse cached people data instead of fetching again
+    let allPeople = window.people;
+    if (!allPeople) {
+        const peopleRes = await fetch('/get_people');
+        allPeople = await peopleRes.json();
+        window.people = allPeople; // Cache for future use
+    }
 
     // Build a map for quick lookup
     const peopleMap = {};
