@@ -2,16 +2,15 @@
 
 /**
  * Simple JavaScript minifier for basset-hound frontend
- * Removes comments, whitespace, and compresses variable names
+ * Removes comments, whitespace, and unnecessary spacing
  * Run: node scripts/minify-js.js
  */
 
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
+const fs = require('fs');
+const path = require('path');
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PROJECT_ROOT = path.join(__dirname, '..');
+const SCRIPT_DIR = path.dirname(path.resolve(__filename));
+const PROJECT_ROOT = path.join(SCRIPT_DIR, '..');
 const STATIC_JS_DIR = path.join(PROJECT_ROOT, 'static', 'js');
 const DIST_JS_DIR = path.join(PROJECT_ROOT, 'static', 'js', 'dist');
 
@@ -79,7 +78,7 @@ function getJSFiles(dir) {
 /**
  * Main execution
  */
-async function main() {
+function main() {
     console.log('Starting JavaScript minification...\n');
 
     const jsFiles = getJSFiles(STATIC_JS_DIR).filter(f => !f.includes('/dist/'));
@@ -104,4 +103,4 @@ async function main() {
     console.log(`Total: ${totalSize} → ${minifiedTotalSize} bytes (${((1 - minifiedTotalSize / totalSize) * 100).toFixed(2)}% savings)`);
 }
 
-main().catch(console.error);
+main();
